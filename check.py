@@ -559,6 +559,9 @@ def dispatch_control():
     print(f"  shuffled-history parts odds {odds_off['fixes_per_call']:.1%}: dispatch needs only appliance-level "
           f"parts odds, since at night any truck can load anything but locked or back-ordered parts")
     require(abs(same["fixes_per_call"] - staple["fixes_per_call"]) < 1e-12, "the control's machinery changes the answer by itself")
+    side = max(c["rolled"] for c in (skills_off, odds_off)) - staple["rolled"]
+    print(f"  the controls roll {side:+} calls beyond Staple's, so neither wins by overbooking the day")
+    require(side <= 0.01 * staple["calls"], "a control withdraws the gain by overbooking routes, not by choosing worse")
     require(skills_off["fixes_per_call"] - parts["fixes_per_call"] <= 0.5 * (staple["fixes_per_call"] - parts["fixes_per_call"]),
             "shuffled skills keep most of the skill gain: it may not come from knowing the technicians")
     require(abs(odds_off["fixes_per_call"] - staple["fixes_per_call"]) < 0.01,
