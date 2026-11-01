@@ -87,3 +87,8 @@ CREATE TABLE job_parts (
 
 CREATE INDEX jobs_split_type ON jobs(split, type);
 CREATE INDEX job_parts_job ON job_parts(job);
+
+-- Results, written by the back-test.
+CREATE TABLE backtest (method TEXT NOT NULL, k INTEGER NOT NULL, coverage REAL NOT NULL, PRIMARY KEY (method, k));
+CREATE TABLE backtest_groups (grp TEXT NOT NULL, method TEXT NOT NULL, k INTEGER NOT NULL,
+                              jobs INTEGER NOT NULL, coverage REAL NOT NULL);

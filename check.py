@@ -163,6 +163,93 @@ def one(conn, sql, *args):
     return conn.execute(sql, args).fetchone()[0]
 
 
+_WORLD = {}
+
+
+def shared_world():
+    """One freshly built world per run of check.py, shared by every check that only reads it."""
+    if "conn" not in _WORLD:
+        tmp = tempfile.mkdtemp(prefix="staple-check-")
+        _WORLD["conn"] = built_world(Path(tmp) / "world.db")
+    return _WORLD["conn"]
+
+
+@check("predictor")
+def predictor():
+    from staple.predict import Predictor
+    conn = shared_world()
+    p = Predictor(conn)
+
+    fam, problem, n = conn.execute("""SELECT family, booked_problem, COUNT(*) n FROM jobs WHERE split = 'train'
+                                      GROUP BY 1, 2 ORDER BY n DESC LIMIT 1""").fetchone()
+    appliance = problem.split(".")[0]
+    raw = dict(conn.execute("""SELECT jp.part, COUNT(*) * 1.0 / ? FROM jobs j JOIN job_parts jp USING (job)
+                               WHERE j.split = 'train' AND j.family = ? AND j.booked_problem = ?
+                               GROUP BY jp.part""", (n, fam, problem)).fetchall())
+    odds = p.odds(appliance, fam, problem)
+    top = max(raw, key=lambda k: raw[k])
+    print(f"  plenty of history: {fam} {problem}, {n} past jobs; {top.split('/')[1]} needed on "
+          f"{raw[top]:.1%} of them; the predictor says {odds[top]:.1%}")
+    require(abs(odds[top] - raw[top]) < 0.02, "with plenty of history the odds should match the plain share")
+
+    n_t, c_t = p.history("type", appliance)
+    n_p, c_p = p.history("problem", problem)
+    n_f, c_f = p.history("family", (fam, problem))
+    p_type = c_t[top] / n_t
+    p_problem = (c_p[top] + 20 * p_type) / (n_p + 20)
+    by_hand = (c_f[top] + 20 * p_problem) / (n_f + 20)
+    require(abs(by_hand - odds[top]) < 1e-12, "the odds do not match the arithmetic written in the docstring")
+    print("  the same number recomputed by hand from the three levels' counts: matches")
+
+    thin_fam, thin_problem, thin_n = conn.execute("""SELECT j.family, j.booked_problem, COUNT(*) n FROM jobs j
+        JOIN families f USING (family) WHERE j.split = 'train' AND f.first_day > '2026-01-01'
+        GROUP BY 1, 2 ORDER BY n ASC, 1, 2 LIMIT 1""").fetchone()
+    thin_type = thin_problem.split(".")[0]
+    thin_odds = Predictor(conn).odds(thin_type, thin_fam, thin_problem)
+    raw_only = Predictor(conn, pull=0).odds(thin_type, thin_fam, thin_problem)
+    n_p2, c_p2 = p.history("problem", thin_problem)
+    wider = {part: c_p2[part] / n_p2 for part in thin_odds}
+    lean = sum(abs(thin_odds[x] - wider[x]) for x in thin_odds)
+    no_lean = sum(abs(raw_only[x] - wider[x]) for x in thin_odds)
+    print(f"  thin history: {thin_fam} {thin_problem}, {thin_n} past job(s); distance from the wider "
+          f"group's odds {lean:.2f} with the pull, {no_lean:.2f} without")
+    require(lean < no_lean, "thin history should lean toward the wider group")
+
+    carry = p.carry_list(appliance, fam, problem, 4)
+    require(len(carry) == 4 and all(odds[a] >= odds[b] for a, b in zip(carry, carry[1:])),
+            "a carry list must hold k parts in falling order of odds")
+
+
+@check("backtest")
+def backtest_check():
+    from staple import backtest
+    r = backtest.run(shared_world())
+    cov, k = r["coverage"], backtest.SHOWN_K
+    print(f"  {r['jobs']:,} held-back jobs; coverage with {k} parts: predictor {cov['predictor'][k]:.1%}, "
+          f"national top parts {cov['national top parts'][k]:.1%}, today's trucks {r['today']:.1%}")
+    require(cov["predictor"][k] > cov["national top parts"][k] + 0.10, "the predictor does not beat the baseline")
+    curve = [cov["predictor"][i] for i in backtest.KS]
+    require(all(a <= b for a, b in zip(curve, curve[1:])), "coverage fell as the list got longer")
+    newest = r["groups"]["newest model families"]
+    print(f"  newest families: {newest['predictor'][1]:.1%} with the lean, "
+          f"{newest['no lean on wider groups'][1]:.1%} without")
+    require(newest["predictor"][1] > newest["no lean on wider groups"][1], "the lean does not help thin history")
+
+
+@check("control")
+def control():
+    from staple import backtest
+    r = backtest.run(shared_world())
+    cov = r["coverage"]
+    for k in range(1, 7):
+        shuffled, base, real = (cov[m][k] for m in ("shuffled-history control", "national top parts", "predictor"))
+        require(abs(shuffled - base) <= 0.03, f"with {k} parts the shuffled control sits {shuffled - base:+.1%} "
+                                              "from the baseline: the gain may be an artefact")
+        require(real - shuffled > 0.05 or k >= 6, f"with {k} parts the predictor barely beats its own control")
+    print(f"  shuffled history scores {cov['shuffled-history control'][3]:.1%} with 3 parts against the "
+          f"baseline's {cov['national top parts'][3]:.1%}: the gain comes from the history's links, not the method")
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
