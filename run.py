@@ -1,7 +1,7 @@
 """The one command: `python run.py` builds the made-up world and every result from it, into out/."""
 import time
 
-from staple import backtest, db, load, world
+from staple import backorders, backtest, db, load, world
 
 
 def main():
@@ -27,6 +27,11 @@ def main():
     av = ld["availability"]
     print(f"  {av['blocked']:,} jobs needed a part no truck nearby holds; the odds predicted {av['expected']:.0f}; "
           f"the flag caught {av['caught']:,} of them in {av['flagged']:,} flags")
+    stuck = backorders.run(conn, ld["fleet"], backtest.test_jobs(conn))
+    print(f"fleet back-order list, {len(stuck)} parts, top three by repeat-visit dollars at risk before arrival:")
+    for r in stuck[:3]:
+        print(f"  {r['part']}: arrives in {r['eta']} days, {r['expected']:.1f} calls expected, "
+              f"{r['stuck']:.1f} with no truck nearby holding one (${r['at_risk']:,.0f})")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 

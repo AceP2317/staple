@@ -106,3 +106,12 @@ CREATE TABLE load_policy (
 );
 CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL NOT NULL,
                            PRIMARY KEY (kind, measure));
+
+-- The fleet back-order list, back-tested from the first held-back day. Forecasts use training only.
+CREATE TABLE backorder_list (
+  part TEXT PRIMARY KEY REFERENCES parts(part), eta_days INTEGER NOT NULL,
+  holders TEXT NOT NULL,                          -- technicians whose trucks hold one today
+  open_zones INTEGER NOT NULL,                    -- zones with no holder based within 30 minutes
+  expected_calls REAL NOT NULL, expected_stuck REAL NOT NULL, at_risk REAL NOT NULL,
+  actual_calls INTEGER NOT NULL, actual_stuck INTEGER NOT NULL
+);

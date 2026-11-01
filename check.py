@@ -355,6 +355,32 @@ def dollars():
             "the odds of a stuck part do not predict how many jobs were blocked")
 
 
+def calibrated(actual, predicted):
+    """A count lands within three Poisson spreads of its forecast."""
+    return abs(actual - predicted) <= 3 * predicted ** 0.5
+
+
+@check("backorders")
+def backorders_check():
+    from staple import backorders, backtest, load
+    conn = shared_world()
+    jobs = backtest.test_jobs(conn)
+    fleet = load.Fleet(conn)
+    rows = backorders.run(conn, fleet, jobs)
+    for r in rows[:5]:
+        print(f"  {r['part']}: arrives in {r['eta']} days; {len(r['holders'])} trucks hold one; "
+              f"{r['expected']:.1f} calls expected, {r['stuck']:.1f} stuck (${r['at_risk']:,.0f} at risk); "
+              f"{r['actual']} came, {r['actual_stuck']} stuck")
+    require(sorted(r["part"] for r in rows) == sorted(fleet.eta), "the list does not hold every back-ordered part once")
+    require(all(a["at_risk"] >= b["at_risk"] for a, b in zip(rows, rows[1:])), "the list is not ranked by dollars at risk")
+    for name, actual, predicted in (("calls", sum(r["actual"] for r in rows), sum(r["expected"] for r in rows)),
+                                    ("stuck calls", sum(r["actual_stuck"] for r in rows), sum(r["stuck"] for r in rows))):
+        print(f"  {name} before arrival: forecast {predicted:.1f}, actual {actual}; "
+              f"a forecast three times too high {'passes' if calibrated(actual, 3 * predicted) else 'fails'}")
+        require(calibrated(actual, predicted), f"the forecast of {name} misses by more than three spreads")
+        require(not calibrated(actual, 3 * predicted), f"the {name} test cannot tell a forecast three times too high")
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
