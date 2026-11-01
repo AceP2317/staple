@@ -4,6 +4,7 @@ Each check prints what it measured and exits non-zero on failure. The controls e
 check can still fail: a check that never fails looks exactly like one that sees nothing.
 """
 import ast
+from collections import Counter
 import os
 import re
 import subprocess
@@ -488,6 +489,80 @@ def triage_check():
     print(f"  live mode against a local stand-in: documented request sent, reply read; refusal raised: {refused}; "
           f"{rejected} of 3 malformed replies rejected")
     require(refused and rejected == 3, "live mode lets a refusal or a malformed reply through")
+
+
+def visit_faults(result, jobs):
+    """What breaks the day's rules: a call served twice or lost, a visit by a sick technician, a broken truck
+    working after its breakdown, a route running past 17:00."""
+    from staple import dispatch
+    faults = Counter()
+    served = Counter(job for _, _, job, _, _, _ in result["visits"])
+    rolled = Counter(result["rolled_jobs"])
+    faults["served or rolled other than once"] = sum(1 for j in jobs if served[j["job"]] + rolled[j["job"]] != 1)
+    for day, tech, _, start, end, _ in result["visits"]:
+        sick, broken = result["events"][day]
+        faults["visit by a sick technician"] += tech in sick
+        faults["visit on a broken truck after it broke"] += tech in broken and start >= broken[tech]
+        faults["visit past 17:00"] += end > dispatch.DAY + 1e-9
+    return +faults
+
+
+@check("dispatch")
+def dispatch_check():
+    from staple import backtest, dispatch
+    conn = shared_world()
+    jobs = backtest.test_jobs(conn)
+    out = dispatch.run(conn, jobs)
+    for name, r in out.items():
+        print(f"  {name}: first-visit fix {r['fixes_per_call']:.1%} of calls; parts missing {r['parts_missing']:.1%}; "
+              f"{r['rolled']} rolled to tomorrow; {r['drive_per_call']:.1f} drive minutes a call; ${r['cost_per_call']:.2f} a call")
+    today, loaded, skills, parts, staple = (out[name] for name, *_ in dispatch.POLICIES)
+    print(f"  {staple['sick']} sick days and {staple['broken']} breakdowns moved {staple['moved']} calls; "
+          f"those calls were fixed first time {staple['moved_fix_rate']:.1%} against {staple['fix_rate']:.1%} overall")
+    require(loaded["parts_missing"] < today["parts_missing"], "balanced loads do not beat today's stock under surprises")
+    require(staple["fixes_per_call"] > loaded["fixes_per_call"] > today["fixes_per_call"],
+            "Staple's dispatch does not beat sending the nearest technician")
+    require(staple["fixes_per_call"] >= max(skills["fixes_per_call"], parts["fixes_per_call"]),
+            "knowing both skills and parts does worse than knowing one")
+    require(staple["cost_per_call"] < loaded["cost_per_call"], "the extra driving costs more than the fixes it buys")
+
+    jobs = backtest.test_jobs(conn)
+    from staple import load
+    load.mark_unplanned(jobs)
+    recorded = dispatch.replay(conn, jobs, "skills and parts", "balanced", record=True)
+    faults = visit_faults(recorded, jobs)
+    day = next(iter(recorded["events"]))
+    planted = dict(recorded, visits=recorded["visits"] + [(day, "T99", jobs[0]["job"], 600.0, 700.0, True)],
+                   events=dict(recorded["events"], **{day: ({"T99"}, {"T99": 0.0})}))
+    caught = visit_faults(planted, jobs)
+    print(f"  rule breaks in {len(recorded['visits']):,} visits: {sum(faults.values())}; "
+          f"a planted visit shows {len(caught)} of 4 kinds")
+    require(not faults, f"the replay breaks the day's rules: {dict(faults)}")
+    require(len(caught) == 4, f"the rule check misses a planted break: it saw {dict(caught)}")
+
+
+@check("dispatch-control")
+def dispatch_control():
+    from staple import backtest, dispatch, load
+    conn = shared_world()
+    jobs = backtest.test_jobs(conn)
+    out = dispatch.run(conn, jobs)
+    same = dispatch.replay(conn, jobs, "skills and parts", "balanced", dispatch.Crew(conn))
+    base, parts, staple = (out[n] for n in ("nearest technician, balanced loads", "parts only, balanced loads",
+                                            "Staple: skills and parts, balanced loads"))
+    skills_off, odds_off = out[dispatch.SHUFFLED_SKILLS], out[dispatch.SHUFFLED_ODDS]
+    print(f"  first-visit fix a call: nearest {base['fixes_per_call']:.1%}, parts only {parts['fixes_per_call']:.1%}, "
+          f"Staple {staple['fixes_per_call']:.1%}")
+    print(f"  shuffled skills {skills_off['fixes_per_call']:.1%}: the skill gain over parts only "
+          f"({staple['fixes_per_call'] - parts['fixes_per_call']:+.1%}) becomes "
+          f"{skills_off['fixes_per_call'] - parts['fixes_per_call']:+.1%}")
+    print(f"  shuffled-history parts odds {odds_off['fixes_per_call']:.1%}: dispatch needs only appliance-level "
+          f"parts odds, since at night any truck can load anything but locked or back-ordered parts")
+    require(abs(same["fixes_per_call"] - staple["fixes_per_call"]) < 1e-12, "the control's machinery changes the answer by itself")
+    require(skills_off["fixes_per_call"] - parts["fixes_per_call"] <= 0.5 * (staple["fixes_per_call"] - parts["fixes_per_call"]),
+            "shuffled skills keep most of the skill gain: it may not come from knowing the technicians")
+    require(abs(odds_off["fixes_per_call"] - staple["fixes_per_call"]) < 0.01,
+            "model-level parts odds now matter to dispatch: re-read the claim that appliance-level odds suffice")
 
 
 @check("data")

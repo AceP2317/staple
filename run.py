@@ -3,7 +3,7 @@
 import sys
 import time
 
-from staple import backorders, backtest, db, load, triage, world
+from staple import backorders, backtest, db, dispatch, load, triage, world
 
 
 def main():
@@ -42,6 +42,11 @@ def main():
               f"{r['agree_true']:.1%}; 3-part list covers {r['coverage']:.1%}")
     print(f"  follow-up question asked on {tr['asked']:,} unsure bookings; the customer's problem was among "
           f"the offered answers on {tr['settled']:,}")
+    dp = dispatch.run(conn, backtest.test_jobs(conn))
+    print("dispatch replay of every held-back day, with the same made-up sick calls, breakdowns and priority changes:")
+    for name, r in dp.items():
+        print(f"  {name:<52} first-visit fix {r['fixes_per_call']:.1%} of calls, {r['drive_per_call']:.0f} drive "
+              f"minutes a call, ${r['cost_per_call']:.0f} a call")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 
