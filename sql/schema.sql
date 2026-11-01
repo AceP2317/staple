@@ -88,6 +88,9 @@ CREATE TABLE job_parts (
 CREATE INDEX jobs_split_type ON jobs(split, type);
 CREATE INDEX job_parts_job ON job_parts(job);
 
+-- Every made-up dollar and rate the results rest on, written from the code's own constants.
+CREATE TABLE assumptions (name TEXT PRIMARY KEY, value REAL NOT NULL, meaning TEXT NOT NULL);
+
 -- Results, written by the back-test.
 CREATE TABLE backtest (method TEXT NOT NULL, k INTEGER NOT NULL, coverage REAL NOT NULL, PRIMARY KEY (method, k));
 CREATE TABLE backtest_groups (grp TEXT NOT NULL, method TEXT NOT NULL, k INTEGER NOT NULL,

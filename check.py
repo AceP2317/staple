@@ -4,7 +4,7 @@ Each check prints what it measured and exits non-zero on failure. The controls e
 check can still fail: a check that never fails looks exactly like one that sees nothing.
 """
 import ast
-from collections import Counter
+from collections import Counter, defaultdict
 import os
 import re
 import subprocess
@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 SIZE_CEILING = 2500  # lines of Python and SQL outside the checks; raise it on purpose, never by drift
-CODE_GLOBS = ["staple/*.py", "sql/*.sql", "run.py"]
+CODE_GLOBS = ["staple/*.py", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
@@ -569,6 +569,126 @@ def dispatch_control():
             "shuffled skills keep most of the skill gain: it may not come from knowing the technicians")
     require(abs(odds_off["fixes_per_call"] - staple["fixes_per_call"]) < 0.01,
             "model-level parts odds now matter to dispatch: re-read the claim that appliance-level odds suffice")
+
+
+def results_written(conn):
+    """Fill every results table the way run.py does, unless an earlier check in this run already has."""
+    from staple import backorders, backtest, dispatch, load, triage
+    for table, fill in (("backtest", lambda: backtest.run(conn)),
+                        ("load_policy", lambda: load.run(conn, backtest.test_jobs(conn))),
+                        ("backorder_list", lambda: backorders.run(conn, load.Fleet(conn), backtest.test_jobs(conn))),
+                        ("triage", lambda: triage.run(conn, backtest.test_jobs(conn), *triage.load(conn))),
+                        ("dispatch", lambda: dispatch.run(conn, backtest.test_jobs(conn)))):
+        if not one(conn, f"SELECT COUNT(*) FROM {table}"):
+            fill()
+
+
+def by_hand(conn):
+    """The four history metrics recomputed in Python, apart from the SQL, keyed as the SQL keys them."""
+    from datetime import date, timedelta
+    from staple import load
+    jobs = conn.execute("SELECT job, day, type, tech, parts_on_truck, first_visit_fix FROM jobs").fetchall()
+    needed = defaultdict(set)
+    for job, part in conn.execute("SELECT job, part FROM job_parts"):
+        needed[job].add(part)
+    stock = load.Fleet(conn).stock
+    month, kind = defaultdict(list), defaultdict(Counter)
+    for job, day, kind_, tech, on_truck, fixed in jobs:
+        month[day[:7]].append(fixed)
+        c = kind[kind_]
+        c["jobs"] += 1
+        c["parts_caused"] += not fixed and not on_truck
+        c["lines"] += len(needed[job])
+        c["on"] += len(needed[job] & stock[tech])
+        c["needing"] += bool(needed[job])
+        c["whole"] += bool(needed[job]) and needed[job] <= stock[tech]
+    test_from = date.fromisoformat(one(conn, "SELECT MIN(day) FROM jobs WHERE split = 'test'"))
+    used = {(tech, p) for job, day, _, tech, *_ in jobs
+            if test_from - timedelta(days=365) <= date.fromisoformat(day) < test_from for p in needed[job]}
+    cost = dict(conn.execute("SELECT part, cost FROM parts"))
+    unused = {truck: round(sum(cost[p] for p in stock[tech] if (tech, p) not in used))
+              for truck, tech in conn.execute("SELECT truck, tech FROM trucks")}
+    return {"first_time_fix": {m: round(100 * sum(v) / len(v), 1) for m, v in month.items()},
+            "parts_caused_reschedules": {t: round(100 * c["parts_caused"] / c["jobs"], 1) for t, c in kind.items()},
+            "line_fill": {t: round(100 * c["on"] / c["lines"], 1) for t, c in kind.items()},
+            "job_fill": {t: round(100 * c["whole"] / c["needing"], 1) for t, c in kind.items()},
+            "slow_truck_stock": unused}
+
+
+def keyed(result, key, value):
+    columns, rows = result
+    return {r[columns.index(key)]: r[columns.index(value)] for r in rows}
+
+
+def history_metrics(results):
+    return {"first_time_fix": keyed(results["first_time_fix"], "month", "first_time_fix_pct"),
+            "parts_caused_reschedules": keyed(results["parts_caused_reschedules"], "appliance", "parts_caused_per_100_jobs"),
+            "line_fill": keyed(results["truck_fill_rate"], "appliance", "line_fill_pct"),
+            "job_fill": keyed(results["truck_fill_rate"], "appliance", "job_fill_pct"),
+            "slow_truck_stock": keyed(results["slow_truck_stock"], "truck", "unused_value")}
+
+
+def disagreements(sql, hand):
+    """The keys, per metric, where the SQL and the Python recomputation differ by more than rounding."""
+    out = {}
+    for name in sql:
+        slack = 0.51 if name == "slow_truck_stock" else 0.051   # whole dollars there, tenths of a percent elsewhere
+        bad = sorted(k for k in set(sql[name]) | set(hand[name])
+                     if k not in sql[name] or k not in hand[name] or abs(sql[name][k] - hand[name][k]) > slack)
+        if bad:
+            out[name] = bad
+    return out
+
+
+@check("sql")
+def sql_metrics():
+    import sqlite3
+    from staple import metrics
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+        files = sorted(Path(tmp).glob("*.csv"))
+        for name, (columns, rows) in results.items():
+            print(f"  {name}: {len(rows)} rows, {len(columns)} columns")
+            require(rows, f"{name} returns no rows")
+            require(all(v is not None for r in rows for v in r), f"{name} returns an empty value")
+        require(len(files) == len(results) == len(list(metrics.SQL.glob("*.sql"))), "a metric did not write its CSV")
+
+        base = history_metrics(results)
+        off = disagreements(base, by_hand(conn))
+        print(f"  history metrics recomputed in Python apart from the SQL: {len(base) - len(off)} of {len(base)} agree")
+        require(not off, f"the SQL and the Python recomputation disagree: {off}")
+        sql_roi = {(r[0], r[1]): r[-1] for r in results["inventory_roi"][1]}
+        replay_roi = {(p, k): r for p, k, r in
+                      conn.execute("SELECT policy, k, roi FROM load_policy WHERE policy NOT LIKE '%shuffled%'")}
+        require(set(sql_roi) == set(replay_roi), "inventory ROI dropped or added a policy")
+        worst = max(abs(sql_roi[key] - replay_roi[key]) for key in replay_roi)
+        print(f"  inventory ROI from the SQL's own formula against the replay's: worst gap {worst:.3f} over {len(replay_roi)} policies")
+        require(worst < 0.006, "the SQL's inventory ROI is not the replay's")
+
+        # Control: plant changes in a copy and watch each history metric move, so agreement is not two blind checks.
+        copy = sqlite3.connect(":memory:")
+        conn.backup(copy)
+        first = min(base["first_time_fix"])
+        truck, _, part = copy.execute("""SELECT t.truck, t.tech, s.part FROM truck_stock s JOIN trucks t USING (truck)
+                                            JOIN job_parts jp ON jp.part = s.part JOIN jobs j ON j.job = jp.job AND j.tech = t.tech
+                                            ORDER BY t.truck, s.part LIMIT 1""").fetchone()
+        other = one(copy, "SELECT MAX(truck) FROM trucks")
+        copy.execute("UPDATE jobs SET first_visit_fix = 0 WHERE substr(day, 1, 7) = ?", (first,))
+        copy.execute("DELETE FROM truck_stock WHERE truck = ? AND part = ?", (truck, part))
+        # Every technician's jobs have needed every real part at some point, so the unused part is a new one.
+        copy.execute("INSERT INTO parts VALUES ('washer/planted part', 'washer', 'planted part', 50, 1, 0)")
+        copy.execute("INSERT INTO truck_stock VALUES (?, 'washer/planted part', 1)", (other,))
+        planted = history_metrics(metrics.run(copy, Path(tmp) / "planted"))
+        kind = one(copy, "SELECT type FROM parts WHERE part = ?", part)
+        moved = {"a month's fixes zeroed": planted["first_time_fix"][first] == 0 < base["first_time_fix"][first],
+                 "a needed part taken off a truck": planted["line_fill"][kind] < base["line_fill"][kind],
+                 "an unused part put on a truck": planted["slow_truck_stock"][other] == base["slow_truck_stock"][other] + 50}
+        print(f"  control: planted changes moved {sum(moved.values())} of {len(moved)} metrics")
+        require(all(moved.values()), f"a metric did not move under a planted change: {moved}")
+        require(not disagreements(planted, by_hand(copy)), "the recomputation and the SQL part ways on planted data")
+        copy.close()
 
 
 @check("data")

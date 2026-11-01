@@ -3,7 +3,7 @@
 import sys
 import time
 
-from staple import backorders, backtest, db, dispatch, load, triage, world
+from staple import backorders, backtest, db, dispatch, load, metrics, triage, world
 
 
 def main():
@@ -47,6 +47,8 @@ def main():
     for name, r in dp.items():
         print(f"  {name:<52} first-visit fix {r['fixes_per_call']:.1%} of calls, {r['drive_per_call']:.0f} drive "
               f"minutes a call, ${r['cost_per_call']:.0f} a call")
+    found = metrics.run(conn)
+    print(f"metrics: {len(found)} SQL files in sql/metrics/, each result written to out/metrics/<name>.csv")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 
