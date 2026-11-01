@@ -107,6 +107,11 @@ CREATE TABLE load_policy (
 CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL NOT NULL,
                            PRIMARY KEY (kind, measure));
 
+-- The AI step on held-back jobs: how each reading of the customer's words agrees with the booked code
+-- and the true problem, and the first-visit coverage of the 3-part carry list it leads to.
+CREATE TABLE triage (method TEXT PRIMARY KEY, jobs INTEGER NOT NULL, agree_booked REAL NOT NULL,
+                     agree_true REAL NOT NULL, coverage REAL NOT NULL);
+
 -- The fleet back-order list, back-tested from the first held-back day. Forecasts use training only.
 CREATE TABLE backorder_list (
   part TEXT PRIMARY KEY REFERENCES parts(part), eta_days INTEGER NOT NULL,

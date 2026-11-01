@@ -18,10 +18,11 @@ def test_jobs(conn):
             "SELECT jp.job, jp.part FROM job_parts jp JOIN jobs j USING (job) WHERE j.split = 'test'"):
         needed[job].add(part)
     rows = conn.execute("""SELECT j.job, j.type, j.family, j.booked_problem, j.noise, j.parts_on_truck,
-                                  f.first_day > '2026-01-01', j.day, j.tech, j.zone
+                                  f.first_day > '2026-01-01', j.day, j.tech, j.zone, j.words, j.true_problem
                            FROM jobs j JOIN families f USING (family) WHERE j.split = 'test' ORDER BY j.job""")
     return [{"job": r[0], "type": r[1], "family": r[2], "problem": r[3], "noise": r[4], "on_truck": r[5],
-             "thin": bool(r[6]), "day": r[7], "tech": r[8], "zone": r[9], "needed": needed[r[0]]} for r in rows]
+             "thin": bool(r[6]), "day": r[7], "tech": r[8], "zone": r[9], "words": r[10], "true": r[11],
+             "needed": needed[r[0]]} for r in rows]
 
 
 def coverage(jobs, list_for, k):
