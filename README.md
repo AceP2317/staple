@@ -20,10 +20,10 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
   wider appliance group.
 - **Loads the truck.** Each night it builds every truck's load from tomorrow's booked calls. A part stays
   aboard only while the second visits it saves outweigh the space and money it ties up.
-- **Marks where each part comes from.** On this truck, from a distribution centre overnight, on another
+- **Marks where each part comes from.** On this truck, from a distribution center overnight, on another
   truck nearby, back-ordered, or locked to a certified technician. A booking likely to need a part nobody
   nearby holds gets flagged before the visit.
-- **Ranks the back-orders.** Each part the centres cannot ship, by the second visits it puts at risk before
+- **Ranks the back-orders.** Each part the centers cannot ship, by the second visits it puts at risk before
   it arrives.
 - **Reads the customer's words.** Claude Haiku 5.5 (`claude-haiku-5-5`) turns what the customer said into a
   problem code with a confidence, and asks one short follow-up question when it is unsure. Its answers ship

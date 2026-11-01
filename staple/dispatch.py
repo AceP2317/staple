@@ -90,7 +90,7 @@ def miss_odds(lists, job, has):
 
 def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=2026, part_odds=None):
     """One policy over every held-back day. rule is "nearest", "skills" or "skills and parts". part_odds, when
-    given, replaces the predictor's odds in the dispatcher's parts judgement only; trucks still load on the real ones."""
+    given, replaces the predictor's odds in the dispatcher's parts judgment only; trucks still load on the real ones."""
     crew = crew or Crew(conn)
     fleet, predictor = load.Fleet(conn), Predictor(conn)
     lists, surprise = load.ranked_lists(predictor, jobs), load.surprise_value(conn, predictor)

@@ -27,7 +27,7 @@ always be traced to one query, and that query to one table.
 ## The made-up world
 
 - `staple/world.py` invents everything: appliance types, model families, problems, parts with a cost and a
-  size, technicians with a skill and speed per appliance, trucks, zones and distribution centres. It also
+  size, technicians with a skill and speed per appliance, trucks, zones and distribution centers. It also
   writes three years of repair jobs. It plants noise on purpose, so the methods are tested against it:
   customers who describe the wrong problem, thin history on the newest families, and failures that follow
   no pattern. One fixed seed writes the same rows every time.
@@ -54,7 +54,7 @@ always be traced to one query, and that query to one table.
   the cost of moving and holding it. That is the same netting a planner does, demand against stock with a
   carrying cost. The module also marks where each carry-list part would come from, and flags a booking
   likely to need a part nobody nearby holds.
-- `staple/backorders.py` ranks every part the centres cannot ship by the second visits it puts at risk before
+- `staple/backorders.py` ranks every part the centers cannot ship by the second visits it puts at risk before
   it arrives: an expedite list ordered by exposure. Which booking will need a stuck part cannot be known in
   advance, but how many will can, so the action is fleet-wide. The list is held to what the held-back days
   then brought.
@@ -103,7 +103,7 @@ always be traced to one query, and that query to one table.
   hover hint for nearly every number, heading, bar and column, and stamps each page with the build that made
   it. The manuals quote every constant, prompt, query and check straight from the code, so they cannot
   disagree with what ran.
-- `staple/pages/house.css` is the look: colours as named tokens, light and dark, the hover marker and the
+- `staple/pages/house.css` is the look: colors as named tokens, light and dark, the hover marker and the
   phone layout.
 - `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, and moves the chart's crosshair.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the

@@ -40,7 +40,7 @@ GLOSSARY = {
     "control": "A deliberately broken copy of a method with its data's links shuffled. If it scores as well, the gain is not real.",
     "lean": f"Where a model family has little history, its odds lean on the wider group, as if {predict.PULL} more jobs were seen there.",
     "regret insertion": "Placing first the call that loses most if its best technician's day fills up, not the call booked first.",
-    "back-order": "A part the distribution centres cannot ship until a set day.",
+    "back-order": "A part the distribution centers cannot ship until a set day.",
     "booked code": "The problem code the booking recorded from the customer's words. Real history knows only this code.",
     "true problem": "What was really wrong. Known here only because the history is invented.",
     "unplanned call": f"A call added or moved on the day, {load.UNPLANNED:.0%} of calls (made up). No night-before list saw it.",
@@ -77,7 +77,7 @@ COLUMNS = {
     "method": "How the customer's words were read.", "agrees_booked_pct": "Readings that match the booked code.",
     "agrees_true_pct": "Readings that match the true problem, known only because the data is invented.",
     "coverage_pct": "Jobs whose every needed part is on the 3-part list built from the reading.",
-    "part": "The back-ordered part.", "eta_days": "Days until the centres can ship it.",
+    "part": "The back-ordered part.", "eta_days": "Days until the centers can ship it.",
     "trucks_holding": "Trucks that hold one today.",
     "open_zones": f"Zones with no holding truck based within {load.NEARBY_MINUTES} minutes.",
     "expected_calls": "Calls forecast to need it before it ships, from training history.",
@@ -88,9 +88,9 @@ COLUMNS = {
 MARK_HELP = {
     "needs a certified technician": ("The part is locked and this technician is not certified.", "Send a certified technician."),
     "on this truck": ("The technician's own truck holds it.", "Nothing."),
-    "from a centre overnight": ("A centre can load it before the visit.", "Load it tonight."),
+    "from a center overnight": ("A center can load it before the visit.", "Load it tonight."),
     "on another truck nearby": (f"A truck based within {load.NEARBY_MINUTES} minutes holds it.", "Hand it over, or send that truck."),
-    "back-ordered": ("No centre can ship it in time and no truck nearby holds it.", "Expedite, source elsewhere, or move a spare."),
+    "back-ordered": ("No center can ship it in time and no truck nearby holds it.", "Expedite, source elsewhere, or move a spare."),
 }
 CHECK_ABOUT = {
     "guards": "The code stays under its size ceiling, imports nothing outside Python's own library, and names no private name in a public file. Planted inputs must trip both size and import checks.",
@@ -223,10 +223,10 @@ def curve(points, jobs):
     svg.append(f'<text class="tick" x="{(left + w - right) / 2:.1f}" y="{h - 6}" text-anchor="middle">parts on the carry list</text>')
     svg.append(f'<line class="ref" x1="{left}" x2="{w - right}" y1="{y(today):.1f}" y2="{y(today):.1f}"/>'
                f'<text class="ref-label" x="{left + 8}" y="{y(today) - 7:.1f}">today\'s trucks: {pct(today)}</text>')
-    for key, _, colour, _ in series:
+    for key, _, color, _ in series:
         line = " ".join(f"{xi:.1f},{y(p[key]):.1f}" for xi, p in zip(x, points))
-        svg.append(f'<polyline class="series" style="stroke:var({colour})" points="{line}"/>'
-                   + "".join(f'<circle class="dot" style="fill:var({colour})" cx="{xi:.1f}" cy="{y(p[key]):.1f}" r="3.5"/>'
+        svg.append(f'<polyline class="series" style="stroke:var({color})" points="{line}"/>'
+                   + "".join(f'<circle class="dot" style="fill:var({color})" cx="{xi:.1f}" cy="{y(p[key]):.1f}" r="3.5"/>'
                              for xi, p in zip(x, points)))
     lead = points[-1]["predictor_pct"]
     svg.append(f'<text class="end-label" x="{x[-1] - 10:.1f}" y="{y(lead) - 12:.1f}" text-anchor="end">'

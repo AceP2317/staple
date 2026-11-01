@@ -945,7 +945,7 @@ def fresh_clone():
     if PUBLIC_CLONE:
         print("  SKIPPED inside a public clone, which would only clone itself")
         return
-    env = dict(clean_git_env(), STAPLE_PUBLIC_CLONE="1")
+    env = dict(clean_git_env(), STAPLE_PUBLIC_CLONE="1", PYTHONUTF8="1")   # the stamp's "·" breaks Windows' default
     env.pop("ANTHROPIC_API_KEY", None)
     local = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

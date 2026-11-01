@@ -55,7 +55,7 @@ CREATE TABLE truck_stock (
   PRIMARY KEY (truck, part)
 );
 
-CREATE TABLE centres (centre TEXT PRIMARY KEY, zone INTEGER NOT NULL REFERENCES zones(zone));
+CREATE TABLE centres (center TEXT PRIMARY KEY, zone INTEGER NOT NULL REFERENCES zones(zone));
 
 CREATE TABLE centre_stock (
   part     TEXT PRIMARY KEY REFERENCES parts(part),
