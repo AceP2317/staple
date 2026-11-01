@@ -112,6 +112,16 @@ CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL
 CREATE TABLE triage (method TEXT PRIMARY KEY, jobs INTEGER NOT NULL, agree_booked REAL NOT NULL,
                      agree_true REAL NOT NULL, coverage REAL NOT NULL);
 
+-- The dispatch replay over every held-back day, with the same made-up sick calls, breakdowns and priority
+-- changes for every policy. A call rolled to tomorrow counts as not fixed today in fixes_per_call.
+CREATE TABLE dispatch (
+  policy TEXT PRIMARY KEY, calls INTEGER NOT NULL, served INTEGER NOT NULL, rolled INTEGER NOT NULL,
+  fix_rate REAL NOT NULL,                         -- expected first-visit fixes per call served
+  fixes_per_call REAL NOT NULL, parts_missing REAL NOT NULL, drive_per_call REAL NOT NULL,
+  moved INTEGER NOT NULL,                         -- calls moved to another truck by a sick call or breakdown
+  moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL  -- minutes at $1 plus expected second visits, made up
+);
+
 -- The fleet back-order list, back-tested from the first held-back day. Forecasts use training only.
 CREATE TABLE backorder_list (
   part TEXT PRIMARY KEY REFERENCES parts(part), eta_days INTEGER NOT NULL,
