@@ -133,9 +133,13 @@ def guards():
 
 @check("banned-control")
 def banned_control():
-    require(NAMES_FILE.exists(), "names list missing; nothing to plant")
-    names = load_names()
-    with tempfile.TemporaryDirectory(dir=ROOT / ".private") as tmp:
+    if NAMES_FILE.exists():
+        names, scratch = load_names(), ROOT / ".private"
+    else:
+        require(PUBLIC_CLONE, "names list missing; nothing to plant")
+        names, scratch = ["Examplecorp"], None
+        print("  public clone: no private names list, so the scanner is tested on a stand-in name")
+    with tempfile.TemporaryDirectory(dir=scratch) as tmp:
         planted = Path(tmp) / "planted.txt"
         planted.write_text(f"a line that mentions {names[0].upper()} once\n", encoding="utf-8")
         hits = scan_for_names([planted], names)
