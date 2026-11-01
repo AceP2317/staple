@@ -357,7 +357,7 @@ def _history_tech(rng, techs, appliance, zone):
 
 
 def travel_minutes(zone_a, zone_b):
-    """Zone-to-zone drive time: 12 minutes inside a zone, then 1.2 minutes per km between centres."""
+    """Zone-to-zone drive time: 12 minutes inside a zone; between zones, 10 minutes plus 1.2 per km between centres."""
     if zone_a == zone_b:
         return 12.0
     (xa, ya), (xb, yb) = ZONES[zone_a], ZONES[zone_b]

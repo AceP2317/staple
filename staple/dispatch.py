@@ -15,6 +15,7 @@ import random
 from collections import Counter, defaultdict
 
 from staple import load
+from staple.backtest import test_jobs
 from staple.predict import Predictor
 from staple.world import travel_minutes
 
@@ -240,7 +241,10 @@ SHUFFLED_SKILLS = "Staple with shuffled skills (control)"
 SHUFFLED_ODDS = "Staple with shuffled-history parts odds (control)"
 
 
-def run(conn, jobs, control_seed=5):
+def run(conn, control_seed=5):
+    """Every dispatch policy over the whole held-back period, written to dispatch. It takes no job list, so no
+    caller can leave the table holding a subset; replay() runs one policy on any jobs and writes nothing."""
+    jobs = test_jobs(conn)
     load.mark_unplanned(jobs)
     out = {name: replay(conn, jobs, rule, loads, Crew(conn, **crew)) for name, rule, loads, crew in POLICIES}
     out[SHUFFLED_SKILLS] = replay(conn, jobs, "skills and parts", "balanced", Crew(conn, shuffled=True, seed=control_seed))

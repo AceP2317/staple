@@ -1,0 +1,131 @@
+<ol class="toc">
+<li><a href="#first">What Staple is for, and what to do first</a></li>
+<li><a href="#numbers">What the numbers mean</a></li>
+<li><a href="#labels">Every label and status, and what to do about it</a></li>
+<li><a href="#derived">How to read the computed columns</a></li>
+<li><a href="#data">How the data is handled</a></li>
+<li><a href="#thresholds">Every threshold, and what sets it</a></li>
+<li><a href="#cannot">What Staple cannot tell you</a></li>
+<li><a href="#glossary">Glossary</a></li>
+<li><a href="#run">Running it yourself</a></li>
+</ol>
+
+<section id="first"><h2>What Staple is for, and what to do first</h2>
+<p>Staple answers two questions that decide whether a repair is finished on the first visit. Which parts should
+the technician's truck carry for tomorrow's booked calls, and which technician should take each call? When the
+stock lives on the trucks, those are one decision, so Staple scores them together.</p>
+<p>Every number in it comes from repair history I invented: {{jobs}} jobs over {{days}} days from {{start}}, across
+{{types}} appliance types and {{techs}} technicians. The last {{test_days}} days are held back. Each method learns
+from the earlier days only, and is then scored on the held-back days as if they had not happened yet. That is a
+back-test, and it is the same test I would run first on real history.</p>
+<p><strong>What to do first.</strong> Read the four headline figures at the top of the report. Each one names the
+figure it is compared with. Then read the sections in order: where repeat visits come from, which parts to carry,
+what to load tonight, who takes the call, reading the customer's words, and the back-orders to chase.</p>
+<p><strong>Hover over anything with a dotted underline, or anything that turns your pointer into a question
+mark.</strong> The hint shows the figures behind it and the query they come from. A blue <span class="q"{{sample_q}}>?</span>
+opens this manual at the word it explains. Under every chart, "Show the numbers" opens the table the chart is
+drawn from.</p></section>
+
+<section id="numbers"><h2>What the numbers mean</h2>
+<h3>The four headline figures</h3>
+<p><strong>Fixed on the first visit</strong> is the share of all held-back calls that Staple's dispatch fixes on
+the first visit. A call fixes first time only when the truck holds every part it needs, and the technician's own
+success rate on that appliance then decides it. A call rolled to tomorrow counts as not fixed. The comparison is
+the nearest qualified technician driving today's fixed truck stock.</p>
+<p><strong>Cost a call</strong> adds the drive and repair minutes at {{minute}} a minute to the chance of a second
+visit times {{repeat_visit}}. Both dollar figures are made up, and the threshold table names every made-up value.</p>
+<p><strong>Jobs the truck covers</strong> is the share of jobs whose every needed part was on the truck that day,
+under the balanced truck. It is compared with today's fixed stock, and each comes with its cost a truck-day.</p>
+<p><strong>Customer's words read right</strong> is how often Claude's reading of the customer's own words matches
+the problem code the booking recorded. It is compared with keyword rules, the way a booking screen matches words
+to codes today.</p>
+<h3>The charts</h3>
+<p><strong>Where repeat visits come from</strong> counts, per 100 jobs of each appliance, the repeat visits
+caused by a part missing from the truck. Its table adds the share of each appliance's repeat visits that a missing
+part caused. The rest failed on the technician's success rate.</p>
+<p><strong>Which parts to carry</strong> plots, for carry lists of {{ks}} parts, the share of held-back jobs whose
+every needed part was on the list. The horizontal line is today's trucks, which carry far more than eight parts.
+The list's job is to top the truck up for the day, not to replace it.</p>
+<p><strong>What to load tonight</strong> ranks each way of loading a truck by its cost a truck-day: repeat visits
+for jobs the truck could not cover, parts moved on or off overnight, and the cost of money tied up in stock.
+Lower is better. Each bar's label also gives the share of jobs covered.</p>
+<p><strong>Who takes the call</strong> replays every held-back day under each way of handing out calls, with the
+same made-up sick calls, breakdowns and priority changes. The bar is calls fixed on the first visit; the label
+adds the cost a call.</p>
+<p><strong>Reading the customer's words</strong> compares Claude, keyword rules and a control in which Claude's
+answers are shuffled between bookings. The label adds how often the 3-part carry list built from that reading
+covered the job.</p>
+<p><strong>Back-orders to chase first</strong> lists each part the centres cannot ship, with the calls expected to
+need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p></section>
+
+<section id="labels"><h2>Every label and status, and what to do about it</h2>
+<table class="wrap"><thead><tr><th>Label</th><th>What it means</th><th>What to do</th></tr></thead><tbody>
+<tr><td>made-up data</td><td>The figure comes from invented history. It shows the method, never a result.</td><td>Run the same back-test on real history before trusting any number.</td></tr>
+<tr><td>(control)</td><td>A deliberately broken version of a method: history shuffled, skills shuffled, or answers shuffled. It shows how much of a gain the real links in the data earn.</td><td>A control that scores close to the real method means the gain is not real. Every control here falls back.</td></tr>
+<tr><td>Highlighted bar</td><td>The row the section is about.</td><td>Read it against the rows around it, not alone.</td></tr>
+<tr><td>Rolled to tomorrow</td><td>A call that no technician's day had room for, after sick calls and breakdowns.</td><td>It counts as not fixed today. A policy that wins by rolling calls is refused by the checks.</td></tr>
+{{MARKS}}
+<tr><td>Back-order flag</td><td>A booking whose odds of needing a part no truck nearby holds reach {{backorder_flag}}.</td><td>Source the part or move a holding truck's spare before the visit, not after it fails.</td></tr>
+<tr><td>unstamped build</td><td>The page was built on a machine without the author's build stamp.</td><td>Nothing; the numbers are the same, because every run starts from the same seed.</td></tr>
+<tr><td>results last changed</td><td>The last day any code or query that feeds the page changed.</td><td>Compare it with the day you last read the page.</td></tr>
+</tbody></table></section>
+
+<section id="derived"><h2>How to read the computed columns</h2>
+<table class="wrap"><thead><tr><th>Column</th><th>How it is computed</th></tr></thead><tbody>
+<tr><td>odds</td><td>For one booking, the share of past jobs like it that needed each part. "Like it" means the same model family and problem, leaning on the appliance and problem, then the appliance alone, where history is thin.</td></tr>
+<tr><td>coverage</td><td>The share of jobs whose every needed part was on the list or truck. One missing part fails the whole job, the way one short line holds a whole order.</td></tr>
+<tr><td>first_visit_fix_pct</td><td>Expected first-visit fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
+<tr><td>cost_per_call</td><td>Drive and repair minutes at {{minute}}, plus one minus the fix rate, times {{repeat_visit}}.</td></tr>
+<tr><td>cost_a_truck_day</td><td>Repeat visits at {{repeat_visit}}, plus {{move}} for each part moved on or off overnight, plus each part's cost times {{holding_rate}} a year, per day.</td></tr>
+<tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. Each covered job counts as one repeat visit avoided against an empty truck.</td></tr>
+<tr><td>expected_calls</td><td>For a back-ordered part: its share of its appliance's past calls, times that appliance's calls a day in the same month of past years, times the days until it ships.</td></tr>
+<tr><td>expected_stuck</td><td>Expected calls in zones with no holding truck based within {{nearby}} minutes, less the calls the holders themselves usually take there.</td></tr>
+<tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>
+<tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought, for comparison with the forecast.</td></tr>
+<tr><td>line_fill_pct, job_fill_pct</td><td>Of the part lines jobs needed, the share already on the technician's truck; and the share of jobs with every line there.</td></tr>
+<tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the 12 months before the held-back days.</td></tr>
+</tbody></table></section>
+
+<section id="data"><h2>How the data is handled</h2>
+<p>Everything is invented by one seeded generator (seed {{seed}}) and written to one SQLite file on the machine
+that runs it. The same seed writes the same rows every time, so every figure reproduces exactly. No real company,
+customer, part number or technician appears anywhere.</p>
+<p>The report and both manuals are static pages. They load nothing from the network: no fonts, no scripts, no
+tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
+before it is committed.</p>
+<p>The AI step's answers were produced once by {{model}} and ship in the repository, so a run needs no key and
+sends nothing anywhere. Only <code>python run.py --live</code> calls the Claude API, with the reader's own key, and
+it sends the made-up booking words and problem labels and nothing else.</p></section>
+
+<section id="thresholds"><h2>Every threshold, and what sets it</h2>
+<p>Read from the code at build time, so this table cannot disagree with what ran. "Made up" means a stand-in to
+replace with a real figure before any real decision.</p>
+{{THRESHOLDS}}</section>
+
+<section id="cannot"><h2>What Staple cannot tell you</h2>
+<ul>
+<li><strong>Whether the gains hold on real history.</strong> The history is invented, so every figure shows the
+method working, not the size of a real gain.</li>
+<li><strong>Real costs.</strong> The repeat-visit, handling, holding and minute costs are stand-ins. The ranking of
+loads can change with real costs; the break-even figure in the run says where.</li>
+<li><strong>Quantities.</strong> A truck that holds a part is taken to hold enough of it. Two calls on one route
+needing the same part are not modelled.</li>
+<li><strong>Routes.</strong> Drive time is zone to zone on a grid, not road routing, and the night plan places
+calls one at a time rather than solving the whole day at once.</li>
+<li><strong>Why a repair failed when the parts were there.</strong> The history records the technician's success
+rate, not wrong diagnoses or customer no-shows.</li>
+<li><strong>Whether the AI reads real customers this well.</strong> The customer phrasings are a small invented
+set, and the simulated customer answers the follow-up question with the booked problem.</li>
+</ul>
+<p>The methods manual lists each of these corners with the upgrade that would remove it.</p></section>
+
+<section id="glossary"><h2>Glossary</h2>
+{{GLOSSARY}}</section>
+
+<section id="run"><h2>Running it yourself</h2>
+<p>Python 3 is the only requirement; no packages are installed. From a copy of the repository:</p>
+<pre>python run.py          # builds the made-up world, every result, the metric tables and these pages into out/
+python check.py        # every check, each with a control that proves it can fail
+python run.py --live   # the AI step asked afresh, with your own ANTHROPIC_API_KEY</pre>
+<p>Open <code>out/index.html</code> in a browser. The nine metric queries are plain SQL files in
+<code>sql/metrics/</code>; each runs on its own against <code>out/staple.db</code>.</p></section>

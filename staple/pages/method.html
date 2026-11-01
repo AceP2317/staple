@@ -1,0 +1,288 @@
+<ol class="toc">
+<li><a href="#principles">Design principles</a></li>
+<li><a href="#world">The invented world</a></li>
+<li><a href="#predictor">The predictor</a></li>
+<li><a href="#backtest">The back-test</a></li>
+<li><a href="#loads">The truck-load replay</a></li>
+<li><a href="#availability">Availability and the back-order flag</a></li>
+<li><a href="#backorders">The fleet back-order list</a></li>
+<li><a href="#ai">The AI step</a></li>
+<li><a href="#dispatch">The dispatch replay</a></li>
+<li><a href="#sql">The metric queries</a></li>
+<li><a href="#checks">The checks and their controls</a></li>
+<li><a href="#corners">Corners cut on purpose</a></li>
+</ol>
+
+<section id="principles"><h2>Design principles</h2>
+<p><strong>A known truth, planted on purpose.</strong> The history is generated, so the true problem behind every
+booking and the noise in it are known. That lets each method be scored against the truth as well as against what a
+real history would record. A real history records only the booked code.</p>
+<p><strong>A temporal hold-out.</strong> The last {{test_days}} days are held back. Every count, share and rate a
+method uses is read from the earlier days (<code>split = 'train'</code>), and the method is then scored on the
+held-back days. No held-back fact reaches a method.</p>
+<p><strong>A control for every gain.</strong> Each claimed gain has a control that breaks the link the gain should
+come from: shuffled history, shuffled technician skills, shuffled AI answers, random follow-up replies. A gain
+counts only when its control falls back. Where a check could pass without looking, it also runs a planted input
+that must make it fail.</p>
+<p><strong>One seed, one source.</strong> Seed {{seed}} reproduces every row. Every figure on the report is read
+from the result of a SQL query in <code>sql/metrics/</code>, and every constant in these manuals is read from the
+code at build time.</p></section>
+
+<section id="world"><h2>The invented world</h2>
+<p>Source: <code>staple/world.py</code>. Values set inside a function are quoted here with that function's name.</p>
+<h3>Calendar and volume</h3>
+<p>{{jobs}} jobs, each on a day drawn uniformly from {{days}} days starting {{start}}. Jobs on the last
+{{test_days}} days form the test split.</p>
+<h3>Appliances, problems and parts</h3>
+<p>{{types}} appliance types, each with {{problems_min}} to {{problems_max}} problem codes and {{parts_min}} to
+{{parts_max}} parts. Each part carries a cost, a size in truck space units, and a lock flag; a locked part may ride
+only with a certified technician. Each problem carries customer phrasings and a weight for each part it can need.
+Furnace calls follow the seasons (<code>_season_pick</code>): weight 3.0 from November to February, 0.3 from June to
+August, 1.0 otherwise, against 1.0 for every other type.</p>
+<h3>Model families</h3>
+<p>{{families}} families per type. The {{rare_families}} newest of each type enter the field recently, so their
+history is thin on purpose. Each family has a weak part, drawn four times as often wherever the problem can need it
+(<code>pick_parts</code>).</p>
+<h3>Parts a job needs</h3>
+<p>Per job (<code>pick_parts</code>): with probability 0.07 no part (an adjustment); with probability 0.73 one part
+drawn from the problem's weights; otherwise two, the second drawn from the remaining parts' weights.</p>
+<h3>Planted noise</h3>
+<ul>
+<li>Misdescribed, {{misdescribed}} of jobs: the booked code is a different problem of the same appliance than the true one.</li>
+<li>Patternless, {{random_failure}} of jobs: the needed part is drawn with equal weight across the appliance's parts, ignoring the problem; the family's weak part still counts four times.</li>
+<li>Vague words, {{vague}} of jobs: the customer's phrasing fits no single problem.</li>
+</ul>
+<h3>Technicians and trucks</h3>
+<p>{{techs}} technicians (<code>_build_techs</code>). Level is junior, mid or senior with weights 25, 45 and 30, setting
+a base first-visit success rate of 0.78, 0.86 or 0.92 and a repair-time multiplier of 1.20, 1.00 or 0.90. Forty per
+cent are specialists covering two or three appliance types, with 0.05 added to the rate and 0.8 times the repair time;
+the rest cover every type. Each type then varies the rate by up to ±0.03 and the time by up to ±5%, and no rate passes
+0.98. Every senior is certified, and each mid with probability 0.5.</p>
+<p>Each technician drives one truck of {{capacity}} space units. Today's stock fills it to {{stock_fill}} with the
+nationally most-used parts of each type the technician covers, taken one rank at a time across those types. A locked
+part is skipped on an uncertified truck.</p>
+<h3>Geography</h3>
+<p>{{zones}} zones on a 4 by 3 grid, 15 km apart. Drive time (<code>travel_minutes</code>) is 12 minutes inside a zone,
+and between zones 10 minutes plus 1.2 minutes per kilometre between zone centres.</p>
+<h3>What history recorded</h3>
+<p>The technician who took each historical job (<code>_history_tech</code>) covers its appliance, chosen with weight
+1 / (1 + drive minutes from home). The job was fixed on the first visit only when every needed part was on that
+technician's truck and a uniform draw fell below the technician's rate.</p>
+<h3>Distribution centres</h3>
+<p>Two centres restock trucks between workdays (<code>_build_centres</code>). Each part is on back-order with
+probability 0.08, with a ship date 3 to 14 days out.</p></section>
+
+<section id="predictor"><h2>The predictor</h2>
+<p>Source: <code>staple/predict.py</code>. For a booking with appliance <var>a</var>, model family <var>f</var> and
+booked problem <var>q</var>, it estimates for each part <var>p</var> of <var>a</var> the probability that the job
+needs <var>p</var>. Training jobs only; problems are the booked codes, because real history records nothing else.</p>
+<p>Let <var>n</var> be the number of training jobs at a level and <var>c(p)</var> how many of them needed
+<var>p</var>. With pull <var>P</var> = {{pull}}:</p>
+<code class="formula">p_type(p) = c_a(p) / n_a
+p_problem(p) = (c_q(p) + P · p_type(p)) / (n_q + P)
+p_family(p) = (c_f,q(p) + P · p_problem(p)) / (n_f,q + P)</code>
+<p>The family estimate is the answer. Each level is a pseudo-count estimate whose prior is the wider level's
+estimate with strength <var>P</var>, which is the posterior mean under a Beta prior. With 3 real jobs the wider
+level dominates; with 3,000 the family's own history decides. The carry list of length <var>k</var> is the
+<var>k</var> parts with the highest estimate, ties broken by part name.</p>
+<p>The <strong>national top-parts list</strong>, standing in for today's stocking logic, ranks the appliance's parts
+by <var>c_a(p)</var> alone, whatever the problem.</p></section>
+
+<section id="backtest"><h2>The back-test</h2>
+<p>Source: <code>staple/backtest.py</code>. For each held-back job <var>j</var> with needed set <var>N(j)</var> and
+carry list <var>L_k(j)</var>:</p>
+<code class="formula">coverage(k) = |{ j : N(j) ⊆ L_k(j) }| / |J_test|,   k = {{ks}}</code>
+<p>A job needing no part is covered by any list. Today's trucks are scored by the recorded flag of every needed
+part being on the truck. Variants scored at every <var>k</var>:</p>
+<ul>
+<li><strong>predictor</strong>, as above;</li>
+<li><strong>national top parts</strong>, the baseline;</li>
+<li><strong>no lean on wider groups</strong>, the predictor with <var>P</var> = 0, which isolates what the lean does for thin families;</li>
+<li><strong>shuffled-history control</strong>: within each appliance type, each training job's set of needed parts is dealt
+to a random other job of the same type (seed 7). The type-level shares survive; every link to family and problem is
+destroyed. The control must fall to the national baseline, or the gain is not coming from the links.</li>
+</ul>
+<p>Coverage is also cut by planted noise (none, misdescribed, patternless) and by family age (newest against
+established) at <var>k</var> = {{shown_k}}.</p></section>
+
+<section id="loads"><h2>The truck-load replay</h2>
+<p>Source: <code>staple/load.py</code>. A truck-day is one technician's held-back jobs on one day. Each truck's days
+are replayed in date order, and each night's load starts from the previous night's load. On the first night it
+starts from today's stock. Each held-back job is independently marked unplanned with probability {{unplanned}}
+(seed 2026); an unplanned call is added or moved on the day, so no night-before list sees it.</p>
+<h3>Cost of a truck-day</h3>
+<p>With repeat-visit cost <var>R</var> = {{repeat_visit}}, handling <var>M</var> = {{move}} a part moved, and
+holding rate <var>h</var> = {{holding_rate}} a year:</p>
+<code class="formula">repeat   = (jobs not covered by the load) · R
+handling = |load △ before| · M
+holding  = Σ_(p ∈ load) cost_p · h / 365
+total    = repeat + handling + holding</code>
+<p>Every figure is averaged per truck-day. Stock value on board is reported, but it is money tied up, not spent;
+only its holding cost enters the total.</p>
+<h3>Filling a truck</h3>
+<p>Parts are taken in descending score. A part goes on when it is not already aboard, the truck may carry it, and it
+fits the space left. A truck may carry a locked part only if its technician is certified. It may carry a
+back-ordered part only if the part is already on that truck.</p>
+<h3>Policies</h3>
+<ul>
+<li><strong>Today's trucks</strong>: the fixed stock, every day.</li>
+<li><strong>Today's stock plus the day's lists</strong>: the fixed stock, then the union of the booked calls' top-<var>k</var> lists, each part scored by its highest odds on the route. Run for <var>k</var> = {{ks}}.</li>
+<li><strong>The day's lists only</strong>: the same lists into an empty truck.</li>
+<li><strong>Every part that fits for the day's types</strong>: the top-up with every part on the list.</li>
+<li><strong>Balanced truck</strong>: each part's worth for tomorrow, net of what carrying it costs, per unit of space.</li>
+</ul>
+<h3>The balanced truck</h3>
+<p>For technician <var>t</var>, unplanned share <var>U</var> = {{unplanned}}, and odds <var>o_j(p)</var> from the
+predictor for each booked call <var>j</var> on tomorrow's route:</p>
+<code class="formula">s_t(p)  = U · (training calls of type(p) for t / training days of t) · c_type(p) / n_type · R
+w_t(p)  = s_t(p) + Σ_(booked j) o_j(p) · R
+net_t(p) = w_t(p) − cost_p · h / 365 + (M if p is aboard tonight, else −M)
+score(p) = net_t(p) / size_p, kept only where net_t(p) &gt; 0</code>
+<p>The truck is filled from empty in descending score. A part already aboard is worth one move more than one that
+must be loaded. So a part stays on the truck while it earns its space, and permanent stock emerges from demand
+rather than being set.</p>
+<h3>Choosing a list length and the break-even</h3>
+<p>For each list policy, the recommended length is the shortest whose total is within {{lean_tolerance}} a
+truck-day of that policy's cheapest. The repeat-visit cost at which the chosen top-up stops paying is:</p>
+<code class="formula">R* = (Δhandling + Δholding) / (Δrepeat / R)    (top-up against today's trucks)</code>
+<p>A part is called permanent when it is aboard on at least {{permanent}} of a truck's days. Inventory ROI is covered
+jobs per truck-day times <var>R</var> times 365, divided by the stock value on board.</p>
+<h3>Controls</h3>
+<p>The top-up and the balanced truck are rerun with carry lists from the shuffled-history predictor. A second shuffle
+with another seed measures how far two shuffles differ by chance. The balanced truck's edge over its shuffled control
+must exceed three times that difference.</p></section>
+
+<section id="availability"><h2>Availability and the back-order flag</h2>
+<p>Each carry-list part gets the first mark that applies, for the job's technician and zone:</p>
+<ol>{{MARK_ORDER}}</ol>
+<p>The back-order flag sums, over every part of the booking's ranked list, the odds of the parts marked back-ordered:</p>
+<code class="formula">stuck(j) = Σ_(p : mark = back-ordered) o_j(p),   flag when stuck(j) ≥ {{backorder_flag}}</code>
+<p>Because the sum is a probability, its total over all held-back bookings forecasts how many will in fact need a
+stuck part. The check compares that forecast with the count, and it fails when the forecast misses by more than a
+quarter of the count.</p></section>
+
+<section id="backorders"><h2>The fleet back-order list</h2>
+<p>Source: <code>staple/backorders.py</code>. Which booking will need a stuck part cannot be known in advance, but how
+many will can, so the action is fleet-wide. Today's back-orders are taken to start on the first held-back day, in
+month <var>m</var>. From training only:</p>
+<code class="formula">calls_a(m) = training calls of appliance a in month m / training days in month m
+share(p)   = training calls needing p / training calls of a
+expected(p) = share(p) · calls_a(m) · ETA_p
+open zones  = zones with no holding truck based within {{nearby}} minutes
+stuck_share(p) = Σ_(z ∈ open) (calls_a,z − Σ_(holder t) calls_a,z,t) / calls_a
+stuck(p)   = expected(p) · stuck_share(p),   at_risk(p) = stuck(p) · R</code>
+<p>Demand is seasonal, so the month matters: a furnace part on back-order in winter carries three times the
+exposure it would in spring. The list is ranked by dollars at risk. Its back-test counts the held-back calls that
+needed each part before it shipped, and how many of them were marked back-ordered. The check accepts the forecast
+when it sits within three Poisson spreads of what came. It also requires that a forecast three times too high
+fails.</p></section>
+
+<section id="ai"><h2>The AI step</h2>
+<p>Source: <code>staple/triage.py</code>. Model <code>{{model}}</code> at effort <code>{{effort}}</code>.</p>
+<h3>What Claude sees</h3>
+<p>One request per appliance type. It holds the appliance, its problem codes with their labels, and every distinct
+customer description of that type, numbered. Claude never sees the generator's phrasing table, the booked code or
+the true code. The system prompt and the request, verbatim:</p>
+<pre>{{SYSTEM}}</pre>
+<pre>{{TEMPLATE}}</pre>
+<p>The reply is a JSON array of objects with index, code and confidence. The whole reply is refused if any
+description is missing, any code is outside the appliance's list, or any confidence falls outside 0 to 1.</p>
+<h3>How answers are produced and cached</h3>
+<p>Answers ship in <code>data/triage-cache.json</code>, keyed by a prompt identity: the first 12 hex characters of
+SHA-256 over the model, effort, system prompt and template. A changed prompt cannot reuse an old cache. The cache
+was built with the Claude Code command line in its non-interactive mode, with no tools and no saved session, and with
+any API key removed from its environment so it runs on a subscription. <code>python run.py --live</code> sends the
+same requests to the Messages API over HTTPS with the reader's key, API version {{api_version}}.</p>
+<h3>From a reading to a carry list</h3>
+<p>A reading is a code <var>q</var> with confidence <var>c</var>. When <var>c</var> ≥ {{blend_below}}, the carry list
+is the predictor's list for <var>q</var>. When it is lower, the odds lean on the appliance's overall shares:</p>
+<code class="formula">o'(p) = c · o_q(p) + (1 − c) · c_a(p) / n_a</code>
+<p>A booking with no code gets the national top-parts list.</p>
+<h3>The follow-up question</h3>
+<p>For every description Claude is unsure of (confidence below {{blend_below}}), a second request asks for one
+question to put to the customer, verbatim:</p>
+<pre>{{FOLLOWUP_SYSTEM}}</pre>
+<pre>{{FOLLOWUP_TEMPLATE}}</pre>
+<p>Questions ship in <code>data/followup-cache.json</code>, keyed the same way. In the replay, the simulated customer
+picks the offered answer whose code is the booked code. When no offered answer fits, the lean reading stands. The
+control replies at random, seeded by the job number, and must lower coverage.</p>
+<h3>The keyword rules it is compared with</h3>
+<p>Words are lowercased, cut to letters, stripped of the suffixes "ing", "er", "es", "ed" and "s" when at least
+three letters remain, and cleared of eight stop words. The code whose label shares the most words with the
+customer's wins, with ties going to the alphabetically first. No shared word means no code.</p>
+<h3>What is measured</h3>
+<p>Agreement with the booked code, the only target a real history allows, and agreement with the true code, known
+here only because the data is invented. The 3-part carry list's coverage is measured too, which is what the reading
+is for. A calibration split counts how often answers above and below {{blend_below}} match the booked code. The
+control deals Claude's answers to other descriptions of the same appliance (seed 7). It falls toward chance, which
+shows the agreement comes from reading the words.</p></section>
+
+<section id="dispatch"><h2>The dispatch replay</h2>
+<p>Source: <code>staple/dispatch.py</code>. A working day is {{day}} minutes, 08:00 to 17:00. Repair minutes for an
+average technician are {{REPAIR}}, multiplied by the technician's own time multiplier for that appliance.</p>
+<h3>The day's surprises</h3>
+<p>Drawn once per held-back day from seed 2026 plus the day's index, and shared by every policy. Each technician is
+sick with probability {{sick}}. Each truck breaks down with probability {{breakdown}}, at a minute drawn uniformly from
+120 to 360. Each call escalates to urgent with probability {{escalate}} or eases to low with probability {{ease}}.
+Priority is 1 for {{URGENT}}, 3 for {{LOW}}, and 2 otherwise; the day's changes apply once the day starts.</p>
+<h3>The cost of sending technician t to call j</h3>
+<p>With drive minutes from the end of <var>t</var>'s route so far, and believed rate <var>r̂</var> and time
+multiplier <var>v̂</var> for <var>t</var> on <var>j</var>'s appliance:</p>
+<code class="formula">minutes = drive + repair_a · v̂
+nearest:          cost = drive
+skills only:      cost = minutes · {{minute}} + (1 − r̂) · R
+skills and parts: cost = minutes · {{minute}} + (1 − cover · r̂) · R
+cover = 1 − min(1, Σ_(p not available to t) o_j(p))</code>
+<p>At night a part is available when <var>t</var>'s truck may carry it, because the centre loads overnight. During the
+day it is available only when it is on the truck now. A technician is a candidate only when they cover the appliance,
+are working, and their day still fits the call. Fit is always judged on the true repair times, so a wrong belief can
+never overbook a day. Only the choice between candidates uses the beliefs.</p>
+<h3>The night plan: regret insertion</h3>
+<p>Booked calls are planned in priority bands, urgent first. Within a band every call's cost is computed for every
+candidate. Its regret is the second-lowest cost minus the lowest, or infinite when only one candidate remains. The
+call with the highest regret is placed with its cheapest candidate first, ties going to the lower job number. Only
+that technician's costs are then recomputed. A call with no candidate rolls to tomorrow. Booking order would
+instead fill the best technicians' days with whichever calls came first.</p>
+<h3>The day as it happens</h3>
+<ol>
+<li>Each route's truck is loaded overnight by the balanced rule from its planned calls, or keeps today's stock under the baseline.</li>
+<li>At 07:00 sick technicians drop out, and their calls are placed one by one with the daytime rule.</li>
+<li>Unplanned calls arrive in priority order and are placed one by one.</li>
+<li>A breakdown at minute τ takes the truck out, and every call on it starting at or after τ is placed again.</li>
+<li>At day's end, while a route runs past {{day}} minutes, its lowest-priority call, the latest first, rolls to tomorrow.</li>
+</ol>
+<h3>Scoring</h3>
+<code class="formula">covered(visit) = N(j) ⊆ truck(t)
+fix(visit)     = covered · r_t,a    (the true rate)
+fixes per call = Σ fix / all calls, a rolled call scoring 0
+cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / served) · R</code>
+<h3>Policies and controls</h3>
+<ul>
+<li><strong>Nearest technician, today's stock</strong> and <strong>nearest technician, balanced loads</strong>: drive time alone.</li>
+<li><strong>Skills only</strong>: skills, with every part assumed available.</li>
+<li><strong>Parts only</strong>: parts, with every technician believed average: the fleet's mean rate and a time multiplier of 1.</li>
+<li><strong>Staple</strong>: skills and parts.</li>
+<li><strong>Shuffled skills (control)</strong>: each technician-appliance pair reads another pair's rate and time (seed 5); who covers what stays true. It must lose at least half the skill gain over parts only.</li>
+<li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgement uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, because at night any truck can load anything but locked or back-ordered parts. The check fails the day that stops being true.</li>
+</ul>
+<p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
+broken truck working after its breakdown, no route past 17:00. A control may roll at most one per cent more calls
+than Staple, so no control can win by overbooking.</p></section>
+
+<section id="sql"><h2>The metric queries</h2>
+<p>Each file in <code>sql/metrics/</code> opens with its definition, read here from the file itself. Each runs on its
+own against the database. The report reads only their results, plus the made-up values in the
+<code>assumptions</code> table, which is written from the code's constants.</p>
+{{SQL_METRICS}}</section>
+
+<section id="checks"><h2>The checks and their controls</h2>
+<p><code>python check.py</code> runs every check; <code>python check.py &lt;name&gt;</code> runs one. Each prints what
+it measured and fails the run on a broken rule. Where a check could pass without looking, it also feeds itself a
+planted input that must fail, because a check that cannot fail looks exactly like one that sees nothing. The checks,
+read from <code>check.py</code>:</p>
+{{CHECKS}}</section>
+
+<section id="corners"><h2>Corners cut on purpose</h2>
+<p>Each is marked in the code where it is cut, with the ceiling it sets and the upgrade that would lift it. Read from
+those markers at build time:</p>
+{{PONYTAILS}}</section>

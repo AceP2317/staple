@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Staple report</title><style>:root{color-scheme:light;--band:#003980;--band-ink:#ffffff;--band-2:#c9d6ea;--cta:#ffcd00;--cta-ink:#002859;
+--page:#f5f6f7;--surface:#ffffff;--tint:#f1f5fa;--ink:#002859;--ink-2:#455b73;--muted:#56697f;--grid:#e0e3e6;
+--axis:#c5ccd4;--dim:#b9c2cc;--s1:#0048bb;--s2:#c99700;--ring:rgba(0,40,89,.12);--link:#0048bb;--code:#eef2f7}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--band:#001733;
+--band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;--cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;
+--ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;
+--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52}}
+:root[data-theme="dark"]{color-scheme:dark;--band:#001733;--band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;
+--cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;--ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;
+--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink-2);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--link)}
+.band{background:var(--band);color:var(--band-ink)}
+.band-in{max-width:960px;margin:0 auto;padding:22px 16px 18px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.band h1{font-size:2rem;line-height:1.1;margin:0;color:var(--band-ink)}
+.band .lede{margin:4px 0 0;color:var(--band-2)}
+.band .stamp{margin:6px 0 0;font-size:.8rem;color:var(--band-2)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-block;background:var(--cta);color:var(--cta-ink);font-weight:700;font-size:.9rem;text-decoration:none;
+border-radius:6px;padding:9px 14px;border:0}
+.btn.ghost{background:transparent;color:var(--band-ink);box-shadow:inset 0 0 0 1px var(--band-2)}
+.btn:hover,.btn:focus-visible{filter:brightness(1.06);outline:2px solid var(--band-ink);outline-offset:2px}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+h2{font-size:1.3rem;color:var(--ink);margin:0 0 8px}h3{font-size:1.05rem;color:var(--ink);margin:22px 0 6px}
+.hint-key{font-size:.85rem;color:var(--muted);margin:0 0 4px}
+.note{border:1px solid var(--ring);background:var(--surface);border-left:4px solid var(--cta);border-radius:8px;padding:12px 14px;margin:14px 0 18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 8px}
+.tile{background:var(--surface);border:1px solid var(--ring);border-top:4px solid var(--s1);border-radius:8px;padding:14px}
+.tile p{margin:0}.tile .label{font-size:.85rem}.tile .value{font-size:2rem;font-weight:700;color:var(--ink)}
+.tile .sub{color:var(--muted);font-size:.8rem}
+section{margin:36px 0}section>p{margin:0 0 12px}
+figure{margin:0;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:14px}
+figcaption{font-weight:700;font-size:.9rem;color:var(--ink);margin-bottom:10px}
+.madeup{font-weight:400;color:var(--muted);font-size:.75rem;border:1px solid var(--ring);border-radius:4px;padding:0 5px;margin-left:4px}
+.bars{display:grid;gap:6px}
+.bar-row{display:grid;grid-template-columns:minmax(9rem,16rem) 1fr;gap:10px;align-items:center;border-radius:4px;padding:1px 2px}
+.bar-label{font-size:.85rem}.track{display:flex;align-items:center;gap:8px;min-width:0}
+.bar{height:16px;width:calc(var(--v)*66%);border-radius:0 4px 4px 0;background:var(--dim);flex:none}
+.lead .bar{background:var(--s1)}.lead .bar-label{color:var(--ink);font-weight:700}.control .bar-label{color:var(--muted)}
+.bar-value{font-size:.8rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;margin-bottom:6px}
+.key i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:6px}
+svg{width:100%;height:auto;display:block}.grid{stroke:var(--grid);stroke-width:1}.tick{fill:var(--muted);font-size:12px}
+.ref{stroke:var(--ink-2);stroke-width:1}.ref-label,.end-label{fill:var(--ink-2);font-size:12px}
+.series{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}.dot{stroke:var(--surface);stroke-width:2}
+.cross{stroke:var(--muted);stroke-width:1;opacity:0}.hit{fill:transparent}
+details{margin-top:10px;font-size:.85rem}summary{cursor:pointer;color:var(--ink-2)}
+.scroll{overflow-x:auto}table{border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums;font-size:.85rem}
+th,td{text-align:left;padding:5px 12px 5px 0;border-bottom:1px solid var(--grid);vertical-align:top}th{color:var(--ink);font-weight:700}
+td{white-space:nowrap}.wrap td{white-space:normal}
+code,pre{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:.85em;background:var(--code);border-radius:4px}
+code{padding:1px 4px}pre{padding:10px 12px;overflow-x:auto;white-space:pre-wrap;color:var(--ink)}
+.formula{display:block;margin:8px 0;padding:8px 12px;background:var(--tint);border-radius:6px;color:var(--ink);overflow-x:auto;white-space:pre}
+.toc{columns:2 220px;font-size:.9rem;margin:0 0 8px;padding-left:20px}
+footer{color:var(--muted);font-size:.8rem;border-top:1px solid var(--grid);padding-top:14px}
+[data-tip]{cursor:help}
+.hv{text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:3px}
+.tile:hover,.tile:focus-visible,.bar-row:hover,.bar-row:focus-visible{background:var(--tint);outline:none}
+.bar-row:hover .bar,.bar-row:focus-visible .bar{filter:brightness(1.12)}
+th[data-tip],h2[data-tip],h3[data-tip],figcaption [data-tip]{text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:4px}
+.q{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--s1);color:var(--surface);
+font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;text-decoration:none;vertical-align:2px;margin-left:4px}
+.q:hover,.q:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
+#tip{position:fixed;z-index:9;pointer-events:none;background:var(--surface);color:var(--ink-2);border:1px solid var(--ring);
+border-top:3px solid var(--s1);border-radius:6px;padding:8px 10px;font-size:.8rem;line-height:1.45;white-space:pre-line;
+box-shadow:0 4px 16px rgba(0,23,51,.18);max-width:360px}
+#tip strong{display:block;color:var(--ink);font-size:.85rem;margin-bottom:2px}
+@media (max-width:560px){.bar-row{grid-template-columns:1fr;gap:2px}.bar{width:calc(var(--v)*45%)}
+.bar-value{white-space:normal;flex:1 1 0;min-width:0}.tick,.ref-label,.end-label{font-size:19px}.band h1{font-size:1.7rem}}
+@media print{.band{background:none;color:#000}.actions,#tip{display:none}}
+</style></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
+A parts predictor, truck loads, a dispatch replay and an AI step, on invented repair history." tabindex="0">Staple</h1><p class="lede">Which parts a technician should carry, and which technician should take the call.</p><p class="stamp"><span class="build-stamp" data-tip="Build 14 · 1 Nov 2026 · 1c77917+
+The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 14 · 1 Nov 2026 · 1c77917+</span> · results last changed <span class="content-day" data-tip="1 Nov 2026
+The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">1 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="manual.html" target="_blank" rel="noopener" data-tip="Instruction Manual
+Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you." tabindex="0">Instruction Manual</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods and logic
+Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods and logic</a></nav></div></header><main><p class="hint-key">A dotted underline, or a pointer that turns into a question mark, means hover, tap or tab there for the data behind it. A blue <span class="q" data-tip="A blue ?
+Sits beside a word the manual&#x27;s glossary explains. Clicking it opens the manual in a new tab at that word." tabindex="0">?</span> opens the manual at that word.</p><p class="note">Every number on this page comes from repair history I invented for this demo: <span class="hv" data-tip="160,000 jobs over 1,096 days
+6 appliance types, 30 technicians, 12 zones. The last 92 days are held back for scoring." tabindex="0">160,000 jobs over three years</span>, with <span class="hv" data-tip="10% of bookings
+The customer describes a different problem than the real one, so the booked code is wrong." tabindex="0">wrong descriptions</span>, <span class="hv" data-tip="2 newest families per appliance
+Introduced recently, so the predictor must lean on the wider group." tabindex="0">thin model histories</span> and <span class="hv" data-tip="8% of jobs
+The failed part follows no pattern, so no method can predict it." tabindex="0">patternless failures</span> planted on purpose. The method is real and every gain has a control<a class="q" href="manual.html#term-control" target="_blank" rel="noopener" data-tip="Control
+A deliberately broken copy of a method with its data&#x27;s links shuffled. If it scores as well, the gain is not real.
+The ? opens the manual at this word." tabindex="0">?</a> that can withdraw it. The results are not, and the same back-test on real history is the first thing I would run.</p><div class="tiles"><div class="tile" data-tip="86.4% of 13,587 held-back calls fixed on the first visit
+Nearest technician, today&#x27;s stock 69.6%; nearest, balanced loads 79.3%; skills only 84.4%; parts only 84.1%.
+A rolled call counts as not fixed; 2 were rolled.
+From dispatch_scorecard.sql." tabindex="0"><p class="label">Fixed on the first visit<a class="q" href="manual.html#term-first-visit-fix" target="_blank" rel="noopener" data-tip="First-visit fix
+A repair finished on the technician&#x27;s first visit: every part on the truck, and a repair that takes.
+The ? opens the manual at this word." tabindex="0">?</a></p><p class="value">86.4%</p><p class="sub">from 69.6% sending the nearest technician on today&#x27;s stock</p></div><div class="tile" data-tip="$93.21 a call, against $122.08 today
+Drive 17.6 minutes a call against 13.7. Second visits at $165 for the 13.6% not fixed first time, against 30.4%.
+Minutes at $1 each. Both rates are made up.
+From dispatch_scorecard.sql." tabindex="0"><p class="label">Cost a call<a class="q" href="manual.html#term-repeat-visit" target="_blank" rel="noopener" data-tip="Repeat visit
+A second truck roll because the first visit did not fix the job, costed at $165 (made up).
+The ? opens the manual at this word." tabindex="0">?</a></p><p class="value">$93.21</p><p class="sub">from $122.08: minutes at $1, second visits at $165, both made up</p></div><div class="tile" data-tip="90.3% of jobs had every needed part aboard the balanced truck
+Today&#x27;s trucks 78.6% at $180.16 a truck-day; balanced $109.40.
+Balanced: 66 parts aboard, 38 of them permanent, 13.4 moved a night, $3,068 of stock.
+From inventory_roi.sql." tabindex="0"><p class="label">Jobs the truck covers<a class="q" href="manual.html#term-coverage" target="_blank" rel="noopener" data-tip="Coverage
+The share of jobs whose every needed part was on the list or the truck. One missing part fails the whole job.
+The ? opens the manual at this word." tabindex="0">?</a></p><p class="value">90.3%</p><p class="sub">from 78.6%, at $109 a truck-day against $180</p></div><div class="tile" data-tip="92.6% of 13,587 held-back bookings: Claude&#x27;s code matches the booked code
+Keyword rules 48.2%; Claude&#x27;s answers shuffled (control) 18.9%.
+Against the true problem: Claude 83.8%, keyword rules 44.4%.
+From ai_step.sql." tabindex="0"><p class="label">Customer&#x27;s words read right<a class="q" href="manual.html#term-booked-code" target="_blank" rel="noopener" data-tip="Booked code
+The problem code the booking recorded from the customer&#x27;s words. Real history knows only this code.
+The ? opens the manual at this word." tabindex="0">?</a></p><p class="value">92.6%</p><p class="sub">agreement with the booked code, against 48.2% for keyword rules</p></div></div><section><h2 data-tip="Where repeat visits come from
+Source: sql/metrics/parts_caused_reschedules.sql. Parts-caused reschedules by appliance: repeat visits that happened because a needed part was not on the truck. A repeat with every part on board failed for another reason, such as the diagnosis or the technician&#x27;s skill." tabindex="0">Where repeat visits come from</h2><p>On today&#x27;s trucks, a missing part causes <span class="hv" data-tip="34,688 of 51,754 repeat visits
+Across 160,000 jobs. The rest failed on the technician&#x27;s success rate with every part aboard." tabindex="0">67%</span> of repeat visits<a class="q" href="manual.html#term-repeat-visit" target="_blank" rel="noopener" data-tip="Repeat visit
+A second truck roll because the first visit did not fix the job, costed at $165 (made up).
+The ? opens the manual at this word." tabindex="0">?</a>. Washers are worst: <span class="hv" data-tip="7,434 of 25,550 washer jobs
+Only 72.6% of the part lines they need are on the truck." tabindex="0">29 of every 100</span> washer jobs need a second visit because a part was not on board.</p><figure><figcaption><span class="fig-title" data-tip="Repeat visits caused by a missing part, per 100 jobs
+Parts-caused reschedules by appliance: repeat visits that happened because a needed part was not on the truck. A repeat with every part on board failed for another reason, such as the diagnosis or the technician&#x27;s skill.
+6 rows from sql/metrics/parts_caused_reschedules.sql." tabindex="0">Repeat visits caused by a missing part, per 100 jobs</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><div class="bars"><div class="bar-row lead" data-tip="29.1 repeat visits per 100 washer jobs for a missing part
+7,434 of 25,550 jobs; 75.1% of its 9,900 repeat visits.
+Truck fill: 72.6% of needed part lines aboard, 68.8% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">washer</span><span class="track"><span class="bar" style="--v:1.000"></span><span class="bar-value">29.1 per 100 jobs</span></span></div><div class="bar-row " data-tip="22.5 repeat visits per 100 dryer jobs for a missing part
+5,743 of 25,525 jobs; 66.5% of its 8,641 repeat visits.
+Truck fill: 79.3% of needed part lines aboard, 75.8% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">dryer</span><span class="track"><span class="bar" style="--v:0.773"></span><span class="bar-value">22.5 per 100 jobs</span></span></div><div class="bar-row " data-tip="22.4 repeat visits per 100 refrigerator jobs for a missing part
+5,708 of 25,464 jobs; 66.3% of its 8,605 repeat visits.
+Truck fill: 79.2% of needed part lines aboard, 75.8% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">refrigerator</span><span class="track"><span class="bar" style="--v:0.770"></span><span class="bar-value">22.4 per 100 jobs</span></span></div><div class="bar-row " data-tip="20.7 repeat visits per 100 range jobs for a missing part
+5,222 of 25,264 jobs; 66.5% of its 7,850 repeat visits.
+Truck fill: 81.0% of needed part lines aboard, 77.8% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">range</span><span class="track"><span class="bar" style="--v:0.711"></span><span class="bar-value">20.7 per 100 jobs</span></span></div><div class="bar-row " data-tip="18.2 repeat visits per 100 furnace jobs for a missing part
+6,002 of 32,955 jobs; 63.4% of its 9,462 repeat visits.
+Truck fill: 83.2% of needed part lines aboard, 80.4% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">furnace</span><span class="track"><span class="bar" style="--v:0.625"></span><span class="bar-value">18.2 per 100 jobs</span></span></div><div class="bar-row " data-tip="18.1 repeat visits per 100 dishwasher jobs for a missing part
+4,579 of 25,242 jobs; 62.8% of its 7,296 repeat visits.
+Truck fill: 83.4% of needed part lines aboard, 80.5% of jobs with every line aboard (truck_fill_rate.sql)." tabindex="0"><span class="bar-label">dishwasher</span><span class="track"><span class="bar" style="--v:0.622"></span><span class="bar-value">18.1 per 100 jobs</span></span></div></div><details><summary data-tip="Show the numbers
+The 6 rows this chart is drawn from, exactly as sql/metrics/parts_caused_reschedules.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="appliance
+The appliance type." tabindex="0">appliance</th><th data-tip="jobs
+Jobs counted." tabindex="0">jobs</th><th data-tip="repeat_visits
+Jobs not fixed on the first visit." tabindex="0">repeat_<wbr>visits</th><th data-tip="parts_caused
+Repeat visits where a needed part was not on the truck." tabindex="0">parts_<wbr>caused</th><th data-tip="parts_caused_per_100_jobs
+Parts-caused repeat visits per 100 jobs of this appliance." tabindex="0">parts_<wbr>caused_<wbr>per_<wbr>100_<wbr>jobs</th><th data-tip="parts_share_of_repeats_pct
+The share of this appliance&#x27;s repeat visits that a missing part caused." tabindex="0">parts_<wbr>share_<wbr>of_<wbr>repeats_<wbr>pct</th></tr></thead><tbody><tr><td>washer</td><td>25550</td><td>9900</td><td>7434</td><td>29.1</td><td>75.1</td></tr><tr><td>dryer</td><td>25525</td><td>8641</td><td>5743</td><td>22.5</td><td>66.5</td></tr><tr><td>refrigerator</td><td>25464</td><td>8605</td><td>5708</td><td>22.4</td><td>66.3</td></tr><tr><td>range</td><td>25264</td><td>7850</td><td>5222</td><td>20.7</td><td>66.5</td></tr><tr><td>furnace</td><td>32955</td><td>9462</td><td>6002</td><td>18.2</td><td>63.4</td></tr><tr><td>dishwasher</td><td>25242</td><td>7296</td><td>4579</td><td>18.1</td><td>62.8</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="Which parts to carry
+Source: sql/metrics/carry_list_curve.sql. First-visit coverage against carry-list length: the share of held-back jobs where every needed part was on a list of k parts, for the predictor, the national top-parts list and the shuffled-history control." tabindex="0">Which parts to carry</h2><p>The predictor ranks parts by how often they fixed the same model family and problem, and leans<a class="q" href="manual.html#term-lean" target="_blank" rel="noopener" data-tip="Lean
+Where a model family has little history, its odds lean on the wider group, as if 20 more jobs were seen there.
+The ? opens the manual at this word." tabindex="0">?</a> on the wider appliance group when a family&#x27;s history is thin. Three parts on the carry list<a class="q" href="manual.html#term-carry-list" target="_blank" rel="noopener" data-tip="Carry list
+The parts a booked call is likeliest to need, ranked by the predictor. Its length is how many parts are on it.
+The ? opens the manual at this word." tabindex="0">?</a> cover <span class="hv" data-tip="71.6% of held-back jobs
+Every needed part on a 3-part list. With 8 parts: 89.7%." tabindex="0">71.6%</span> of held-back jobs; the national top three cover <span class="hv" data-tip="40.3% with the national top 3
+The appliance&#x27;s most-used parts, whatever the problem." tabindex="0">40.3%</span>. Shuffling the history drops the predictor to <span class="hv" data-tip="38.5% on shuffled history
+The control falls to the national line, so the gain comes from what the history links." tabindex="0">38.5%</span>, so the gain comes from what the history links, not from the method. The list tops the truck up for the day; it does not replace the truck.</p><figure><figcaption><span class="fig-title" data-tip="Held-back jobs whose every needed part is on the list
+First-visit coverage against carry-list length: the share of held-back jobs where every needed part was on a list of k parts, for the predictor, the national top-parts list and the shuffled-history control.
+8 rows from sql/metrics/carry_list_curve.sql." tabindex="0">Held-back jobs whose every needed part is on the list</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><div class="legend"><span class="key" data-tip="Predictor
+Ranks parts by how often they fixed the same model family and problem, leaning wider where history is thin." tabindex="0"><i style="background:var(--s1)"></i>Predictor</span><span class="key" data-tip="National top parts
+The appliance&#x27;s nationally most-used parts, whatever the problem: today&#x27;s stocking logic." tabindex="0"><i style="background:var(--s2)"></i>National top parts</span><span class="key" data-tip="Shuffled history (control)
+The predictor trained on history whose part-to-problem links were shuffled. It must fall to the national line." tabindex="0"><i style="background:var(--dim)"></i>Shuffled history (control)</span></div><svg viewBox="0 0 560 300" tabindex="0" data-curve="{&quot;w&quot;: 560, &quot;xs&quot;: [56.0, 125.42857142857143, 194.85714285714286, 264.2857142857143, 333.7142857142857, 403.14285714285717, 472.57142857142856, 542.0], &quot;ks&quot;: [1, 2, 3, 4, 5, 6, 7, 8], &quot;tips&quot;: [&quot;1 part on the list: predictor covers 37.5%\nNational top parts 19.5%, so the predictor adds +18.0 points.\nShuffled history (control) 19.5%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;2 parts on the list: predictor covers 60.5%\nNational top parts 30.0%, so the predictor adds +30.5 points.\nShuffled history (control) 28.8%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;3 parts on the list: predictor covers 71.6%\nNational top parts 40.3%, so the predictor adds +31.3 points.\nShuffled history (control) 38.5%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;4 parts on the list: predictor covers 77.9%\nNational top parts 49.0%, so the predictor adds +28.9 points.\nShuffled history (control) 47.7%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;5 parts on the list: predictor covers 82.5%\nNational top parts 57.0%, so the predictor adds +25.5 points.\nShuffled history (control) 57.8%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;6 parts on the list: predictor covers 85.7%\nNational top parts 64.4%, so the predictor adds +21.3 points.\nShuffled history (control) 63.8%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;7 parts on the list: predictor covers 88.0%\nNational top parts 70.4%, so the predictor adds +17.6 points.\nShuffled history (control) 70.4%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;, &quot;8 parts on the list: predictor covers 89.7%\nNational top parts 75.8%, so the predictor adds +13.9 points.\nShuffled history (control) 75.8%; today&#x27;s trucks 78.6%.\nShare of the 13,587 held-back jobs whose every needed part is on the list.&quot;]}" aria-label="First-visit coverage against carry-list length; the table below holds every value"><line class="grid" x1="56" x2="542" y1="252.0" y2="252.0"/><text class="tick" x="48" y="256.0" text-anchor="end">0%</text><line class="grid" x1="56" x2="542" y1="193.0" y2="193.0"/><text class="tick" x="48" y="197.0" text-anchor="end">25%</text><line class="grid" x1="56" x2="542" y1="134.0" y2="134.0"/><text class="tick" x="48" y="138.0" text-anchor="end">50%</text><line class="grid" x1="56" x2="542" y1="75.0" y2="75.0"/><text class="tick" x="48" y="79.0" text-anchor="end">75%</text><line class="grid" x1="56" x2="542" y1="16.0" y2="16.0"/><text class="tick" x="48" y="20.0" text-anchor="end">100%</text><text class="tick" x="56.0" y="272" text-anchor="middle">1</text><text class="tick" x="125.4" y="272" text-anchor="middle">2</text><text class="tick" x="194.9" y="272" text-anchor="middle">3</text><text class="tick" x="264.3" y="272" text-anchor="middle">4</text><text class="tick" x="333.7" y="272" text-anchor="middle">5</text><text class="tick" x="403.1" y="272" text-anchor="middle">6</text><text class="tick" x="472.6" y="272" text-anchor="middle">7</text><text class="tick" x="542.0" y="272" text-anchor="middle">8</text><text class="tick" x="299.0" y="294" text-anchor="middle">parts on the carry list</text><line class="ref" x1="56" x2="542" y1="66.5" y2="66.5"/><text class="ref-label" x="64" y="59.5">today's trucks: 78.6%</text><polyline class="series" style="stroke:var(--s1)" points="56.0,163.5 125.4,109.2 194.9,83.0 264.3,68.2 333.7,57.3 403.1,49.7 472.6,44.3 542.0,40.3"/><circle class="dot" style="fill:var(--s1)" cx="56.0" cy="163.5" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="125.4" cy="109.2" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="194.9" cy="83.0" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="264.3" cy="68.2" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="333.7" cy="57.3" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="403.1" cy="49.7" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="472.6" cy="44.3" r="3.5"/><circle class="dot" style="fill:var(--s1)" cx="542.0" cy="40.3" r="3.5"/><polyline class="series" style="stroke:var(--s2)" points="56.0,206.0 125.4,181.2 194.9,156.9 264.3,136.4 333.7,117.5 403.1,100.0 472.6,85.9 542.0,73.1"/><circle class="dot" style="fill:var(--s2)" cx="56.0" cy="206.0" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="125.4" cy="181.2" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="194.9" cy="156.9" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="264.3" cy="136.4" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="333.7" cy="117.5" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="403.1" cy="100.0" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="472.6" cy="85.9" r="3.5"/><circle class="dot" style="fill:var(--s2)" cx="542.0" cy="73.1" r="3.5"/><polyline class="series" style="stroke:var(--dim)" points="56.0,206.0 125.4,184.0 194.9,161.1 264.3,139.4 333.7,115.6 403.1,101.4 472.6,85.9 542.0,73.1"/><circle class="dot" style="fill:var(--dim)" cx="56.0" cy="206.0" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="125.4" cy="184.0" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="194.9" cy="161.1" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="264.3" cy="139.4" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="333.7" cy="115.6" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="403.1" cy="101.4" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="472.6" cy="85.9" r="3.5"/><circle class="dot" style="fill:var(--dim)" cx="542.0" cy="73.1" r="3.5"/><text class="end-label" x="532.0" y="28.3" text-anchor="end">predictor, 8 parts: 89.7%</text><line class="cross" x1="0" x2="0" y1="16" y2="252"/><rect class="hit" x="56" y="16" width="486" height="236"/></svg><details><summary data-tip="Show the numbers
+The 8 rows this chart is drawn from, exactly as sql/metrics/carry_list_curve.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="k
+Parts on the carry list." tabindex="0">k</th><th data-tip="predictor_pct
+Held-back jobs whose every needed part is on the predictor&#x27;s list." tabindex="0">predictor_<wbr>pct</th><th data-tip="national_pct
+The same, for the appliance&#x27;s nationally most-used parts." tabindex="0">national_<wbr>pct</th><th data-tip="shuffled_pct
+The same, for the predictor trained on shuffled history (control)." tabindex="0">shuffled_<wbr>pct</th><th data-tip="todays_trucks_pct
+Held-back jobs whose every needed part was on today&#x27;s truck." tabindex="0">todays_<wbr>trucks_<wbr>pct</th></tr></thead><tbody><tr><td>1</td><td>37.5</td><td>19.5</td><td>19.5</td><td>78.6</td></tr><tr><td>2</td><td>60.5</td><td>30.0</td><td>28.8</td><td>78.6</td></tr><tr><td>3</td><td>71.6</td><td>40.3</td><td>38.5</td><td>78.6</td></tr><tr><td>4</td><td>77.9</td><td>49.0</td><td>47.7</td><td>78.6</td></tr><tr><td>5</td><td>82.5</td><td>57.0</td><td>57.8</td><td>78.6</td></tr><tr><td>6</td><td>85.7</td><td>64.4</td><td>63.8</td><td>78.6</td></tr><tr><td>7</td><td>88.0</td><td>70.4</td><td>70.4</td><td>78.6</td></tr><tr><td>8</td><td>89.7</td><td>75.8</td><td>75.8</td><td>78.6</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="What to load tonight
+Source: sql/metrics/inventory_roi.sql. Inventory ROI by truck-load policy: repeat-visit dollars a year that a truck&#x27;s stock avoids, per dollar of stock on board, over the held-back replay. Each covered job counts as one repeat visit avoided against an empty truck. Every dollar is made up; the assumptions table lists each one." tabindex="0">What to load tonight</h2><p>Each night the balanced truck ranks every part by its worth per unit of space: the booked calls&#x27; odds of needing it times a repeat visit, plus a share for calls that arrive unplanned<a class="q" href="manual.html#term-unplanned-call" target="_blank" rel="noopener" data-tip="Unplanned call
+A call added or moved on the day, 15% of calls (made up). No night-before list saw it.
+The ? opens the manual at this word." tabindex="0">?</a>, minus what holding it costs<a class="q" href="manual.html#term-holding-cost" target="_blank" rel="noopener" data-tip="Holding cost
+The yearly cost of money tied up in truck stock: 25% of its value (made up).
+The ? opens the manual at this word." tabindex="0">?</a>. It covers <span class="hv" data-tip="90.3% of jobs covered
+Against 78.6% on today&#x27;s trucks." tabindex="0">90.3%</span> of jobs for <span class="hv" data-tip="$109.40 a truck-day
+Repeat $80.42, moves $26.88, holding $2.10." tabindex="0">$109 a truck-day</span><a class="q" href="manual.html#term-truck-day" target="_blank" rel="noopener" data-tip="Truck-day
+One technician&#x27;s truck on one day: its load, its jobs and its costs.
+The ? opens the manual at this word." tabindex="0">?</a>, against 78.6% and <span class="hv" data-tip="$180.16 a truck-day on today&#x27;s stock
+Repeat $177.99, moves $0.00, holding $2.17." tabindex="0">$180</span> for today&#x27;s fixed stock, and it holds less: <span class="hv" data-tip="$3,068 of stock on the balanced truck
+66 parts, 38 of them aboard nearly every day." tabindex="0">$3,068</span> on board against $3,162.</p><figure><figcaption><span class="fig-title" data-tip="Cost a truck-day: repeat visits, parts moved overnight, and money tied up
+Inventory ROI by truck-load policy: repeat-visit dollars a year that a truck&#x27;s stock avoids, per dollar of stock on board, over the held-back replay. Each covered job counts as one repeat visit avoided against an empty truck. Every dollar is made up; the assumptions table lists each one.
+19 rows from sql/metrics/inventory_roi.sql." tabindex="0">Cost a truck-day: repeat visits, parts moved overnight, and money tied up</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><div class="bars"><div class="bar-row lead" data-tip="$109.40 a truck-day, covering 90.3% of jobs
+Repeat visits $80.42 + parts moved $26.88 + holding $2.10.
+66 parts aboard (38 permanent), 13.4 moved a night, $3,068 of stock; ROI 90 dollars a year per dollar held." tabindex="0"><span class="bar-label">balanced truck</span><span class="track"><span class="bar" style="--v:0.482"></span><span class="bar-value">$109 · covers 90.3%</span></span></div><div class="bar-row " data-tip="$135.78 a truck-day, covering 85.8% of jobs
+Repeat visits $118.36 + parts moved $15.14 + holding $2.28.
+53 parts aboard (49 permanent), 7.6 moved a night, $3,335 of stock; ROI 78 dollars a year per dollar held." tabindex="0"><span class="bar-label">today&#x27;s stock plus the day&#x27;s lists, 6 per job</span><span class="track"><span class="bar" style="--v:0.599"></span><span class="bar-value">$136 · covers 85.8%</span></span></div><div class="bar-row " data-tip="$136.11 a truck-day, covering 86.1% of jobs
+Repeat visits $115.54 + parts moved $18.26 + holding $2.31.
+54 parts aboard (49 permanent), 9.1 moved a night, $3,373 of stock; ROI 78 dollars a year per dollar held." tabindex="0"><span class="bar-label">every part that fits for the day&#x27;s types</span><span class="track"><span class="bar" style="--v:0.600"></span><span class="bar-value">$136 · covers 86.1%</span></span></div><div class="bar-row " data-tip="$180.16 a truck-day, covering 78.6% of jobs
+Repeat visits $177.99 + parts moved $0.00 + holding $2.17.
+49 parts aboard (49 permanent), 0.0 moved a night, $3,162 of stock; ROI 76 dollars a year per dollar held." tabindex="0"><span class="bar-label">today&#x27;s trucks</span><span class="track"><span class="bar" style="--v:0.794"></span><span class="bar-value">$180 · covers 78.6%</span></span></div><div class="bar-row " data-tip="$226.77 a truck-day, covering 81.7% of jobs
+Repeat visits $152.01 + parts moved $73.72 + holding $1.04.
+27 parts aboard (0 permanent), 36.9 moved a night, $1,516 of stock; ROI 164 dollars a year per dollar held." tabindex="0"><span class="bar-label">the day&#x27;s lists only, 8 per job</span><span class="track"><span class="bar" style="--v:1.000"></span><span class="bar-value">$227 · covers 81.7%</span></span></div></div><details><summary data-tip="Show the numbers
+The 19 rows this chart is drawn from, exactly as sql/metrics/inventory_roi.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="policy
+How the truck is loaded, or how calls are handed out." tabindex="0">policy</th><th data-tip="parts_per_job
+Carry-list parts per booked call; 0 where the policy uses no list." tabindex="0">parts_<wbr>per_<wbr>job</th><th data-tip="covered_pct
+Jobs whose every needed part was aboard." tabindex="0">covered_<wbr>pct</th><th data-tip="parts_aboard
+Parts on the truck, per truck-day." tabindex="0">parts_<wbr>aboard</th><th data-tip="permanent_parts
+Parts aboard on at least 90% of a truck&#x27;s days." tabindex="0">permanent_<wbr>parts</th><th data-tip="moves_a_night
+Parts put on or taken off overnight, per truck." tabindex="0">moves_<wbr>a_<wbr>night</th><th data-tip="stock_value
+Dollars of stock on board: money tied up, not spent." tabindex="0">stock_<wbr>value</th><th data-tip="repeat_cost
+Repeat visits for jobs the load missed, at $165 each, per truck-day." tabindex="0">repeat_<wbr>cost</th><th data-tip="handling_cost
+Parts moved overnight at $2 each, per truck-day." tabindex="0">handling_<wbr>cost</th><th data-tip="holding_cost
+Stock value times 25% a year, per day." tabindex="0">holding_<wbr>cost</th><th data-tip="cost_a_truck_day
+Repeat, handling and holding together, per truck-day." tabindex="0">cost_<wbr>a_<wbr>truck_<wbr>day</th><th data-tip="roi
+Repeat-visit dollars a year the stock avoids, per dollar of stock on board." tabindex="0">roi</th></tr></thead><tbody><tr><td>the day&#x27;s lists only</td><td>1</td><td>36.4</td><td>4.0</td><td>0.0</td><td>7.3</td><td>238.0</td><td>529.63</td><td>14.61</td><td>0.16</td><td>544.4</td><td>464.65</td></tr><tr><td>the day&#x27;s lists only</td><td>2</td><td>56.8</td><td>7.6</td><td>0.0</td><td>12.4</td><td>507.0</td><td>359.36</td><td>24.76</td><td>0.35</td><td>384.47</td><td>340.85</td></tr><tr><td>the day&#x27;s lists only</td><td>3</td><td>65.7</td><td>10.9</td><td>0.0</td><td>16.9</td><td>744.0</td><td>285.62</td><td>33.82</td><td>0.51</td><td>319.96</td><td>268.42</td></tr><tr><td>the day&#x27;s lists only</td><td>4</td><td>70.9</td><td>14.3</td><td>0.0</td><td>21.8</td><td>960.0</td><td>242.54</td><td>43.6</td><td>0.66</td><td>286.79</td><td>224.47</td></tr><tr><td>the day&#x27;s lists only</td><td>5</td><td>74.9</td><td>17.7</td><td>0.0</td><td>26.9</td><td>1096.0</td><td>209.31</td><td>53.88</td><td>0.75</td><td>263.95</td><td>207.56</td></tr><tr><td>the day&#x27;s lists only</td><td>6</td><td>77.7</td><td>21.0</td><td>0.0</td><td>31.3</td><td>1232.0</td><td>185.47</td><td>62.59</td><td>0.84</td><td>248.9</td><td>191.83</td></tr><tr><td>the day&#x27;s lists only</td><td>7</td><td>80.0</td><td>24.1</td><td>0.0</td><td>34.5</td><td>1377.0</td><td>166.72</td><td>69.0</td><td>0.94</td><td>236.66</td><td>176.6</td></tr><tr><td>the day&#x27;s lists only</td><td>8</td><td>81.7</td><td>26.9</td><td>0.0</td><td>36.9</td><td>1516.0</td><td>152.01</td><td>73.72</td><td>1.04</td><td>226.77</td><td>163.87</td></tr><tr><td>balanced truck</td><td>0</td><td>90.3</td><td>66.3</td><td>37.6</td><td>13.4</td><td>3068.0</td><td>80.42</td><td>26.88</td><td>2.1</td><td>109.4</td><td>89.5</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>6</td><td>85.8</td><td>53.0</td><td>48.7</td><td>7.6</td><td>3335.0</td><td>118.36</td><td>15.14</td><td>2.28</td><td>135.78</td><td>78.19</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>7</td><td>85.8</td><td>53.2</td><td>48.7</td><td>7.8</td><td>3340.0</td><td>117.87</td><td>15.65</td><td>2.29</td><td>135.8</td><td>78.13</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>8</td><td>85.9</td><td>53.3</td><td>48.7</td><td>8.0</td><td>3342.0</td><td>117.56</td><td>15.97</td><td>2.29</td><td>135.81</td><td>78.12</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>5</td><td>85.3</td><td>52.6</td><td>48.7</td><td>6.8</td><td>3324.0</td><td>122.16</td><td>13.68</td><td>2.28</td><td>138.11</td><td>78.04</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>4</td><td>84.2</td><td>51.6</td><td>48.7</td><td>5.0</td><td>3295.0</td><td>131.72</td><td>10.02</td><td>2.26</td><td>144.0</td><td>77.66</td></tr><tr><td>every part that fits for the day&#x27;s types</td><td>25</td><td>86.1</td><td>54.5</td><td>48.7</td><td>9.1</td><td>3373.0</td><td>115.54</td><td>18.26</td><td>2.31</td><td>136.11</td><td>77.61</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>3</td><td>82.3</td><td>50.1</td><td>48.7</td><td>2.3</td><td>3240.0</td><td>147.47</td><td>4.65</td><td>2.22</td><td>154.34</td><td>77.21</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>2</td><td>80.4</td><td>49.1</td><td>48.7</td><td>0.7</td><td>3179.0</td><td>163.28</td><td>1.32</td><td>2.18</td><td>166.78</td><td>76.88</td></tr><tr><td>today&#x27;s stock plus the day&#x27;s lists</td><td>1</td><td>79.5</td><td>48.9</td><td>48.7</td><td>0.3</td><td>3167.0</td><td>170.82</td><td>0.51</td><td>2.17</td><td>173.5</td><td>76.28</td></tr><tr><td>today&#x27;s trucks</td><td>0</td><td>78.6</td><td>48.8</td><td>48.7</td><td>0.0</td><td>3162.0</td><td>177.99</td><td>0.0</td><td>2.17</td><td>180.16</td><td>75.59</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="Who takes the call
+Source: sql/metrics/dispatch_scorecard.sql. Dispatch scorecard: each way of handing out calls, replayed over the held-back days with the same made-up sick calls, breakdowns and priority changes. A call rolled to tomorrow counts as not fixed today." tabindex="0">Who takes the call</h2><p>Every held-back day is replayed with the same made-up sick calls, breakdowns and priority changes. Staple sends each call to the technician with the lowest expected cost: drive and repair minutes, plus a second visit times the chance that technician&#x27;s skill or truck fails it. Within each priority, the call with most to lose if its best technician fills up goes first<a class="q" href="manual.html#term-regret-insertion" target="_blank" rel="noopener" data-tip="Regret insertion
+Placing first the call that loses most if its best technician&#x27;s day fills up, not the call booked first.
+The ? opens the manual at this word." tabindex="0">?</a>. Shuffling the technicians&#x27; skills drops it to <span class="hv" data-tip="83.3% with shuffled skills
+Each technician read another&#x27;s success rate and speed; $104.66 a call." tabindex="0">83.3%</span>, below the parts-only rule&#x27;s <span class="hv" data-tip="84.1% on parts alone
+Every technician taken as average; $97.74 a call." tabindex="0">84.1%</span>, so the skill gain comes from knowing who is good at what. A rolled call<a class="q" href="manual.html#term-rolled-call" target="_blank" rel="noopener" data-tip="Rolled call
+A call no technician&#x27;s day had room for. It moves to tomorrow and counts as not fixed today.
+The ? opens the manual at this word." tabindex="0">?</a> counts as not fixed.</p><figure><figcaption><span class="fig-title" data-tip="Calls fixed on the first visit, with a rolled call counted as not fixed
+Dispatch scorecard: each way of handing out calls, replayed over the held-back days with the same made-up sick calls, breakdowns and priority changes. A call rolled to tomorrow counts as not fixed today.
+7 rows from sql/metrics/dispatch_scorecard.sql." tabindex="0">Calls fixed on the first visit, with a rolled call counted as not fixed</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><div class="bars"><div class="bar-row " data-tip="69.6% fixed on the first visit, $122.08 a call
+Drive 13.7 minutes a call; a part missing on 20.4% of visits; 9 of 13,587 calls rolled.
+438 calls moved by sick days and breakdowns, fixed first time 71.2%.
+Against the nearest technician on today&#x27;s stock: +0.0 points, +0.00 dollars a call." tabindex="0"><span class="bar-label">nearest technician, today&#x27;s stock</span><span class="track"><span class="bar" style="--v:0.806"></span><span class="bar-value">69.6% · $122 a call</span></span></div><div class="bar-row " data-tip="79.3% fixed on the first visit, $106.06 a call
+Drive 13.7 minutes a call; a part missing on 9.1% of visits; 9 of 13,587 calls rolled.
+438 calls moved by sick days and breakdowns, fixed first time 69.2%.
+Against the nearest technician on today&#x27;s stock: +9.7 points, -16.02 dollars a call." tabindex="0"><span class="bar-label">nearest technician, balanced loads</span><span class="track"><span class="bar" style="--v:0.918"></span><span class="bar-value">79.3% · $106 a call</span></span></div><div class="bar-row " data-tip="84.4% fixed on the first visit, $95.59 a call
+Drive 16.6 minutes a call; a part missing on 7.2% of visits; 1 of 13,587 calls rolled.
+440 calls moved by sick days and breakdowns, fixed first time 64.5%.
+Against the nearest technician on today&#x27;s stock: +14.8 points, -26.49 dollars a call." tabindex="0"><span class="bar-label">skills only, balanced loads</span><span class="track"><span class="bar" style="--v:0.977"></span><span class="bar-value">84.4% · $96 a call</span></span></div><div class="bar-row " data-tip="84.1% fixed on the first visit, $97.74 a call
+Drive 14.9 minutes a call; a part missing on 4.3% of visits; 4 of 13,587 calls rolled.
+461 calls moved by sick days and breakdowns, fixed first time 84.2%.
+Against the nearest technician on today&#x27;s stock: +14.5 points, -24.34 dollars a call." tabindex="0"><span class="bar-label">parts only, balanced loads</span><span class="track"><span class="bar" style="--v:0.973"></span><span class="bar-value">84.1% · $98 a call</span></span></div><div class="bar-row lead" data-tip="86.4% fixed on the first visit, $93.21 a call
+Drive 17.6 minutes a call; a part missing on 4.7% of visits; 2 of 13,587 calls rolled.
+433 calls moved by sick days and breakdowns, fixed first time 77.3%.
+Against the nearest technician on today&#x27;s stock: +16.8 points, -28.87 dollars a call." tabindex="0"><span class="bar-label">Staple: skills and parts, balanced loads</span><span class="track"><span class="bar" style="--v:1.000"></span><span class="bar-value">86.4% · $93 a call</span></span></div><div class="bar-row control" data-tip="83.3% fixed on the first visit, $104.66 a call
+Drive 18.6 minutes a call; a part missing on 3.7% of visits; 13 of 13,587 calls rolled.
+443 calls moved by sick days and breakdowns, fixed first time 84.0%.
+Against the nearest technician on today&#x27;s stock: +13.7 points, -17.42 dollars a call." tabindex="0"><span class="bar-label">Staple with shuffled skills (control)</span><span class="track"><span class="bar" style="--v:0.964"></span><span class="bar-value">83.3% · $105 a call</span></span></div><div class="bar-row control" data-tip="86.1% fixed on the first visit, $93.87 a call
+Drive 17.7 minutes a call; a part missing on 5.1% of visits; 0 of 13,587 calls rolled.
+455 calls moved by sick days and breakdowns, fixed first time 76.7%.
+Against the nearest technician on today&#x27;s stock: +16.5 points, -28.21 dollars a call." tabindex="0"><span class="bar-label">Staple with shuffled-history parts odds (control)</span><span class="track"><span class="bar" style="--v:0.997"></span><span class="bar-value">86.1% · $94 a call</span></span></div></div><details><summary data-tip="Show the numbers
+The 7 rows this chart is drawn from, exactly as sql/metrics/dispatch_scorecard.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="policy
+How the truck is loaded, or how calls are handed out." tabindex="0">policy</th><th data-tip="calls
+Held-back calls." tabindex="0">calls</th><th data-tip="rolled
+Calls rolled to tomorrow; each counts as not fixed." tabindex="0">rolled</th><th data-tip="first_visit_fix_pct
+Expected first-visit fixes per call, a rolled call counting zero." tabindex="0">first_<wbr>visit_<wbr>fix_<wbr>pct</th><th data-tip="parts_missing_pct
+Visits where a needed part was not on the truck." tabindex="0">parts_<wbr>missing_<wbr>pct</th><th data-tip="drive_minutes
+Drive minutes per call served." tabindex="0">drive_<wbr>minutes</th><th data-tip="moved
+Calls moved to another truck by a sick day or breakdown." tabindex="0">moved</th><th data-tip="moved_fix_pct
+First-visit fixes among the moved calls." tabindex="0">moved_<wbr>fix_<wbr>pct</th><th data-tip="cost_per_call
+Minutes at $1, plus second visits at $165, per call served." tabindex="0">cost_<wbr>per_<wbr>call</th></tr></thead><tbody><tr><td>nearest technician, today&#x27;s stock</td><td>13587</td><td>9</td><td>69.6</td><td>20.4</td><td>13.7</td><td>438</td><td>71.2</td><td>122.08</td></tr><tr><td>nearest technician, balanced loads</td><td>13587</td><td>9</td><td>79.3</td><td>9.1</td><td>13.7</td><td>438</td><td>69.2</td><td>106.06</td></tr><tr><td>skills only, balanced loads</td><td>13587</td><td>1</td><td>84.4</td><td>7.2</td><td>16.6</td><td>440</td><td>64.5</td><td>95.59</td></tr><tr><td>parts only, balanced loads</td><td>13587</td><td>4</td><td>84.1</td><td>4.3</td><td>14.9</td><td>461</td><td>84.2</td><td>97.74</td></tr><tr><td>Staple: skills and parts, balanced loads</td><td>13587</td><td>2</td><td>86.4</td><td>4.7</td><td>17.6</td><td>433</td><td>77.3</td><td>93.21</td></tr><tr><td>Staple with shuffled skills (control)</td><td>13587</td><td>13</td><td>83.3</td><td>3.7</td><td>18.6</td><td>443</td><td>84.0</td><td>104.66</td></tr><tr><td>Staple with shuffled-history parts odds (control)</td><td>13587</td><td>0</td><td>86.1</td><td>5.1</td><td>17.7</td><td>455</td><td>76.7</td><td>93.87</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="Reading the customer&#x27;s words
+Source: sql/metrics/ai_step.sql. The AI step: how each reading of the customer&#x27;s own words agrees with the booked code and with the true problem, and the first-visit coverage of the 3-part list it leads to. The true problem is known only because the data is made up; real history knows only the booked code." tabindex="0">Reading the customer&#x27;s words</h2><p>Claude Haiku 5.5 (claude-haiku-5-5) turns the customer&#x27;s own words into a problem code with a confidence. It agrees with the booked code<a class="q" href="manual.html#term-booked-code" target="_blank" rel="noopener" data-tip="Booked code
+The problem code the booking recorded from the customer&#x27;s words. Real history knows only this code.
+The ? opens the manual at this word." tabindex="0">?</a> <span class="hv" data-tip="92.6% agreement
+With the true problem 83.8%, known only because the data is invented." tabindex="0">92.6%</span> of the time, against <span class="hv" data-tip="48.2% for keyword rules
+The code whose label shares the most words with the customer&#x27;s." tabindex="0">48.2%</span> for keyword rules. When it is unsure it asks the customer one short question, which lifts the 3-part list&#x27;s coverage from 68.2% to <span class="hv" data-tip="69.9% with the question
+The simulated customer picks the answer matching the booked problem." tabindex="0">69.9%</span>; random replies to the same question drop it to <span class="hv" data-tip="66.2% with random replies
+The control: the question only helps when the answer is real." tabindex="0">66.2%</span>. Its answers are cached in the repo, so these pages rebuild without a key.</p><figure><figcaption><span class="fig-title" data-tip="Bookings where the reading agrees with the booked code
+The AI step: how each reading of the customer&#x27;s own words agrees with the booked code and with the true problem, and the first-visit coverage of the 3-part list it leads to. The true problem is known only because the data is made up; real history knows only the booked code.
+8 rows from sql/metrics/ai_step.sql." tabindex="0">Bookings where the reading agrees with the booked code</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><div class="bars"><div class="bar-row lead" data-tip="92.6% of 13,587 bookings match the booked code
+83.8% match the true problem, known only because the data is invented.
+The 3-part list built from the reading covers 68.2% of jobs." tabindex="0"><span class="bar-label">Claude</span><span class="track"><span class="bar" style="--v:1.000"></span><span class="bar-value">92.6% · list covers 68.2%</span></span></div><div class="bar-row " data-tip="48.2% of 13,587 bookings match the booked code
+44.4% match the true problem, known only because the data is invented.
+The 3-part list built from the reading covers 50.4% of jobs." tabindex="0"><span class="bar-label">keyword rules</span><span class="track"><span class="bar" style="--v:0.521"></span><span class="bar-value">48.2% · list covers 50.4%</span></span></div><div class="bar-row control" data-tip="18.9% of 13,587 bookings match the booked code
+19.2% match the true problem, known only because the data is invented.
+The 3-part list built from the reading covers 32.7% of jobs." tabindex="0"><span class="bar-label">Claude answers shuffled (control)</span><span class="track"><span class="bar" style="--v:0.204"></span><span class="bar-value">18.9% · list covers 32.7%</span></span></div></div><details><summary data-tip="Show the numbers
+The 8 rows this chart is drawn from, exactly as sql/metrics/ai_step.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="method
+How the customer&#x27;s words were read." tabindex="0">method</th><th data-tip="jobs
+Jobs counted." tabindex="0">jobs</th><th data-tip="agrees_booked_pct
+Readings that match the booked code." tabindex="0">agrees_<wbr>booked_<wbr>pct</th><th data-tip="agrees_true_pct
+Readings that match the true problem, known only because the data is invented." tabindex="0">agrees_<wbr>true_<wbr>pct</th><th data-tip="coverage_pct
+Jobs whose every needed part is on the 3-part list built from the reading." tabindex="0">coverage_<wbr>pct</th></tr></thead><tbody><tr><td>booked code</td><td>13587</td><td>100.0</td><td>90.4</td><td>71.6</td></tr><tr><td>Claude</td><td>13587</td><td>92.6</td><td>83.8</td><td>68.2</td></tr><tr><td>Claude, top guess only</td><td>13587</td><td>92.6</td><td>83.8</td><td>67.5</td></tr><tr><td>Claude, asking when unsure</td><td>13587</td><td>96.1</td><td>86.9</td><td>69.9</td></tr><tr><td>Claude, asking when unsure, random replies (control)</td><td>13587</td><td>90.2</td><td>81.7</td><td>66.2</td></tr><tr><td>keyword rules</td><td>13587</td><td>48.2</td><td>44.4</td><td>50.4</td></tr><tr><td>no code</td><td>13587</td><td>0.0</td><td>0.0</td><td>40.3</td></tr><tr><td>Claude answers shuffled (control)</td><td>13587</td><td>18.9</td><td>19.2</td><td>32.7</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="Back-orders to chase first
+Source: sql/metrics/backorder_exposure.sql. Back-order exposure: each back-ordered part, the calls expected to need it before it arrives, how many of those have no truck nearby holding one, and the repeat-visit dollars at risk. Forecasts use training only; the actual columns count what the held-back days then did." tabindex="0">Back-orders to chase first</h2><p>For each back-ordered part<a class="q" href="manual.html#term-back-order" target="_blank" rel="noopener" data-tip="Back-order
+A part the distribution centres cannot ship until a set day.
+The ? opens the manual at this word." tabindex="0">?</a>, the list forecasts the calls that will need it before it arrives, from training history only, and how many of those have no truck nearby holding one. Over the held-back months it expected <span class="hv" data-tip="84.5 calls, 13.5 stuck
+$2,212 at risk across 12 parts." tabindex="0">84 calls and 14 stuck</span>; the days then brought <span class="hv" data-tip="90 calls, 20 stuck
+Counted on the held-back days, which the forecast never saw." tabindex="0">90 and 20</span>.</p><figure><figcaption><span class="fig-title" data-tip="Back-ordered parts, by repeat-visit dollars at risk before arrival
+Back-order exposure: each back-ordered part, the calls expected to need it before it arrives, how many of those have no truck nearby holding one, and the repeat-visit dollars at risk. Forecasts use training only; the actual columns count what the held-back days then did.
+12 rows from sql/metrics/backorder_exposure.sql." tabindex="0">Back-ordered parts, by repeat-visit dollars at risk before arrival</span> <span class="madeup" data-tip="Invented history
+160,000 jobs from seed 2026. No real company, customer, part or technician. The method is real; this figure is not." tabindex="0">made-up data</span></figcaption><details open><summary data-tip="Show the numbers
+The 12 rows this chart is drawn from, exactly as sql/metrics/backorder_exposure.sql returns them." tabindex="0">Show the numbers</summary><div class="scroll"><table><thead><tr><th data-tip="part
+The back-ordered part." tabindex="0">part</th><th data-tip="eta_days
+Days until the centres can ship it." tabindex="0">eta_<wbr>days</th><th data-tip="trucks_holding
+Trucks that hold one today." tabindex="0">trucks_<wbr>holding</th><th data-tip="open_zones
+Zones with no holding truck based within 30 minutes." tabindex="0">open_<wbr>zones</th><th data-tip="expected_calls
+Calls forecast to need it before it ships, from training history." tabindex="0">expected_<wbr>calls</th><th data-tip="expected_stuck
+Of those, calls forecast to have no truck nearby holding one." tabindex="0">expected_<wbr>stuck</th><th data-tip="dollars_at_risk
+Expected stuck calls times $165." tabindex="0">dollars_<wbr>at_<wbr>risk</th><th data-tip="actual_calls
+Calls the held-back days then brought." tabindex="0">actual_<wbr>calls</th><th data-tip="actual_stuck
+Of those, calls no truck nearby could cover." tabindex="0">actual_<wbr>stuck</th></tr></thead><tbody><tr><td data-tip="dryer/main control board: ships in 13 days
+2 trucks hold one; 5 zones have no holder within 30 minutes.
+Forecast 11.2 calls, 4.4 with no truck nearby: $721 at risk.
+The held-back days brought 11 calls, 5 stuck." tabindex="0"><span class="hv">dryer/main control board</span></td><td>13</td><td>2</td><td>5</td><td>11.2</td><td>4.4</td><td>721.0</td><td>11</td><td>5</td></tr><tr><td data-tip="dryer/blower wheel: ships in 14 days
+2 trucks hold one; 5 zones have no holder within 30 minutes.
+Forecast 7.8 calls, 3.1 with no truck nearby: $503 at risk.
+The held-back days brought 10 calls, 7 stuck." tabindex="0"><span class="hv">dryer/blower wheel</span></td><td>14</td><td>2</td><td>5</td><td>7.8</td><td>3.1</td><td>503.0</td><td>10</td><td>7</td></tr><tr><td data-tip="washer/tub spider arm: ships in 8 days
+0 trucks hold one; 12 zones have no holder within 30 minutes.
+Forecast 1.9 calls, 1.9 with no truck nearby: $316 at risk.
+The held-back days brought 4 calls, 4 stuck." tabindex="0"><span class="hv">washer/tub spider arm</span></td><td>8</td><td>0</td><td>12</td><td>1.9</td><td>1.9</td><td>316.0</td><td>4</td><td>4</td></tr><tr><td data-tip="dishwasher/thermal fuse: ships in 13 days
+4 trucks hold one; 4 zones have no holder within 30 minutes.
+Forecast 4.2 calls, 1.2 with no truck nearby: $202 at risk.
+The held-back days brought 6 calls, 1 stuck." tabindex="0"><span class="hv">dishwasher/thermal fuse</span></td><td>13</td><td>4</td><td>4</td><td>4.2</td><td>1.2</td><td>202.0</td><td>6</td><td>1</td></tr><tr><td data-tip="dryer/moisture sensor: ships in 8 days
+2 trucks hold one; 5 zones have no holder within 30 minutes.
+Forecast 2.6 calls, 1.0 with no truck nearby: $168 at risk.
+The held-back days brought 0 calls, 0 stuck." tabindex="0"><span class="hv">dryer/moisture sensor</span></td><td>8</td><td>2</td><td>5</td><td>2.6</td><td>1.0</td><td>168.0</td><td>0</td><td>0</td></tr><tr><td data-tip="refrigerator/overload protector: ships in 7 days
+1 trucks hold one; 7 zones have no holder within 30 minutes.
+Forecast 1.8 calls, 1.0 with no truck nearby: $165 at risk.
+The held-back days brought 1 calls, 1 stuck." tabindex="0"><span class="hv">refrigerator/overload protector</span></td><td>7</td><td>1</td><td>7</td><td>1.8</td><td>1.0</td><td>165.0</td><td>1</td><td>1</td></tr><tr><td data-tip="washer/tub seal: ships in 4 days
+2 trucks hold one; 6 zones have no holder within 30 minutes.
+Forecast 1.2 calls, 0.6 with no truck nearby: $95 at risk.
+The held-back days brought 3 calls, 2 stuck." tabindex="0"><span class="hv">washer/tub seal</span></td><td>4</td><td>2</td><td>6</td><td>1.2</td><td>0.6</td><td>95.0</td><td>3</td><td>2</td></tr><tr><td data-tip="furnace/gas valve: ships in 6 days
+4 trucks hold one; 2 zones have no holder within 30 minutes.
+Forecast 1.7 calls, 0.3 with no truck nearby: $42 at risk.
+The held-back days brought 1 calls, 0 stuck." tabindex="0"><span class="hv">furnace/gas valve</span></td><td>6</td><td>4</td><td>2</td><td>1.7</td><td>0.3</td><td>42.0</td><td>1</td><td>0</td></tr><tr><td data-tip="dryer/thermal fuse: ships in 5 days
+23 trucks hold one; 0 zones have no holder within 30 minutes.
+Forecast 24.4 calls, 0.0 with no truck nearby: $0 at risk.
+The held-back days brought 28 calls, 0 stuck." tabindex="0"><span class="hv">dryer/thermal fuse</span></td><td>5</td><td>23</td><td>0</td><td>24.4</td><td>0.0</td><td>0.0</td><td>28</td><td>0</td></tr><tr><td data-tip="range/burner cap set: ships in 7 days
+6 trucks hold one; 0 zones have no holder within 30 minutes.
+Forecast 2.3 calls, 0.0 with no truck nearby: $0 at risk.
+The held-back days brought 0 calls, 0 stuck." tabindex="0"><span class="hv">range/burner cap set</span></td><td>7</td><td>6</td><td>0</td><td>2.3</td><td>0.0</td><td>0.0</td><td>0</td><td>0</td></tr><tr><td data-tip="refrigerator/ice maker assembly: ships in 5 days
+24 trucks hold one; 0 zones have no holder within 30 minutes.
+Forecast 14.9 calls, 0.0 with no truck nearby: $0 at risk.
+The held-back days brought 13 calls, 0 stuck." tabindex="0"><span class="hv">refrigerator/ice maker assembly</span></td><td>5</td><td>24</td><td>0</td><td>14.9</td><td>0.0</td><td>0.0</td><td>13</td><td>0</td></tr><tr><td data-tip="washer/water inlet valve: ships in 3 days
+25 trucks hold one; 0 zones have no holder within 30 minutes.
+Forecast 10.5 calls, 0.0 with no truck nearby: $0 at risk.
+The held-back days brought 13 calls, 0 stuck." tabindex="0"><span class="hv">washer/water inlet valve</span></td><td>3</td><td>25</td><td>0</td><td>10.5</td><td>0.0</td><td>0.0</td><td>13</td><td>0</td></tr></tbody></table></div></details></figure></section><section><h2 data-tip="What this shows, and what it does not
+The instruction manual&#x27;s last section lists every limit; the methods manual names each shortcut and its upgrade." tabindex="0">What this shows, and what it does not</h2><p>It shows the method can be checked: every result here reproduces from one seed, and each gain has a shuffled control that falls back when the history's links are broken. It does not show the gains, because the history is invented. On real history I would run the same back-test first, then a one-region pilot against the current way of loading trucks. Three corners are cut on purpose: counting instead of a trained model, zone-to-zone drive times instead of road routing, and a call-by-call night plan instead of a solver.</p></section><footer>Built with Python's standard library and SQLite. Every number comes from the queries in <span class="hv" data-tip="sql/metrics/
+ai_step, backorder_exposure, carry_list_curve, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on hover, keyboard focus or tap. The first line is the value.
+const tip = document.getElementById('tip')
+let current = null
+function show(text, x, y, el) {
+  const [head, ...rest] = text.split('\n')
+  const strong = document.createElement('strong')
+  strong.textContent = head
+  const body = document.createElement('div')
+  body.textContent = rest.join('\n')
+  tip.replaceChildren(strong, ...(rest.length ? [body] : []))
+  tip.hidden = false
+  const r = el.getBoundingClientRect()
+  const left = x ?? r.left
+  let top = (y ?? r.top) - tip.offsetHeight - 10
+  if (top < 4) top = (y ?? r.bottom) + 14
+  tip.style.left = Math.max(4, Math.min(left, innerWidth - tip.offsetWidth - 8)) + 'px'
+  tip.style.top = top + 'px'
+}
+function hide() {
+  tip.hidden = true
+  current = null
+  document.querySelectorAll('.cross').forEach((c) => (c.style.opacity = 0))
+}
+const target = (e) => e.target.closest && e.target.closest('[data-tip]')
+document.addEventListener('pointerover', (e) => {
+  const el = target(e)
+  if (el && el !== current) { current = el; show(el.dataset.tip, null, null, el) }
+})
+document.addEventListener('pointerout', (e) => {
+  const el = target(e)
+  if (el && !el.contains(e.relatedTarget)) hide()
+})
+document.addEventListener('focusin', (e) => { const el = target(e); if (el) { current = el; show(el.dataset.tip, null, null, el) } })
+document.addEventListener('focusout', hide)
+document.querySelectorAll('svg[data-curve]').forEach((svg) => {
+  const d = JSON.parse(svg.dataset.curve)
+  const cross = svg.querySelector('.cross')
+  let i = 2
+  const at = (j) => {
+    cross.setAttribute('x1', d.xs[j]); cross.setAttribute('x2', d.xs[j]); cross.style.opacity = 1
+    return d.tips[j]
+  }
+  svg.addEventListener('pointermove', (ev) => {
+    const r = svg.getBoundingClientRect()
+    const xv = ((ev.clientX - r.left) / r.width) * d.w
+    i = d.xs.reduce((b, x, j) => (Math.abs(x - xv) < Math.abs(d.xs[b] - xv) ? j : b), 0)
+    show(at(i), ev.clientX + 14, ev.clientY, svg)
+  })
+  svg.addEventListener('pointerleave', hide)
+  svg.addEventListener('focus', () => show(at(i), null, null, svg))
+  svg.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
+    i = Math.max(0, Math.min(d.ks.length - 1, i + (ev.key === 'ArrowRight' ? 1 : -1)))
+    show(at(i), null, null, svg)
+    ev.preventDefault()
+  })
+})
+</script></body></html>

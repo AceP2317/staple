@@ -18,6 +18,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
+from staple.backtest import test_jobs
 from staple.predict import Predictor, national_top
 
 MODEL = "claude-haiku-5-5"
@@ -235,7 +236,18 @@ def asked(answer, followup, job, reply):
     return (picked, 1.0) if picked else reading(answer)
 
 
-def run(conn, jobs, answers, followups, seed=7):
+def run(conn, answers, followups):
+    """Scores every reading on the whole held-back period and writes the triage table. It takes no job list,
+    so no caller can leave the table holding a subset; score() scores a subset and writes nothing."""
+    out = score(conn, test_jobs(conn), answers, followups)
+    conn.execute("DELETE FROM triage")
+    conn.executemany("INSERT INTO triage VALUES (?,?,?,?,?)",
+                     [(r["method"], r["jobs"], r["agree_booked"], r["agree_true"], r["coverage"]) for r in out["rows"].values()])
+    conn.commit()
+    return out
+
+
+def score(conn, jobs, answers, followups, seed=7):
     predictor, problems = Predictor(conn), problems_of(conn)
     rng, by_type = random.Random(seed), {}
     for a, table in answers.items():
@@ -273,10 +285,6 @@ def run(conn, jobs, answers, followups, seed=7):
     calibration = {"sure": (len(sure), right(sure) if sure else 0.0), "unsure": (len(unsure), right(unsure) if unsure else 0.0)}
     offered = [j for j in unsure if follow(j)]
     settled = sum(1 for j in offered if honest(j, follow(j)["answers"]))
-    conn.execute("DELETE FROM triage")
-    conn.executemany("INSERT INTO triage VALUES (?,?,?,?,?)",
-                     [(r["method"], r["jobs"], r["agree_booked"], r["agree_true"], r["coverage"]) for r in rows])
-    conn.commit()
     return {"rows": {r["method"]: r for r in rows}, "calibration": calibration,
             "asked": len(offered), "settled": settled}
 
