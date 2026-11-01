@@ -123,6 +123,65 @@ CATALOGUE = {
          "NO_START": ("Will not start", ["won't start at all", "is totally dead", "the thermostat calls but nothing happens"],
                       {"main control board": 34, "pressure switch": 30, "limit switch": 14})}),
 }
+# The long tail: parts each needed on a small share of calls, as in a real catalogue, where the whole
+# range for one appliance type no longer fits on a truck. A part is (name, cost $, size, {problem: weight}).
+RARE = {
+    "refrigerator": [
+        ("damper control assembly", 46, 1, {"FF_WARM": 4}), ("air duct seal", 14, 1, {"FF_WARM": 3, "FROST": 3}),
+        ("thermistor", 18, 1, {"FF_WARM": 3, "NOT_COOLING": 3}), ("inverter board", 148, 2, {"NOT_COOLING": 4}),
+        ("overload protector", 21, 1, {"NOT_COOLING": 4}), ("run capacitor", 24, 1, {"NOT_COOLING": 3}),
+        ("fill tube heater", 19, 1, {"ICE_MAKER": 4}), ("ice level arm", 12, 1, {"ICE_MAKER": 3}),
+        ("water filter housing", 58, 2, {"LEAK": 4, "ICE_MAKER": 2}), ("drain pan", 32, 3, {"LEAK": 3}),
+        ("defrost drain heater", 16, 1, {"LEAK": 3, "FROST": 3}), ("door hinge cam", 17, 1, {"FROST": 3}),
+        ("door switch", 15, 1, {"FF_WARM": 2, "NOISE": 2}), ("fan blade", 11, 1, {"NOISE": 4}),
+        ("compressor grommets", 9, 1, {"NOISE": 4})],
+    "washer": [
+        ("drain hose", 22, 2, {"NO_DRAIN": 4, "LEAK": 3}), ("coin trap filter", 14, 1, {"NO_DRAIN": 4}),
+        ("motor coupler", 13, 1, {"NO_SPIN": 4}), ("shift actuator", 64, 1, {"NO_SPIN": 4}),
+        ("motor control board", 132, 2, {"NO_SPIN": 3, "NO_START": 3}), ("fill hoses", 26, 2, {"NO_FILL": 4, "LEAK": 3}),
+        ("inlet screen filter", 7, 1, {"NO_FILL": 4}), ("tub seal", 41, 1, {"LEAK": 4}),
+        ("detergent dispenser", 37, 2, {"LEAK": 3, "NO_FILL": 2}), ("suspension springs", 21, 2, {"NOISE_SHAKE": 4}),
+        ("counterweight bolts", 12, 1, {"NOISE_SHAKE": 3}), ("tub spider arm", 118, 4, {"NOISE_SHAKE": 3}),
+        ("lid switch", 19, 1, {"NO_START": 4, "NO_SPIN": 2}), ("user interface board", 96, 1, {"NO_START": 4}),
+        ("wiring harness", 44, 1, {"NO_START": 2, "NO_FILL": 2})],
+    "dryer": [
+        ("high-limit thermostat", 23, 1, {"NO_HEAT": 4, "SLOW_DRY": 3}), ("flame sensor", 19, 1, {"NO_HEAT": 4}),
+        ("element terminal kit", 11, 1, {"NO_HEAT": 3}), ("start switch", 18, 1, {"NO_START": 4}),
+        ("drive motor", 128, 4, {"NO_START": 3, "NO_TUMBLE": 3}), ("timer", 82, 1, {"NO_START": 3}),
+        ("motor pulley", 17, 1, {"NO_TUMBLE": 4}), ("drum glide bearings", 14, 1, {"NOISE": 4}),
+        ("rear drum seal", 16, 1, {"NOISE": 3, "SLOW_DRY": 3}), ("blower wheel", 29, 2, {"NOISE": 4, "SLOW_DRY": 3}),
+        ("moisture sensor", 26, 1, {"SLOW_DRY": 4}), ("exhaust duct", 21, 3, {"SLOW_DRY": 4}),
+        ("door catch", 9, 1, {"NO_START": 3}), ("lint screen housing", 33, 2, {"SLOW_DRY": 3})],
+    "dishwasher": [
+        ("drain hose", 19, 2, {"NO_DRAIN": 4}), ("check valve", 13, 1, {"NO_DRAIN": 4}),
+        ("filter assembly", 34, 2, {"NO_DRAIN": 3, "NOT_CLEANING": 4}), ("wash arm mount", 18, 1, {"NOT_CLEANING": 4}),
+        ("detergent dispenser", 46, 1, {"NOT_CLEANING": 4}), ("chopper blade", 15, 1, {"NOT_CLEANING": 3, "NO_DRAIN": 3}),
+        ("tub gasket", 27, 2, {"LEAK": 4}), ("door spring kit", 21, 1, {"LEAK": 3}), ("hose clamp kit", 8, 1, {"LEAK": 3}),
+        ("user control panel", 109, 1, {"NO_START": 4}), ("thermal fuse", 12, 1, {"NO_START": 4}),
+        ("door switch", 16, 1, {"NO_START": 3}), ("high-limit thermostat", 22, 1, {"NO_DRY": 4}),
+        ("vent fan motor", 38, 1, {"NO_DRY": 4}), ("rinse aid dispenser", 29, 1, {"NO_DRY": 3})],
+    "range": [
+        ("element terminal block", 14, 1, {"OVEN_NO_HEAT": 4}), ("oven relay board", 88, 1, {"OVEN_NO_HEAT": 4, "NO_POWER": 3}),
+        ("thermal cutoff", 17, 1, {"OVEN_NO_HEAT": 3, "NO_POWER": 4}), ("spark electrode", 21, 1, {"BURNER_NO_LIGHT": 4}),
+        ("burner cap set", 32, 2, {"BURNER_NO_LIGHT": 4}), ("burner orifice kit", 11, 1, {"BURNER_NO_LIGHT": 3}),
+        ("oven thermostat", 64, 1, {"TEMP_WRONG": 4}), ("convection fan motor", 79, 2, {"TEMP_WRONG": 4}),
+        ("touch control panel", 142, 2, {"NO_POWER": 4}), ("power terminal block", 24, 1, {"NO_POWER": 3}),
+        ("oven door gasket", 28, 2, {"DOOR": 4, "TEMP_WRONG": 3}), ("door latch assembly", 52, 1, {"DOOR": 4}),
+        ("door hinge receiver", 15, 1, {"DOOR": 3})],
+    "furnace": [
+        ("igniter harness", 18, 1, {"NO_HEAT": 4}), ("rollout switch", 16, 1, {"NO_HEAT": 4, "NO_START": 3}),
+        ("blower door switch", 14, 1, {"NO_START": 4, "BLOWER_ONLY": 3}), ("control transformer", 32, 1, {"NO_START": 4}),
+        ("board fuse", 5, 1, {"NO_START": 3}), ("flue pipe gasket", 12, 1, {"SHORT_CYCLE": 4}),
+        ("pressure switch hose", 9, 1, {"SHORT_CYCLE": 4, "NO_START": 3}), ("condensate trap", 27, 2, {"SHORT_CYCLE": 4}),
+        ("blower wheel", 96, 4, {"BLOWER_ONLY": 4, "NOISE": 4}), ("blower motor mount", 22, 2, {"NOISE": 4}),
+        ("blower relay", 41, 1, {"BLOWER_ONLY": 4}), ("inducer gasket", 11, 1, {"NOISE": 3})],
+}
+for _appliance, _rare in RARE.items():
+    for _name, _cost, _size, _where in _rare:
+        CATALOGUE[_appliance][1].append((_name, _cost, _size, 0))
+        for _code, _weight in _where.items():
+            CATALOGUE[_appliance][2][_code][2][_name] = _weight
+
 VAGUE = ["is acting up and not working right", "is broken and making a strange noise", "stopped working properly"]
 DETAILS = ["", " since yesterday"]
 FAMILY_PREFIX = {"refrigerator": "RF", "washer": "WM", "dryer": "DR", "dishwasher": "DW", "range": "RG", "furnace": "FN"}
@@ -130,6 +189,8 @@ FAMILIES_PER_TYPE = 10
 RARE_FAMILIES = 2               # the newest families, introduced recently, so their history is thin
 ZONES = [(x, y) for y in range(3) for x in range(4)]   # 12 zones, 15 km apart
 TECHS = 30
+CAPACITY = 90                    # truck space units
+STOCK_FILL = 0.9                 # today's trucks are kept 90% full; the rest is room for special orders
 
 
 def part_id(appliance, name):
@@ -240,7 +301,7 @@ def _family_pick(rng, families, appliance, day):
 def _build_techs(conn, rng):
     """30 technicians who differ in level, range and skill. Each drives one truck."""
     levels = {"junior": (0.78, 1.20), "mid": (0.86, 1.00), "senior": (0.92, 0.90)}
-    national_top = _national_top_parts(per_type=8)
+    national_top = _national_top_parts()
     techs = {}
     for i in range(1, TECHS + 1):
         tech = f"T{i:02d}"
@@ -254,33 +315,33 @@ def _build_techs(conn, rng):
             rate = min(0.98, base_rate + (0.05 if profile == "specialist" else 0) + rng.uniform(-0.03, 0.03))
             speed = base_speed * (0.8 if profile == "specialist" else 1.0) * rng.uniform(0.95, 1.05)
             skills[t] = (round(rate, 3), round(speed, 3))
-        stock = {}
-        depth = 8 if profile == "specialist" else 6       # specialists use their spare space to stock deeper
-        for t in types:
-            for name in national_top[t][:depth]:
-                pid = part_id(t, name)
-                if _locked(t, name) and not certified:
-                    continue
-                stock[pid] = 1
+        stock, space = {}, 0
+        # Today's policy: fill the truck to STOCK_FILL with each type's most-used parts, one rank at a time.
+        for _, t, name in sorted((rank, t, n) for t in types for rank, n in enumerate(national_top[t])):
+            size = next(sz for n, _, sz, _ in CATALOGUE[t][1] if n == name)
+            if (_locked(t, name) and not certified) or space + size > STOCK_FILL * CAPACITY:
+                continue
+            stock[part_id(t, name)] = 1
+            space += size
         home = rng.randrange(len(ZONES))
         techs[tech] = {"skills": skills, "stock": stock, "home": home}
         conn.execute("INSERT INTO techs VALUES (?,?,?,?,?)", (tech, level, profile, home, certified))
         conn.executemany("INSERT INTO tech_skills VALUES (?,?,?,?)", [(tech, t, r, s) for t, (r, s) in skills.items()])
-        conn.execute("INSERT INTO trucks VALUES (?,?,?)", (f"V{i:02d}", tech, 90))
+        conn.execute("INSERT INTO trucks VALUES (?,?,?)", (f"V{i:02d}", tech, CAPACITY))
         conn.executemany("INSERT INTO truck_stock VALUES (?,?,?)", [(f"V{i:02d}", p, q) for p, q in stock.items()])
     return techs
 
 
-def _national_top_parts(per_type=4):
-    """Today's stocking policy: each truck carries the parts most often used for each appliance type."""
+def _national_top_parts():
+    """Every part of each appliance type, most used first: the ranking today's stocking policy follows."""
     top = {}
-    for appliance, (_, _, problems) in CATALOGUE.items():
-        totals = {}
+    for appliance, (_, parts, problems) in CATALOGUE.items():
+        totals = {n: 0.0 for n, *_ in parts}       # a part no problem names still fails at random, so it ranks last
         for _, _, weights in problems.values():
             share = sum(weights.values())
             for n, w in weights.items():
                 totals[n] = totals.get(n, 0) + w / share
-        top[appliance] = sorted(totals, key=lambda n: totals[n], reverse=True)[:per_type]
+        top[appliance] = sorted(totals, key=lambda n: totals[n], reverse=True)
     return top
 
 
