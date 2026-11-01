@@ -581,4 +581,6 @@ def write(results, folder=db.OUT):
     folder.mkdir(parents=True, exist_ok=True)
     for kind, page in build(results, text, day).items():
         (folder / FILES[kind]).write_text(page, encoding="utf-8")
+    if folder == PUBLISHED and text.endswith("+"):
+        warnings.append("the published copy names unsaved changes; commit the code, then rerun --pages and commit docs/")
     return warnings
