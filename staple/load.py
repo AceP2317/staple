@@ -1,6 +1,6 @@
 """Truck loads, dollars and availability: what each truck should hold for tomorrow's route.
 
-Centres restock trucks between workdays, so tomorrow's load can be built from tomorrow's booked calls.
+Centers restock trucks between workdays, so tomorrow's load can be built from tomorrow's booked calls.
 Each held-back truck-day is replayed, truck by truck in date order, under several policies: today's
 fixed stock; that stock topped up with the day's carry lists; the lists alone; every part that fits
 for the day's appliance types; and a balanced truck that keeps a part only while it earns its space.
@@ -15,7 +15,7 @@ from staple.predict import Predictor
 from staple.world import travel_minutes
 
 REPEAT_VISIT = 165.0   # a second truck roll because a part was missing (made up)
-MOVE = 2.0             # putting one part on a truck at the centre overnight, or taking one off (made up)
+MOVE = 2.0             # putting one part on a truck at the center overnight, or taking one off (made up)
 HOLDING_RATE = 0.25    # yearly cost of money tied up in truck stock, as a share of its value (made up)
 UNPLANNED = 0.15       # share of calls added or moved the same day (made up until the dispatch replay measures it)
 NEARBY_MINUTES = 30    # another truck is nearby when it is based within this drive of the job
@@ -27,12 +27,12 @@ SHOWN_K = 3
 TODAY, EVERYTHING, BALANCED = "today's trucks", "every part that fits for the day's types", "balanced truck"
 TOP_UP, LISTS_ONLY = "today's stock plus the day's lists", "the day's lists only"
 CONTROL, CONTROL_BALANCED = "top-up from shuffled history", "balanced from shuffled history"
-MARKS = ("needs a certified technician", "on this truck", "from a centre overnight", "on another truck nearby",
+MARKS = ("needs a certified technician", "on this truck", "from a center overnight", "on another truck nearby",
          "back-ordered")   # in the order mark() tries them: a part gets the first that holds
 
 
 class Fleet:
-    """The trucks as they stand today: what each holds, its space, who drives it, and the centres' stock."""
+    """The trucks as they stand today: what each holds, its space, who drives it, and the centers' stock."""
 
     def __init__(self, conn):
         self.cost = dict(conn.execute("SELECT part, cost FROM parts"))
@@ -193,7 +193,7 @@ def mark(fleet, tech, zone, part):
     """Where one carry-list part would come from for this job's technician: the first of MARKS that holds."""
     holds = {"needs a certified technician": lambda: part in fleet.locked and tech not in fleet.certified,
              "on this truck": lambda: part in fleet.stock[tech],
-             "from a centre overnight": lambda: part not in fleet.eta,
+             "from a center overnight": lambda: part not in fleet.eta,
              "on another truck nearby": lambda: any(o != tech and part in s and travel_minutes(fleet.home[o], zone)
                                                     <= NEARBY_MINUTES for o, s in fleet.stock.items()),
              "back-ordered": lambda: True}

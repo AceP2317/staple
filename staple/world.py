@@ -1,4 +1,4 @@
-"""Builds the made-up world: three years of repairs, plus technicians, trucks, zones and centres.
+"""Builds the made-up world: three years of repairs, plus technicians, trucks, zones and centers.
 
 Everything here is invented: no real company, brand, model or part number. A fixed seed means
 every run writes the same rows, so every number downstream can be reproduced.
@@ -123,7 +123,7 @@ CATALOGUE = {
          "NO_START": ("Will not start", ["won't start at all", "is totally dead", "the thermostat calls but nothing happens"],
                       {"main control board": 34, "pressure switch": 30, "limit switch": 14})}),
 }
-# The long tail: parts each needed on a small share of calls, as in a real catalogue, where the whole
+# The long tail: parts each needed on a small share of calls, as in a real catalog, where the whole
 # range for one appliance type no longer fits on a truck. A part is (name, cost $, size, {problem: weight}).
 RARE = {
     "refrigerator": [
@@ -357,7 +357,7 @@ def _history_tech(rng, techs, appliance, zone):
 
 
 def travel_minutes(zone_a, zone_b):
-    """Zone-to-zone drive time: 12 minutes inside a zone; between zones, 10 minutes plus 1.2 per km between centres."""
+    """Zone-to-zone drive time: 12 minutes inside a zone; between zones, 10 minutes plus 1.2 per km between centers."""
     if zone_a == zone_b:
         return 12.0
     (xa, ya), (xb, yb) = ZONES[zone_a], ZONES[zone_b]
@@ -365,8 +365,8 @@ def travel_minutes(zone_a, zone_b):
 
 
 def _build_centres(conn, rng):
-    """Two distribution centres restock trucks between workdays; a few parts are on back-order today."""
-    conn.executemany("INSERT INTO centres VALUES (?,?)", [("North centre", 1), ("South centre", 10)])
+    """Two distribution centers restock trucks between workdays; a few parts are on back-order today."""
+    conn.executemany("INSERT INTO centres VALUES (?,?)", [("North center", 1), ("South center", 10)])
     rows = []
     for appliance, (_, parts, _) in CATALOGUE.items():
         for n, *_ in parts:

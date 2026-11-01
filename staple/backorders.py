@@ -1,4 +1,4 @@
-"""The fleet back-order list: each part the centres cannot ship, ranked by the repeat visits it puts at risk
+"""The fleet back-order list: each part the centers cannot ship, ranked by the repeat visits it puts at risk
 before it arrives.
 
 Which booking will need a stuck part cannot be told in advance, but how many will can, so the action

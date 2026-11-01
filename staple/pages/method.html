@@ -63,13 +63,13 @@ nationally most-used parts of each type the technician covers, taken one rank at
 part is skipped on an uncertified truck.</p>
 <h3>Geography</h3>
 <p>{{zones}} zones on a 4 by 3 grid, 15 km apart. Drive time (<code>travel_minutes</code>) is 12 minutes inside a zone,
-and between zones 10 minutes plus 1.2 minutes per kilometre between zone centres.</p>
+and between zones 10 minutes plus 1.2 minutes per kilometer between zone centers.</p>
 <h3>What history recorded</h3>
 <p>The technician who took each historical job (<code>_history_tech</code>) covers its appliance, chosen with weight
 1 / (1 + drive minutes from home). The job was fixed on the first visit only when every needed part was on that
 technician's truck and a uniform draw fell below the technician's rate.</p>
-<h3>Distribution centres</h3>
-<p>Two centres restock trucks between workdays (<code>_build_centres</code>). Each part is on back-order with
+<h3>Distribution centers</h3>
+<p>Two centers restock trucks between workdays (<code>_build_centres</code>). Each part is on back-order with
 probability 0.08, with a ship date 3 to 14 days out.</p></section>
 
 <section id="predictor"><h2>The predictor</h2>
@@ -233,7 +233,7 @@ nearest:          cost = drive
 skills only:      cost = minutes · {{minute}} + (1 − r̂) · R
 skills and parts: cost = minutes · {{minute}} + (1 − cover · r̂) · R
 cover = 1 − min(1, Σ_(p not available to t) o_j(p))</code>
-<p>At night a part is available when <var>t</var>'s truck may carry it, because the centre loads overnight. During the
+<p>At night a part is available when <var>t</var>'s truck may carry it, because the center loads overnight. During the
 day it is available only when it is on the truck now. A technician is a candidate only when they cover the appliance,
 are working, and their day still fits the call. Fit is always judged on the true repair times, so a wrong belief can
 never overbook a day. Only the choice between candidates uses the beliefs.</p>
@@ -263,7 +263,7 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <li><strong>Parts only</strong>: parts, with every technician believed average: the fleet's mean rate and a time multiplier of 1.</li>
 <li><strong>Staple</strong>: skills and parts.</li>
 <li><strong>Shuffled skills (control)</strong>: each technician-appliance pair reads another pair's rate and time (seed 5); who covers what stays true. It must lose at least half the skill gain over parts only.</li>
-<li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgement uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, because at night any truck can load anything but locked or back-ordered parts. The check fails the day that stops being true.</li>
+<li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgment uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, because at night any truck can load anything but locked or back-ordered parts. The check fails the day that stops being true.</li>
 </ul>
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
 broken truck working after its breakdown, no route past 17:00. A control may roll at most one per cent more calls
