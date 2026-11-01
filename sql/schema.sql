@@ -97,7 +97,9 @@ CREATE TABLE backtest_groups (grp TEXT NOT NULL, method TEXT NOT NULL, k INTEGER
 CREATE TABLE load_policy (
   policy TEXT NOT NULL, k INTEGER NOT NULL,      -- k = carry-list parts per job; 0 for today's fixed stock
   truck_days INTEGER NOT NULL, jobs REAL NOT NULL, coverage REAL NOT NULL,
-  parts REAL NOT NULL, space REAL NOT NULL, value REAL NOT NULL, one_day REAL NOT NULL,
+  parts REAL NOT NULL, space REAL NOT NULL, value REAL NOT NULL, -- value is stock held, not money spent
+  moves REAL NOT NULL,                            -- parts put on or taken off overnight
+  permanent REAL NOT NULL,                        -- parts on board at least 90% of a truck's days
   repeat_cost REAL NOT NULL, handling REAL NOT NULL, holding REAL NOT NULL, total REAL NOT NULL,
   roi REAL NOT NULL,                              -- repeat dollars a year avoided per dollar of truck stock
   PRIMARY KEY (policy, k)

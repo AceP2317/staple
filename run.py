@@ -15,17 +15,18 @@ def main():
     print(f"back-test on {bt['jobs']:,} held-back jobs, first-visit coverage with {k} parts on the list:")
     for name, row in bt["coverage"].items():
         print(f"  {name:<26} {row[k]:.1%}")
-    print(f"  {'today' + chr(39) + 's trucks (6-8 parts per type)':<26} {bt['today']:.1%}")
+    print(f"  {'today' + chr(39) + 's trucks':<26} {bt['today']:.1%}")
     ld = load.run(conn, backtest.test_jobs(conn))
     today = ld["today"]
     print(f"truck loads over {today['truck_days']:,} held-back truck-days, per truck-day (dollars made up):")
-    for r in [today, ld["everything"], *ld["best"].values()]:
+    for r in [today, ld["everything"], *ld["best"].values(), ld["balanced"]]:
         label = r["policy"] + (f", {r['k']} per job" if r["policy"] in (load.TOP_UP, load.LISTS_ONLY) else "")
         print(f"  {label}: covers {r['coverage']:.1%}, {r['parts']:.0f} parts, "
-              f"${r['value']:,.0f} on board, ${r['total']:,.0f} a day")
+              f"${r['value']:,.0f} of stock held, costs ${r['total']:,.0f} a day")
     print(f"  the top-up pays while a repeat visit costs more than ${ld['break_even']:.2f}")
     av = ld["availability"]
-    print(f"  back-order flag: {av['flagged']:,} jobs flagged, {av['caught']:,} of {av['blocked']:,} blocked jobs caught")
+    print(f"  {av['blocked']:,} jobs needed a part no truck nearby holds; the odds predicted {av['expected']:.0f}; "
+          f"the flag caught {av['caught']:,} of them in {av['flagged']:,} flags")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 
