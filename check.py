@@ -21,6 +21,7 @@ CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sq
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
+PAGES_URL = "https://acep2317.github.io/staple/"   # read from the GitHub Pages API when it was turned on
 
 CHECKS = {}
 
@@ -889,6 +890,96 @@ def data():
 
 
 # ---- one command for everything ---------------------------------------------------------------
+
+def doc_faults(readme, walkthrough, tracked):
+    """What the README and walkthrough must hold: no computed figure, since results live on the generated
+    pages and a figure typed here goes stale; every published file named in the walkthrough; and every
+    relative link pointing at a file that exists."""
+    faults = []
+    figures = re.findall(r"\d+(?:\.\d+)?%|\$\d[\d,.]*", readme + walkthrough)
+    if figures:
+        faults.append(f"a computed figure typed into the docs, first {figures[0]}")
+    unnamed = [p for p in tracked if f"`{p}`" not in walkthrough]
+    if unnamed:
+        faults.append(f"{len(unnamed)} published files the walkthrough never names, first {unnamed[0]}")
+    for doc, text in (("README.md", readme), ("WALKTHROUGH.md", walkthrough)):
+        for link in re.findall(r"\]\(([^)#]+)\)", text):
+            if not link.startswith("http") and not (ROOT / link).exists():
+                faults.append(f"{doc} links {link}, which does not exist")
+    return faults
+
+
+@check("docs")
+def docs():
+    from staple import triage, world
+    readme, walkthrough = ((ROOT / n).read_text(encoding="utf-8") for n in ("README.md", "WALKTHROUGH.md"))
+    tracked = sorted(p.relative_to(ROOT).as_posix() for p in public_files())
+    pins = {"the live report": PAGES_URL, "the job count": f"{world.JOBS:,} jobs", "the held-back days":
+            f"last {world.TEST_DAYS} days", "the seed": f"Seed {world.SEED}", "the model": triage.MODEL}
+    stale = [name for name, text in pins.items() if text not in readme]
+    print(f"  README carries {len(pins) - len(stale)} of {len(pins)} values read from the code: {', '.join(pins)}")
+    require(not stale, f"the README no longer matches the code on: {', '.join(stale)}")
+    faults = doc_faults(readme, walkthrough, tracked)
+    print(f"  walkthrough names {len(tracked)} published files; faults: {faults or 'none'}")
+    require(not faults, "; ".join(faults))
+    planted = {"a result typed into the README": doc_faults(readme + "\nFixes 86.4% of calls.", walkthrough, tracked),
+               "a new file the walkthrough never names": doc_faults(readme, walkthrough, tracked + ["staple/planted.py"]),
+               "a link to a missing file": doc_faults(readme + "\n[x](nowhere.md)", walkthrough, tracked)}
+    caught = sum(bool(f) for f in planted.values())
+    print(f"  control: {caught} of {len(planted)} planted faults refused")
+    require(caught == len(planted), f"the docs check passed a planted fault: {planted}")
+
+
+def clean_git_env():
+    """The environment without the variables that point git at one particular repository, so a clone made
+    from inside a commit hook cannot write into the commit being made."""
+    names = subprocess.run(["git", "rev-parse", "--local-env-vars"], capture_output=True, text=True).stdout.split()
+    return {k: v for k, v in os.environ.items() if k not in names}
+
+
+@check("fresh-clone")
+def fresh_clone():
+    """Clone the public repository as a stranger would, run the one command there, then every check there,
+    and hold the live published report to the clone's copy."""
+    import urllib.request
+    if PUBLIC_CLONE:
+        print("  SKIPPED inside a public clone, which would only clone itself")
+        return
+    env = dict(clean_git_env(), STAPLE_PUBLIC_CLONE="1")
+    env.pop("ANTHROPIC_API_KEY", None)
+    local = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        clone = Path(tmp) / "staple"
+        subprocess.run(["git", "clone", "--quiet", REPO_URL, str(clone)], env=env, check=True)
+        head = subprocess.run(["git", "-C", str(clone), "rev-parse", "HEAD"], capture_output=True, text=True, env=env).stdout.strip()
+        print(f"  cloned {REPO_URL} at {head[:7]}; this copy is at {local[:7]}")
+        require(head == local, "the public repository is not at this commit: push first, then run this again")
+
+        def run(*args):
+            r = subprocess.run([sys.executable, *args], cwd=clone, env=env, capture_output=True, text=True, encoding="utf-8")
+            return r.returncode, (r.stdout + r.stderr).strip().splitlines()
+
+        code, out = run("run.py")
+        print(f"  python run.py: exit {code}, last line \"{out[-1] if out else ''}\"")
+        require(code == 0, "the one command failed on a fresh clone: " + " | ".join(out[-5:]))
+        from staple import report
+        missing = [f for f in report.FILES.values() if not (clone / "out" / f).exists()]
+        require(not missing, f"a fresh run wrote no {', '.join(missing)}")
+        code, out = run("check.py")
+        print(f"  python check.py: exit {code}, \"{out[-1] if out else ''}\"")
+        require(code == 0, "a check failed on a fresh clone: " + " | ".join(line for line in out if "FAILED" in line))
+
+        page = (clone / "docs" / "index.html").read_text(encoding="utf-8")
+        live = urllib.request.urlopen(urllib.request.Request(PAGES_URL, headers={"Cache-Control": "no-cache"}),
+                                      timeout=30).read().decode("utf-8")
+        print(f"  live report at {PAGES_URL}: {'matches' if live == page else 'differs from'} the clone's published copy")
+        require(live == page, "the live report is not the committed copy yet; GitHub Pages may still be rebuilding")
+
+        (clone / "docs" / "index.html").write_text(page.replace('class="madeup"', 'class="planted"', 1), encoding="utf-8")
+        code, out = run("check.py", "report")
+        print(f"  control: the clone's report check on a published copy with a label taken off exits {code}")
+        require(code != 0, "the clone's checks passed a damaged published copy, so they may not be reading it")
+
 
 def main(argv):
     names = argv[1:] or list(CHECKS)
