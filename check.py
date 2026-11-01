@@ -325,7 +325,8 @@ def dollars():
             "topping up with the day's lists does not beat today's trucks")
     print(f"  the top-up pays while a repeat visit costs more than ${r['break_even']:.2f}")
     require(only["total"] > top["total"], "dropping the fixed stock now beats keeping it: re-read the trade-off")
-    require(bal["total"] < top["total"], "the balanced truck costs more a day than the best top-up")
+    require(bal["total"] < min(row["total"] for row in (today, every, top, only)),
+            "the balanced truck costs more a day than another load: it loses on the cost it minimizes")
 
     target, mine, theirs, ratio = saving_ratio(r["rows"], load.TOP_UP, load.CONTROL, today)
     print(f"  to reach {target:.1%}, the real lists add {mine:.2f} parts to today's truck and shuffled history "
@@ -525,6 +526,8 @@ def dispatch_check():
     require(staple["fixes_per_call"] >= max(skills["fixes_per_call"], parts["fixes_per_call"]),
             "knowing both skills and parts does worse than knowing one")
     require(staple["cost_per_call"] < loaded["cost_per_call"], "the extra driving costs more than the fixes it buys")
+    require(staple["cost_per_call"] <= min(skills["cost_per_call"], parts["cost_per_call"]),
+            "the rule that knows most loses on its own cost: the day is planned worse, not chosen worse")
 
     jobs = backtest.test_jobs(conn)
     from staple import load
