@@ -3,7 +3,8 @@
 -- the actual columns count what the held-back days then did.
 SELECT part,
        eta_days,
-       holders,
+       CASE WHEN holders = '' THEN 0 ELSE length(holders) - length(replace(holders, ' ', '')) + 1 END
+                                 AS trucks_holding,
        open_zones,
        ROUND(expected_calls, 1)  AS expected_calls,
        ROUND(expected_stuck, 1)  AS expected_stuck,

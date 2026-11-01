@@ -3,7 +3,7 @@
 import sys
 import time
 
-from staple import backorders, backtest, db, dispatch, load, metrics, triage, world
+from staple import backorders, backtest, db, dispatch, load, metrics, report, triage, world
 
 
 def main():
@@ -49,6 +49,9 @@ def main():
               f"minutes a call, ${r['cost_per_call']:.0f} a call")
     found = metrics.run(conn)
     print(f"metrics: {len(found)} SQL files in sql/metrics/, each result written to out/metrics/<name>.csv")
+    for warning in report.write(found):
+        print(f"  WARN build stamp: {warning}")
+    print(f"report: {report.PAGE}")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 

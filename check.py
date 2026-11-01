@@ -691,6 +691,55 @@ def sql_metrics():
         copy.close()
 
 
+def page_faults(page, pattern):
+    """What a report page must carry: the house stamp in its own pattern, the day its results last changed,
+    a made-up label and a table on every chart, and nothing fetched from the network."""
+    faults = []
+    found = re.search(r'<span class="build-stamp">([^<]*)</span>', page)
+    if not found or not pattern or not re.fullmatch(pattern, html_text(found.group(1))):
+        faults.append("no house build stamp")
+    day = re.search(r'<span class="content-day">([^<]*)</span>', page)
+    if not day or not re.fullmatch(r"[1-9]\d? [A-Z][a-z]{2} \d{4}", day.group(1)):
+        faults.append("no day the results last changed")
+    figures = page.count("<figure>")
+    if not figures or page.count('class="madeup"') != figures or page.count("<table>") != figures:
+        faults.append("a chart without its made-up label or its table")
+    if re.search(r"""(?:src|href)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//|@import""", page):
+        faults.append("something fetched from the network")
+    return faults
+
+
+def html_text(s):
+    import html
+    return html.unescape(s)
+
+
+@check("report")
+def report_check():
+    from staple import metrics, report
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+        text, day, pattern, warnings = report.stamp()
+        for w in warnings:
+            print(f"  stamp warning: {w}")
+        page = report.build(results, text, day)
+        print(f"  page: {len(page):,} characters, {page.count('<figure>')} charts, stamp \"{text}\", results last changed {day}")
+        faults = page_faults(page, pattern)
+        require(not faults, "the report page is missing: " + "; ".join(faults))
+
+        ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
+        require(f"{ours[3]:.1f}%" in page, "the page does not show the dispatch scorecard's own first-visit figure")
+
+        planted = {"stamp taken out": page.replace(f'<span class="build-stamp">{report.e(text)}', '<span class="build-stamp">unstamped build'),
+                   "a made-up label taken out": page.replace('<span class="madeup">made-up data</span>', "", 1),
+                   "a script fetched from the network": page.replace("<script>", '<script src="https://example.com/x.js"></script><script>', 1)}
+        caught = {name: bool(page_faults(p, pattern)) for name, p in planted.items()}
+        print(f"  control: {sum(caught.values())} of {len(caught)} planted faults refused")
+        require(all(caught.values()), f"the page check passed a planted fault: {caught}")
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
