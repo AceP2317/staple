@@ -381,6 +381,95 @@ def backorders_check():
         require(not calibrated(actual, 3 * predicted), f"the {name} test cannot tell a forecast three times too high")
 
 
+def stand_in_api(reply):
+    """A local stand-in for the Claude API that records the request it gets and returns a canned reply."""
+    import http.server
+    import json
+    import threading
+    seen = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            seen["headers"] = {k.lower(): v for k, v in self.headers.items()}
+            seen["body"] = json.loads(self.rfile.read(int(self.headers["content-length"])))
+            data = json.dumps(reply).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.handle_request, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_port}/v1/messages", seen
+
+
+@check("triage")
+def triage_check():
+    import json
+    from staple import backtest, triage, world
+    conn = shared_world()
+    cache = json.loads(triage.CACHE.read_text(encoding="utf-8"))
+    require(cache["prompt_id"] == triage.PROMPT_ID, "the cached answers came from a different prompt: rebuild them")
+    phrases = triage.phrases_of(conn)
+    missing = sum(len(set(v) - set(cache["answers"].get(a, {}))) for a, v in phrases.items())
+    print(f"  {sum(len(v) for v in cache['answers'].values())} cached answers from {cache['model']}; "
+          f"{missing} of the world's {sum(len(v) for v in phrases.values())} phrases unanswered")
+    require(missing == 0, f"{missing} customer phrases have no cached answer")
+
+    jobs = backtest.test_jobs(conn)
+    r = triage.run(conn, jobs, cache["answers"])
+    rows, (n_sure, sure), (n_unsure, unsure) = r["rows"], r["calibration"]["sure"], r["calibration"]["unsure"]
+    for name in ("booked code", "Claude", "Claude, top guess only", "keyword rules", "no code",
+                 "Claude answers shuffled (control)"):
+        row = rows[name]
+        print(f"  {name}: agrees with the booked code {row['agree_booked']:.1%}, true problem "
+              f"{row['agree_true']:.1%}, 3-part list covers {row['coverage']:.1%}")
+    claude, rules = rows["Claude"], rows["keyword rules"]
+    require(claude["agree_booked"] > rules["agree_booked"] + 0.10 and claude["coverage"] > rules["coverage"],
+            "Claude does not clearly beat the keyword rules")
+    require(rows["Claude answers shuffled (control)"]["coverage"] <= rows["no code"]["coverage"] + 0.03,
+            "shuffled answers still help: the coverage gain may not come from reading the words")
+
+    vague = [j for j in jobs if any(v in j["words"] for v in world.VAGUE)]
+    said = [j for j in jobs if not any(v in j["words"] for v in world.VAGUE)]
+    for label, group in (("words that describe the problem", said), ("words that describe nothing", vague)):
+        g = triage.run(conn, group, cache["answers"])["rows"]
+        print(f"  {label} ({len(group):,} jobs): Claude agrees with the booked code {g['Claude']['agree_booked']:.1%}; "
+              f"coverage {g['Claude']['coverage']:.1%} against the booked code's {g['booked code']['coverage']:.1%}")
+        if group is said:
+            require(g["Claude"]["agree_booked"] >= 0.95, "Claude misreads words that do describe the problem")
+    print(f"  confidence: {n_sure:,} sure answers {sure:.1%} right; {n_unsure:,} unsure answers {unsure:.1%} right")
+    require(sure > unsure + 0.2, "Claude's confidence does not separate right answers from wrong ones")
+
+    problems = [("FF_WARM", "Fresh-food side warm"), ("LEAK", "Leaking water")]
+    good = '[{"i": 0, "code": "LEAK", "confidence": 0.9}]'
+    url, seen = stand_in_api({"content": [{"type": "text", "text": good}], "stop_reason": "end_turn"})
+    got = triage.parse(triage.ask_api("a prompt", "test-key", url=url), problems, ["it drips"])
+    require(seen["headers"].get("x-api-key") == "test-key" and seen["headers"].get("anthropic-version") == triage.API_VERSION
+            and seen["body"]["model"] == triage.MODEL and seen["body"]["output_config"] == {"effort": triage.EFFORT},
+            "live mode does not send the documented request")
+    require(got == {"it drips": {"code": "LEAK", "confidence": 0.9}}, "live mode misreads a reply")
+    refused = False
+    url, _ = stand_in_api({"content": [], "stop_reason": "refusal", "stop_details": {"category": None}})
+    try:
+        triage.ask_api("a prompt", "test-key", url=url)
+    except RuntimeError:
+        refused = True
+    rejected = 0
+    for bad in ('[{"i": 0, "code": "ICE", "confidence": 0.9}]', "[]", "no array here"):
+        try:
+            triage.parse(bad, problems, ["it drips"])
+        except (ValueError, KeyError):
+            rejected += 1
+    print(f"  live mode against a local stand-in: documented request sent, reply read; refusal raised: {refused}; "
+          f"{rejected} of 3 malformed replies rejected")
+    require(refused and rejected == 3, "live mode lets a refusal or a malformed reply through")
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
