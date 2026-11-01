@@ -5,6 +5,7 @@ check can still fail: a check that never fails looks exactly like one that sees 
 """
 import ast
 from collections import Counter, defaultdict
+from html.parser import HTMLParser
 import os
 import re
 import subprocess
@@ -16,7 +17,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 SIZE_CEILING = 2500  # lines of Python and SQL outside the checks; raise it on purpose, never by drift
-CODE_GLOBS = ["staple/*.py", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
+CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
@@ -293,8 +294,8 @@ def say(row):
 def dollars():
     from staple import backtest, load
     conn = shared_world()
-    jobs = backtest.test_jobs(conn)
-    r = load.run(conn, jobs)
+    r = load.run(conn)
+    jobs = r["jobs"]
     today, top, only, every, bal = (r["today"], r["best"][load.TOP_UP], r["best"][load.LISTS_ONLY],
                                     r["everything"], r["balanced"])
     for row in (today, every, top, only, bal):
@@ -364,11 +365,10 @@ def calibrated(actual, predicted):
 
 @check("backorders")
 def backorders_check():
-    from staple import backorders, backtest, load
+    from staple import backorders, load
     conn = shared_world()
-    jobs = backtest.test_jobs(conn)
     fleet = load.Fleet(conn)
-    rows = backorders.run(conn, fleet, jobs)
+    rows = backorders.run(conn)
     for r in rows[:5]:
         print(f"  {r['part']}: arrives in {r['eta']} days; {len(r['holders'])} trucks hold one; "
               f"{r['expected']:.1f} calls expected, {r['stuck']:.1f} stuck (${r['at_risk']:,.0f} at risk); "
@@ -427,7 +427,7 @@ def triage_check():
     require(missing == 0 and unasked == 0, "a customer phrase has no cached answer or follow-up question")
 
     jobs = backtest.test_jobs(conn)
-    r = triage.run(conn, jobs, cache["answers"], asked["answers"])
+    r = triage.run(conn, cache["answers"], asked["answers"])
     rows, (n_sure, sure), (n_unsure, unsure) = r["rows"], r["calibration"]["sure"], r["calibration"]["unsure"]
     for name in ("booked code", "Claude", "Claude, top guess only", "Claude, asking when unsure",
                  "Claude, asking when unsure, random replies (control)", "keyword rules", "no code",
@@ -444,7 +444,7 @@ def triage_check():
     vague = [j for j in jobs if any(v in j["words"] for v in world.VAGUE)]
     said = [j for j in jobs if not any(v in j["words"] for v in world.VAGUE)]
     for label, group in (("words that describe the problem", said), ("words that describe nothing", vague)):
-        g = triage.run(conn, group, cache["answers"], asked["answers"])["rows"]
+        g = triage.score(conn, group, cache["answers"], asked["answers"])["rows"]
         print(f"  {label} ({len(group):,} jobs): Claude agrees with the booked code {g['Claude']['agree_booked']:.1%}; "
               f"coverage {g['Claude']['coverage']:.1%} against the booked code's {g['booked code']['coverage']:.1%}")
         if group is said:
@@ -512,8 +512,7 @@ def visit_faults(result, jobs):
 def dispatch_check():
     from staple import backtest, dispatch
     conn = shared_world()
-    jobs = backtest.test_jobs(conn)
-    out = dispatch.run(conn, jobs)
+    out = dispatch.run(conn)
     for name, r in out.items():
         print(f"  {name}: first-visit fix {r['fixes_per_call']:.1%} of calls; parts missing {r['parts_missing']:.1%}; "
               f"{r['rolled']} rolled to tomorrow; {r['drive_per_call']:.1f} drive minutes a call; ${r['cost_per_call']:.2f} a call")
@@ -548,8 +547,9 @@ def dispatch_check():
 def dispatch_control():
     from staple import backtest, dispatch, load
     conn = shared_world()
+    out = dispatch.run(conn)
     jobs = backtest.test_jobs(conn)
-    out = dispatch.run(conn, jobs)
+    load.mark_unplanned(jobs)
     same = dispatch.replay(conn, jobs, "skills and parts", "balanced", dispatch.Crew(conn))
     base, parts, staple = (out[n] for n in ("nearest technician, balanced loads", "parts only, balanced loads",
                                             "Staple: skills and parts, balanced loads"))
@@ -575,10 +575,10 @@ def results_written(conn):
     """Fill every results table the way run.py does, unless an earlier check in this run already has."""
     from staple import backorders, backtest, dispatch, load, triage
     for table, fill in (("backtest", lambda: backtest.run(conn)),
-                        ("load_policy", lambda: load.run(conn, backtest.test_jobs(conn))),
-                        ("backorder_list", lambda: backorders.run(conn, load.Fleet(conn), backtest.test_jobs(conn))),
-                        ("triage", lambda: triage.run(conn, backtest.test_jobs(conn), *triage.load(conn))),
-                        ("dispatch", lambda: dispatch.run(conn, backtest.test_jobs(conn)))):
+                        ("load_policy", lambda: load.run(conn)),
+                        ("backorder_list", lambda: backorders.run(conn)),
+                        ("triage", lambda: triage.run(conn, *triage.load(conn))),
+                        ("dispatch", lambda: dispatch.run(conn))):
         if not one(conn, f"SELECT COUNT(*) FROM {table}"):
             fill()
 
@@ -691,19 +691,63 @@ def sql_metrics():
         copy.close()
 
 
-def page_faults(page, pattern):
-    """What a report page must carry: the house stamp in its own pattern, the day its results last changed,
-    a made-up label and a table on every chart, and nothing fetched from the network."""
+class Hints(HTMLParser):
+    """Every element a reader would hover that carries no hint. A dotted value may borrow its cell's hint;
+    everything else must carry its own, because the hover layer shows the innermost hint it finds."""
+    VOID = {"meta", "br", "img", "input", "hr", "link", "wbr"}
+    CLASSES = {"tile", "bar-row", "key", "madeup", "hv", "q", "btn", "build-stamp", "content-day", "fig-title"}
+
+    def __init__(self, tags):
+        super().__init__()
+        self.tags, self.stack, self.missing = tags, [], []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        own = "data-tip" in a or (tag == "svg" and "data-curve" in a)
+        classes = set((a.get("class") or "").split())
+        needs = tag in self.tags or bool(classes & self.CLASSES)
+        covered = own or ("hv" in classes and any(t for _, t in self.stack))
+        if needs and not covered:
+            self.missing.append(f"<{tag} class=\"{a.get('class') or ''}\"> at line {self.getpos()[0]}")
+        if tag not in self.VOID:
+            self.stack.append((tag, own))
+
+    def handle_endtag(self, tag):
+        while self.stack:
+            if self.stack.pop()[0] == tag:
+                break
+
+
+def missing_hints(page, kind):
+    parser = Hints({"h1", "summary", "svg"} | ({"h2", "th"} if kind == "report" else set()))
+    parser.feed(page)
+    return parser.missing
+
+
+def page_faults(page, pattern, kind="report"):
+    """What a page must carry: the house stamp in its own pattern (or, where the stamp is not installed,
+    the words that say so), the day its results last changed, a hint on everything a reader would hover,
+    every placeholder filled, nothing fetched from the network, and on the report a made-up label and a
+    table on every chart."""
+    from staple import report
     faults = []
-    found = re.search(r'<span class="build-stamp">([^<]*)</span>', page)
-    if not found or not pattern or not re.fullmatch(pattern, html_text(found.group(1))):
+    found = re.search(r'<span class="build-stamp"[^>]*>([^<]*)</span>', page)
+    shown = html_text(found.group(1)) if found else None
+    if not shown or not (re.fullmatch(pattern, shown) if pattern else shown == report.UNSTAMPED):
         faults.append("no house build stamp")
-    day = re.search(r'<span class="content-day">([^<]*)</span>', page)
-    if not day or not re.fullmatch(r"[1-9]\d? [A-Z][a-z]{2} \d{4}", day.group(1)):
+    day = re.search(r'<span class="content-day"[^>]*>([^<]*)</span>', page)
+    if not day or not (re.fullmatch(r"[1-9]\d? [A-Z][a-z]{2} \d{4}", day.group(1))
+                       or (not pattern and day.group(1) == "unknown")):
         faults.append("no day the results last changed")
-    figures = page.count("<figure>")
-    if not figures or page.count('class="madeup"') != figures or page.count("<table>") != figures:
-        faults.append("a chart without its made-up label or its table")
+    if kind == "report":
+        figures = page.count("<figure>")
+        if not figures or page.count('class="madeup"') != figures or page.count("<table>") != figures:
+            faults.append("a chart without its made-up label or its table")
+    missing = missing_hints(page, kind)
+    if missing:
+        faults.append(f"{len(missing)} elements without a hint, first {missing[0]}")
+    if "{{" in page:
+        faults.append("a placeholder left unfilled")
     if re.search(r"""(?:src|href)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//|@import""", page):
         faults.append("something fetched from the network")
     return faults
@@ -712,6 +756,26 @@ def page_faults(page, pattern):
 def html_text(s):
     import html
     return html.unescape(s)
+
+
+def without_stamp(page):
+    """The page with its own stamp and results day blanked, so a copy built at another commit compares
+    equal when, and only when, everything else on it is the same."""
+    for cls, mark in (("build-stamp", "{STAMP}"), ("content-day", "{DAY}")):
+        found = re.search(rf'<span class="{cls}"[^>]*>([^<]*)</span>', page)
+        if found and found.group(1):
+            page = page.replace(found.group(1), mark)
+    return page
+
+
+def stale_pages(fresh, folder):
+    from staple import report
+    out = []
+    for kind, name in report.FILES.items():
+        path = Path(folder) / name
+        if not path.exists() or without_stamp(path.read_text(encoding="utf-8")) != without_stamp(fresh[kind]):
+            out.append(name)
+    return out
 
 
 @check("report")
@@ -724,20 +788,42 @@ def report_check():
         text, day, pattern, warnings = report.stamp()
         for w in warnings:
             print(f"  stamp warning: {w}")
-        page = report.build(results, text, day)
-        print(f"  page: {len(page):,} characters, {page.count('<figure>')} charts, stamp \"{text}\", results last changed {day}")
-        faults = page_faults(page, pattern)
-        require(not faults, "the report page is missing: " + "; ".join(faults))
-
+        if report.STAMP_MODULE.exists():
+            require(pattern, "the house build stamp is installed but did not answer, so the pages would go out unstamped")
+        else:
+            print(f"  build stamp: SKIPPED, the house stamp is not on this machine, so the pages must say '{report.UNSTAMPED}'")
+        pages = report.build(results, text, day)
+        for kind, page in pages.items():
+            print(f"  {report.FILES[kind]}: {len(page):,} characters, {page.count('data-tip=')} hints, "
+                  f"{page.count('<figure>')} charts, stamp \"{text}\", results last changed {day}")
+            faults = page_faults(page, pattern, kind)
+            require(not faults, f"{report.FILES[kind]} is missing: " + "; ".join(faults))
+        page = pages["report"]
         ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
-        require(f"{ours[3]:.1f}%" in page, "the page does not show the dispatch scorecard's own first-visit figure")
+        figure = f"{ours[3]:.1f}%"
+        require(figure in page, "the page does not show the dispatch scorecard's own first-visit figure")
 
-        planted = {"stamp taken out": page.replace(f'<span class="build-stamp">{report.e(text)}', '<span class="build-stamp">unstamped build'),
-                   "a made-up label taken out": page.replace('<span class="madeup">made-up data</span>', "", 1),
-                   "a script fetched from the network": page.replace("<script>", '<script src="https://example.com/x.js"></script><script>', 1)}
+        stale = stale_pages(pages, report.PUBLISHED)
+        print(f"  published copy in docs/: {len(report.FILES) - len(stale)} of {len(report.FILES)} pages match a fresh build")
+        require(not stale, f"docs/ is stale or missing ({', '.join(stale)}); run `python run.py --pages` and commit docs/")
+
+        tip = r'data-tip="[^"]*" tabindex="0"'
+        planted = {"stamp taken out": re.sub(r'(<span class="build-stamp"[^>]*>)[^<]*', r"\1nothing", page, count=1),
+                   "a made-up label taken out": re.sub(r'<span class="madeup"[^>]*>made-up data</span>', "", page, count=1),
+                   "a script fetched from the network": page.replace("<script>", '<script src="https://example.com/x.js"></script><script>', 1),
+                   "a column heading's hint taken off": re.sub(rf"<th {tip}>", "<th>", page, count=1),
+                   "a dotted value's hint taken off": re.sub(rf'<span class="hv" {tip}>', '<span class="hv">', page, count=1),
+                   "a placeholder left in": page.replace("</main>", "{{seed}}</main>", 1)}
         caught = {name: bool(page_faults(p, pattern)) for name, p in planted.items()}
         print(f"  control: {sum(caught.values())} of {len(caught)} planted faults refused")
         require(all(caught.values()), f"the page check passed a planted fault: {caught}")
+        drifted = Path(tmp) / "drifted"
+        drifted.mkdir()
+        for kind, name in report.FILES.items():
+            changed = pages[kind].replace(figure, "0.0%") if kind == "report" else pages[kind]
+            (drifted / name).write_text(changed, encoding="utf-8")
+        require(stale_pages(pages, drifted) == ["index.html"], "control: a published copy with one figure changed passed as current")
+        print("  control: a published copy with one figure changed is refused as stale")
 
 
 @check("data")

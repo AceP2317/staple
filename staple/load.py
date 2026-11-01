@@ -10,6 +10,7 @@ The dollar figures and that share are made up and stated once, here, so a real r
 import random
 from collections import Counter, defaultdict
 
+from staple.backtest import test_jobs
 from staple.predict import Predictor
 from staple.world import travel_minutes
 
@@ -26,8 +27,8 @@ SHOWN_K = 3
 TODAY, EVERYTHING, BALANCED = "today's trucks", "every part that fits for the day's types", "balanced truck"
 TOP_UP, LISTS_ONLY = "today's stock plus the day's lists", "the day's lists only"
 CONTROL, CONTROL_BALANCED = "top-up from shuffled history", "balanced from shuffled history"
-MARKS = ("on this truck", "from a centre overnight", "on another truck nearby", "back-ordered",
-         "needs a certified technician")
+MARKS = ("needs a certified technician", "on this truck", "from a centre overnight", "on another truck nearby",
+         "back-ordered")   # in the order mark() tries them: a part gets the first that holds
 
 
 class Fleet:
@@ -189,17 +190,14 @@ def replay(fleet, jobs, chosen, record=False):
 
 
 def mark(fleet, tech, zone, part):
-    """Where one carry-list part would come from for this job's technician."""
-    if part in fleet.locked and tech not in fleet.certified:
-        return "needs a certified technician"
-    if part in fleet.stock[tech]:
-        return "on this truck"
-    if part not in fleet.eta:
-        return "from a centre overnight"
-    if any(o != tech and part in s and travel_minutes(fleet.home[o], zone) <= NEARBY_MINUTES
-           for o, s in fleet.stock.items()):
-        return "on another truck nearby"
-    return "back-ordered"
+    """Where one carry-list part would come from for this job's technician: the first of MARKS that holds."""
+    holds = {"needs a certified technician": lambda: part in fleet.locked and tech not in fleet.certified,
+             "on this truck": lambda: part in fleet.stock[tech],
+             "from a centre overnight": lambda: part not in fleet.eta,
+             "on another truck nearby": lambda: any(o != tech and part in s and travel_minutes(fleet.home[o], zone)
+                                                    <= NEARBY_MINUTES for o, s in fleet.stock.items()),
+             "back-ordered": lambda: True}
+    return next(m for m in MARKS if holds[m]())
 
 
 def availability(fleet, jobs, lists, k=SHOWN_K):
@@ -235,7 +233,10 @@ def lean(rows, policy):
     return next(r for r in mine if r["total"] <= cheapest + LEAN_TOLERANCE)
 
 
-def run(conn, jobs):
+def run(conn):
+    """Every load policy over the whole held-back period, written to load_policy and availability. It takes
+    no job list, so no caller can leave those tables holding a subset; the marked jobs come back as "jobs"."""
+    jobs = test_jobs(conn)
     mark_unplanned(jobs)
     fleet, real = Fleet(conn), Predictor(conn)
     lists, surprise = ranked_lists(real, jobs), surprise_value(conn, real)
@@ -262,5 +263,5 @@ def run(conn, jobs):
                   ((now["repeat"] - top["repeat"]) / REPEAT_VISIT))
     return {"rows": rows, "best": best, "today": now, "everything": named[(EVERYTHING, every)],
             "balanced": named[(BALANCED, 0)], "control_balanced": named[(CONTROL_BALANCED, 0)],
-            "break_even": break_even, "availability": avail, "fleet": fleet, "lists": lists,
+            "break_even": break_even, "availability": avail, "fleet": fleet, "lists": lists, "jobs": jobs,
             "shuffled": shuffled, "surprise": surprise}

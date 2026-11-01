@@ -9,7 +9,8 @@ forecast is set against the calls that then came.
 import datetime as dt
 from collections import Counter, defaultdict
 
-from staple.load import NEARBY_MINUTES, REPEAT_VISIT, mark
+from staple.backtest import test_jobs
+from staple.load import NEARBY_MINUTES, REPEAT_VISIT, Fleet, mark
 from staple.world import ZONES, travel_minutes
 
 
@@ -50,8 +51,11 @@ def forecast(conn, fleet, start):
     return sorted(rows, key=lambda r: (-r["at_risk"], r["part"]))
 
 
-def run(conn, fleet, jobs):
-    start = dt.date.fromisoformat(min(j["day"] for j in jobs))
+def run(conn):
+    """The fleet back-order list over the whole held-back period, written to backorder_list. It takes no job
+    list, so no caller can leave the table holding a subset."""
+    fleet, jobs = Fleet(conn), test_jobs(conn)
+    start =dt.date.fromisoformat(min(j["day"] for j in jobs))
     rows = forecast(conn, fleet, start)
     for r in rows:
         until = str(start + dt.timedelta(days=r["eta"]))
