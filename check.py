@@ -141,6 +141,76 @@ def banned_control():
     require(not find_names("embossed", ["boss"]), "control: the scan matched inside a longer word")
 
 
+# ---- the made-up world ------------------------------------------------------------------------
+
+def built_world(path):
+    from staple import db, world
+    conn = db.fresh(path)
+    world.build(conn)
+    return conn
+
+
+def digest(conn):
+    import hashlib
+    h = hashlib.sha256()
+    for table in ("jobs", "job_parts", "techs", "tech_skills", "truck_stock", "centre_stock"):
+        for row in conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2"):
+            h.update(repr(row).encode())
+    return h.hexdigest()
+
+
+def one(conn, sql, *args):
+    return conn.execute(sql, args).fetchone()[0]
+
+
+@check("data")
+def data():
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        a = built_world(Path(tmp) / "a.db")
+        b = built_world(Path(tmp) / "b.db")
+        same = digest(a) == digest(b)
+        b.close()
+        print(f"  two builds from one seed match: {same}")
+        require(same, "the same seed wrote different rows")
+
+        jobs = one(a, "SELECT COUNT(*) FROM jobs")
+        test = one(a, "SELECT COUNT(*) FROM jobs WHERE split = 'test'")
+        mis = one(a, "SELECT AVG(noise = 'misdescribed') FROM jobs")
+        rnd = one(a, "SELECT AVG(noise = 'random') FROM jobs")
+        print(f"  jobs {jobs:,}; held back for testing {test:,} ({test / jobs:.1%})")
+        print(f"  planted noise: misdescribed {mis:.1%}, patternless {rnd:.1%}")
+        require(jobs == 45_000, f"expected 45,000 jobs, found {jobs}")
+        require(0.07 < test / jobs < 0.10, "the test split is not the last three months' share")
+        require(0.07 < mis < 0.11 and 0.065 < rnd < 0.095, "planted noise is off its intended rate")
+
+        wrong_type = one(a, """SELECT COUNT(*) FROM job_parts jp JOIN jobs j USING (job)
+                               JOIN parts p USING (part) WHERE p.type != j.type""")
+        require(wrong_type == 0, f"{wrong_type} job parts belong to another appliance type")
+
+        locked_bad = one(a, """SELECT COUNT(*) FROM truck_stock s JOIN parts p USING (part)
+                               JOIN trucks t USING (truck) JOIN techs h USING (tech)
+                               WHERE p.locked = 1 AND h.certified = 0""")
+        require(locked_bad == 0, f"{locked_bad} locked parts sit on uncertified trucks")
+
+        early = one(a, "SELECT COUNT(*) FROM jobs j JOIN families f USING (family) WHERE j.day < f.first_day")
+        require(early == 0, f"{early} jobs use a model family before it existed")
+        thin = one(a, """SELECT MAX(n) FROM (SELECT COUNT(*) n FROM jobs j JOIN families f USING (family)
+                         WHERE j.split = 'train' AND f.first_day > '2026-01-01' GROUP BY family)""")
+        print(f"  newest families: at most {thin} training jobs each (thin history on purpose)")
+        require(thin < 150, "the newest families are not thin enough to test the fallback")
+
+        winter = one(a, "SELECT AVG(type = 'furnace') FROM jobs WHERE substr(day, 6, 2) IN ('12','01','02')")
+        summer = one(a, "SELECT AVG(type = 'furnace') FROM jobs WHERE substr(day, 6, 2) IN ('06','07','08')")
+        print(f"  furnace share of calls: winter {winter:.1%}, summer {summer:.1%}")
+        require(winter > 3 * summer, "furnace calls do not follow the seasons")
+
+        ftf = one(a, "SELECT AVG(first_visit_fix) FROM jobs")
+        parts_caused = one(a, "SELECT AVG(parts_on_truck = 0) FROM jobs")
+        print(f"  today's made-up first-visit fix {ftf:.1%}; parts missing on {parts_caused:.1%} of visits")
+        require(0.4 < ftf < 0.85, "today's first-visit fix rate is implausible")
+        a.close()
+
+
 # ---- one command for everything ---------------------------------------------------------------
 
 def main(argv):
