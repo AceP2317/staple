@@ -35,11 +35,13 @@ def main():
         print(f"  {r['part']}: arrives in {r['eta']} days, {r['expected']:.1f} calls expected, "
               f"{r['stuck']:.1f} with no truck nearby holding one (${r['at_risk']:,.0f})")
     jobs = backtest.test_jobs(conn)
-    tr = triage.run(conn, jobs, triage.load_answers(conn, live="--live" in sys.argv[1:]))
+    tr = triage.run(conn, jobs, *triage.load(conn, live="--live" in sys.argv[1:]))
     print(f"AI step ({triage.MODEL}) reading the customer's own words, on the same held-back jobs:")
     for name, r in tr["rows"].items():
-        print(f"  {name:<34} agrees with the booked code {r['agree_booked']:.1%}, with the true problem "
+        print(f"  {name:<52} agrees with the booked code {r['agree_booked']:.1%}, with the true problem "
               f"{r['agree_true']:.1%}; 3-part list covers {r['coverage']:.1%}")
+    print(f"  follow-up question asked on {tr['asked']:,} unsure bookings; the customer's problem was among "
+          f"the offered answers on {tr['settled']:,}")
     print(f"done in {time.perf_counter() - started:.1f}s")
 
 

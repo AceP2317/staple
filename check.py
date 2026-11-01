@@ -413,17 +413,22 @@ def triage_check():
     from staple import backtest, triage, world
     conn = shared_world()
     cache = json.loads(triage.CACHE.read_text(encoding="utf-8"))
-    require(cache["prompt_id"] == triage.PROMPT_ID, "the cached answers came from a different prompt: rebuild them")
-    phrases = triage.phrases_of(conn)
+    asked = json.loads(triage.FOLLOWUP_CACHE.read_text(encoding="utf-8"))
+    require(cache["prompt_id"] == triage.PROMPT_ID and asked["prompt_id"] == triage.FOLLOWUP_ID,
+            "a cache came from a different prompt: rebuild it")
+    phrases, unsure = triage.phrases_of(conn), triage.unsure_phrases(cache["answers"])
     missing = sum(len(set(v) - set(cache["answers"].get(a, {}))) for a, v in phrases.items())
+    unasked = sum(len(set(v) - set(asked["answers"].get(a, {}))) for a, v in unsure.items())
     print(f"  {sum(len(v) for v in cache['answers'].values())} cached answers from {cache['model']}; "
-          f"{missing} of the world's {sum(len(v) for v in phrases.values())} phrases unanswered")
-    require(missing == 0, f"{missing} customer phrases have no cached answer")
+          f"{missing} of the world's {sum(len(v) for v in phrases.values())} phrases unanswered; "
+          f"{unasked} of {sum(len(v) for v in unsure.values())} unsure phrases without a follow-up question")
+    require(missing == 0 and unasked == 0, "a customer phrase has no cached answer or follow-up question")
 
     jobs = backtest.test_jobs(conn)
-    r = triage.run(conn, jobs, cache["answers"])
+    r = triage.run(conn, jobs, cache["answers"], asked["answers"])
     rows, (n_sure, sure), (n_unsure, unsure) = r["rows"], r["calibration"]["sure"], r["calibration"]["unsure"]
-    for name in ("booked code", "Claude", "Claude, top guess only", "keyword rules", "no code",
+    for name in ("booked code", "Claude", "Claude, top guess only", "Claude, asking when unsure",
+                 "Claude, asking when unsure, random replies (control)", "keyword rules", "no code",
                  "Claude answers shuffled (control)"):
         row = rows[name]
         print(f"  {name}: agrees with the booked code {row['agree_booked']:.1%}, true problem "
@@ -437,13 +442,28 @@ def triage_check():
     vague = [j for j in jobs if any(v in j["words"] for v in world.VAGUE)]
     said = [j for j in jobs if not any(v in j["words"] for v in world.VAGUE)]
     for label, group in (("words that describe the problem", said), ("words that describe nothing", vague)):
-        g = triage.run(conn, group, cache["answers"])["rows"]
+        g = triage.run(conn, group, cache["answers"], asked["answers"])["rows"]
         print(f"  {label} ({len(group):,} jobs): Claude agrees with the booked code {g['Claude']['agree_booked']:.1%}; "
               f"coverage {g['Claude']['coverage']:.1%} against the booked code's {g['booked code']['coverage']:.1%}")
         if group is said:
             require(g["Claude"]["agree_booked"] >= 0.95, "Claude misreads words that do describe the problem")
     print(f"  confidence: {n_sure:,} sure answers {sure:.1%} right; {n_unsure:,} unsure answers {unsure:.1%} right")
     require(sure > unsure + 0.2, "Claude's confidence does not separate right answers from wrong ones")
+    gain = rows["Claude, asking when unsure"]["coverage"] - claude["coverage"]
+    noise = rows["Claude, asking when unsure, random replies (control)"]["coverage"] - claude["coverage"]
+    print(f"  follow-up asked on {r['asked']:,} bookings, the customer's problem offered on {r['settled']:,}; "
+          f"coverage {gain:+.1%} with honest replies, {noise:+.1%} with random ones")
+    require(gain > 0 and gain > 2 * noise, "the follow-up question's gain does not come from the customer's reply")
+    bad_followups = 0
+    for bad in ('[{"i": 0, "question": "Leak?", "answers": [{"text": "yes", "code": "LEAK"}]}]',
+                '[{"i": 0, "question": "Which?", "answers": [{"text": "a", "code": "LEAK"}, {"text": "b", "code": "LEAK"}]}]',
+                '[{"i": 0, "question": "Which?", "answers": [{"text": "a", "code": "LEAK"}, {"text": "b", "code": "ICE"}]}]'):
+        try:
+            triage.parse_followups(bad, [("FF_WARM", "Fresh-food side warm"), ("LEAK", "Leaking water")], ["it drips"])
+        except (ValueError, KeyError):
+            bad_followups += 1
+    print(f"  {bad_followups} of 3 malformed follow-ups rejected")
+    require(bad_followups == 3, "a malformed follow-up question gets through")
 
     problems = [("FF_WARM", "Fresh-food side warm"), ("LEAK", "Leaking water")]
     good = '[{"i": 0, "code": "LEAK", "confidence": 0.9}]'
