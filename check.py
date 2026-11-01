@@ -250,6 +250,80 @@ def control():
           f"baseline's {cov['national top parts'][3]:.1%}: the gain comes from the history's links, not the method")
 
 
+def load_faults(fleet, tech, parts):
+    """What is wrong with one truck's load: over its space, a locked part without certification, an unshippable part."""
+    faults = []
+    if sum(fleet.size[p] for p in parts) > fleet.capacity[tech]:
+        faults.append("over its space")
+    if tech not in fleet.certified and parts & fleet.locked:
+        faults.append("a locked part on an uncertified truck")
+    if any(p in fleet.eta and p not in fleet.stock[tech] for p in parts):
+        faults.append("a back-ordered part the truck did not already hold")
+    return faults
+
+
+def saving_ratio(rows, real, control):
+    """At the best coverage both policies reach, the extra parts the real lists need as a share of the control's."""
+    target = min(max(r["coverage"] for r in rows if r["policy"] == p) for p in (real, control))
+    first = {p: min((r for r in rows if r["policy"] == p and r["coverage"] >= target), key=lambda r: r["k"])
+             for p in (real, control)}
+    return first[control], first[real], first[real]["one_day"] / first[control]["one_day"]
+
+
+@check("dollars")
+def dollars():
+    from staple import backtest, load
+    conn = shared_world()
+    jobs = backtest.test_jobs(conn)
+    r = load.run(conn, jobs)
+    today, top, only, every = r["today"], r["best"][load.TOP_UP], r["best"][load.LISTS_ONLY], r["everything"]
+    for row in (today, every, top, only):
+        per_job = f", {row['k']} per job" if row["policy"] in (load.TOP_UP, load.LISTS_ONLY) else ""
+        print(f"  {row['policy']}{per_job}: covers {row['coverage']:.1%}, {row['parts']:.1f} parts, space {row['space']:.0f}, "
+              f"${row['value']:,.0f} on board, ${row['total']:.2f} a truck-day")
+    expected = sum(j["on_truck"] for j in jobs) / len(jobs)
+    require(abs(today["coverage"] - expected) < 1e-12, "the replay of today's trucks disagrees with the history")
+
+    fleet, faults = r["fleet"], 0
+    for (_, tech), day_jobs in load.truck_days(jobs).items():
+        for keep in (True, False):
+            parts, _ = load.build_load(fleet, tech, day_jobs, r["lists"], load.KS[-1], keep)
+            faults += bool(load_faults(fleet, tech, parts))
+    uncertified = next(t for t in fleet.capacity if t not in fleet.certified)
+    planted = load_faults(fleet, uncertified, set(fleet.size))
+    print(f"  {faults} faulty loads; a planted bad load shows {len(planted)} of 3 faults")
+    require(faults == 0, f"{faults} loads break the space, lock or back-order rules")
+    require(len(planted) == 3, "the load-fault check cannot see a planted bad load")
+
+    a, b = sorted(fleet.cost)[:2]
+    got = load.day_cost(fleet, {a, b}, {a}, 2)
+    want = (2 * load.REPEAT_VISIT, load.ONE_DAY_PART, (fleet.cost[a] + fleet.cost[b]) * load.HOLDING_RATE / 365)
+    require(all(abs(g - w) < 1e-12 for g, w in zip(got, want)), f"day cost {got} is not the hand sum {want}")
+
+    require(top["total"] < today["total"] and top["coverage"] > today["coverage"],
+            "topping up with the day's lists does not beat today's trucks")
+    print(f"  the top-up pays while a repeat visit costs more than ${r['break_even']:.2f}")
+    require(only["total"] > top["total"], "dropping the fixed stock now beats keeping it: re-read the trade-off")
+
+    best, match, ratio = saving_ratio(r["rows"], load.TOP_UP, load.CONTROL)
+    print(f"  shuffled-history top-up reaches {best['coverage']:.1%} with {best['one_day']:.1f} extra parts; "
+          f"the real lists reach {match['coverage']:.1%} with {match['one_day']:.1f} ({ratio:.0%} of them)")
+    require(ratio <= 0.75, "the real lists do not need clearly fewer extra parts than shuffled history")
+    other = load.ranked_lists(load.Predictor(conn, shuffled=True, seed=11), jobs)
+    null = load.replay(fleet, jobs, [(load.CONTROL, k, True, r["shuffled"]) for k in load.KS] +
+                       [("second shuffle", k, True, other) for k in load.KS])
+    _, _, null_ratio = saving_ratio(null, "second shuffle", load.CONTROL)
+    print(f"  control: a second shuffled history needs {null_ratio:.0%} of the first one's extra parts")
+    require(null_ratio > 0.75, "two shuffled histories pass the parts test: it cannot tell knowledge from chance")
+
+    av = r["availability"]
+    print("  carry-list parts: " + ", ".join(f"{m} {s:.1%}" for m, s in av["marks"].items()))
+    print(f"  back-order flag on {av['flagged']:,} of {av['jobs']:,} jobs; it catches {av['caught']} of the "
+          f"{av['blocked']} jobs that needed a part no truck nearby holds")
+    require(abs(sum(av["marks"].values()) - 1) < 1e-9, "the availability marks do not add up")
+    require(av["caught"] <= min(av["flagged"], av["blocked"]), "the flag counts more catches than flags")
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

@@ -92,3 +92,15 @@ CREATE INDEX job_parts_job ON job_parts(job);
 CREATE TABLE backtest (method TEXT NOT NULL, k INTEGER NOT NULL, coverage REAL NOT NULL, PRIMARY KEY (method, k));
 CREATE TABLE backtest_groups (grp TEXT NOT NULL, method TEXT NOT NULL, k INTEGER NOT NULL,
                               jobs INTEGER NOT NULL, coverage REAL NOT NULL);
+
+-- Results, written by the truck-load replay. Every figure is an average per truck-day; dollars are made up.
+CREATE TABLE load_policy (
+  policy TEXT NOT NULL, k INTEGER NOT NULL,      -- k = carry-list parts per job; 0 for today's fixed stock
+  truck_days INTEGER NOT NULL, jobs REAL NOT NULL, coverage REAL NOT NULL,
+  parts REAL NOT NULL, space REAL NOT NULL, value REAL NOT NULL, one_day REAL NOT NULL,
+  repeat_cost REAL NOT NULL, handling REAL NOT NULL, holding REAL NOT NULL, total REAL NOT NULL,
+  roi REAL NOT NULL,                              -- repeat dollars a year avoided per dollar of truck stock
+  PRIMARY KEY (policy, k)
+);
+CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL NOT NULL,
+                           PRIMARY KEY (kind, measure));
