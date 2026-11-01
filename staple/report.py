@@ -105,6 +105,8 @@ CHECK_ABOUT = {
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
     "sql": "Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. The published copy must match a fresh build, and planted faults must be refused.",
+    "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.",
+    "fresh-clone": "The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone's published copy. Damaging that copy must make the clone's own report check fail.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 

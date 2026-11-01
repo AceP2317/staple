@@ -1,7 +1,7 @@
 """The job description's metrics as plain SQL files in sql/metrics/, run against the one SQLite file.
 
-Each result is also written to out/metrics/<name>.csv, which the report reads, so every number on the
-report comes from a query a reader can open and run. The made-up dollars and rates the queries need are
+The pages are built from these results, so every number on them comes from a query a reader can open and
+run; each result is also written to out/metrics/<name>.csv. The made-up dollars and rates the queries need are
 written to the assumptions table from the code's own constants, never typed into the SQL a second time.
 """
 import csv
