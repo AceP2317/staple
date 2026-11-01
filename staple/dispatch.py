@@ -1,7 +1,8 @@
 """Dispatch replay: who takes each call, on which truck, and what a day's surprises do to the plan.
 
 Every held-back day is replayed under each policy with the same made-up events. The night before, booked
-calls are assigned in priority order and each truck is loaded for its route. Then, before 08:00, some
+calls are assigned in priority order and each truck is loaded for its route. Within one priority, the call
+with most to lose if its best technician fills up is placed first. Then, before 08:00, some
 technicians call out sick; during the day unplanned calls arrive, a truck may break down and strand its
 stock, and some calls escalate or ease. Calls moved during the day can use only what the other trucks
 already carry. At day's end a route that runs past 17:00 drops its lowest-priority calls to tomorrow.
@@ -103,32 +104,67 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
         day_jobs = by_day[day]
         sick, broken, changed = events(day_jobs, crew.techs, seed + d)
         routes, out, truck = {tech: [] for tech in crew.techs}, set(), {}
+        ends = {tech: (0.0, crew.home[tech]) for tech in crew.techs}
         rolled = []
 
-        def place(job, night):
-            able = [tech for tech in crew.techs if (tech, job["type"]) in crew.skill and tech not in out]
-            best, best_cost = None, None
-            for tech in able:
-                # The calendar runs on real durations; only the choice between technicians uses the beliefs.
-                clock, zone = end_of(crew, tech, routes[tech], crew.skill)
-                if clock + travel_minutes(zone, job["zone"]) + REPAIR[job["type"]] * crew.skill[(tech, job["type"])][1] > DAY:
-                    continue
-                minutes = travel_minutes(zone, job["zone"]) + REPAIR[job["type"]] * crew.belief[(tech, job["type"])][1]
-                if rule == "nearest":
-                    cost = travel_minutes(zone, job["zone"])
-                else:
-                    has = (lambda p: fleet.may_carry(tech, p)) if night else (lambda p: p in truck[tech])
-                    cover = 1.0 if rule == "skills" else 1.0 - miss_odds(judged, job, has)
-                    cost = minutes * MINUTE + (1 - cover * crew.belief[(tech, job["type"])][0]) * load.REPEAT_VISIT
-                if best_cost is None or (cost, tech) < (best_cost, best):
-                    best, best_cost = tech, cost
-            if best is None:
-                rolled.append(job)
-            else:
-                routes[best].append(job)
+        def able(job):
+            return [tech for tech in crew.techs if (tech, job["type"]) in crew.skill and tech not in out]
 
-        for j in sorted((j for j in day_jobs if not j["unplanned"]), key=lambda j: (priority(j, {}), j["job"])):
-            place(j, night=True)
+        def cost_of(job, tech, night):
+            # The calendar runs on real durations; only the choice between technicians uses the beliefs.
+            clock, zone = ends[tech]
+            drive = travel_minutes(zone, job["zone"])
+            if clock + drive + REPAIR[job["type"]] * crew.skill[(tech, job["type"])][1] > DAY:
+                return None
+            if rule == "nearest":
+                return drive
+            minutes = drive + REPAIR[job["type"]] * crew.belief[(tech, job["type"])][1]
+            has = (lambda p: fleet.may_carry(tech, p)) if night else (lambda p: p in truck[tech])
+            cover = 1.0 if rule == "skills" else 1.0 - miss_odds(judged, job, has)
+            return minutes * MINUTE + (1 - cover * crew.belief[(tech, job["type"])][0]) * load.REPEAT_VISIT
+
+        def put(job, tech):
+            routes[tech].append(job)
+            ends[tech] = end_of(crew, tech, routes[tech], crew.skill)
+
+        def place(job, night):
+            options = [(c, tech) for tech in able(job) if (c := cost_of(job, tech, night)) is not None]
+            if options:
+                put(job, min(options)[1])
+            else:
+                rolled.append(job)
+
+        def plan_night(band):
+            # Regret insertion: the call that loses most if its best technician fills up is placed first, so
+            # a scarce technician's day goes to the calls that need them most, not to the first ones booked.
+            # ponytail: a heuristic, not the optimum; with unlimited days Staple reaches 91.0% first-visit fix,
+            # which bounds what a solver (min-cost assignment per day) could still win back.
+            costs = {j["job"]: {tech: cost_of(j, tech, True) for tech in able(j)} for j in band}
+            waiting = {j["job"]: j for j in band}
+
+            def rank(jid):
+                c = sorted((v, t) for t, v in costs[jid].items() if v is not None)
+                return (c[1][0] - c[0][0] if len(c) > 1 else float("inf"), c[0][1]) if c else None
+
+            ranks = {jid: rank(jid) for jid in waiting}
+            while waiting:
+                stuck = [jid for jid, r in ranks.items() if r is None]
+                for jid in stuck:
+                    rolled.append(waiting.pop(jid))
+                    del ranks[jid]
+                if not waiting:
+                    break
+                jid = max(ranks, key=lambda i: (ranks[i][0], -i))
+                tech = ranks.pop(jid)[1]
+                put(waiting.pop(jid), tech)
+                for other, j in waiting.items():
+                    if tech in costs[other]:
+                        costs[other][tech] = cost_of(j, tech, True)
+                        ranks[other] = rank(other)
+
+        night = sorted((j for j in day_jobs if not j["unplanned"]), key=lambda j: (priority(j, {}), j["job"]))
+        for band in (1, 2, 3):
+            plan_night([j for j in night if priority(j, {}) == band])
         if loads == "balanced":
             truck = {tech: load.balanced_load(fleet, tech, routes[tech], lists, surprise, before[tech])
                      for tech in crew.techs}
