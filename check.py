@@ -266,7 +266,8 @@ def data():
         rnd = one(a, "SELECT AVG(noise = 'random') FROM jobs")
         print(f"  jobs {jobs:,}; held back for testing {test:,} ({test / jobs:.1%})")
         print(f"  planted noise: misdescribed {mis:.1%}, patternless {rnd:.1%}")
-        require(jobs == 45_000, f"expected 45,000 jobs, found {jobs}")
+        from staple import world
+        require(jobs == world.JOBS, f"expected {world.JOBS:,} jobs, found {jobs:,}")
         require(0.07 < test / jobs < 0.10, "the test split is not the last three months' share")
         require(0.07 < mis < 0.11 and 0.065 < rnd < 0.095, "planted noise is off its intended rate")
 
