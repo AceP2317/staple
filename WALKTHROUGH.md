@@ -146,3 +146,7 @@ replay's own record of the most recent week, so every route and load on it is on
   every commit, so nothing reaches the public repository without it.
 - `scripts/guards/fast/a-guards-throwaway-repo-writes-into-the-commit-being-made.sh` makes sure a guard that
   builds a scratch repository can never write into the commit being made.
+- `scripts/guards/fast/a-hover-tip-drops-when-a-finger-lifts.sh` taps the published report in an emulated
+  phone and tablet before each commit that changes it: one tap must keep a hint open and the next tap must
+  close it, with or without the browser moving focus. It runs a shared check from the author's own toolkit,
+  so it runs only on the author's machine.
