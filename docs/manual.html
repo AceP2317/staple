@@ -157,8 +157,8 @@ body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:no
 table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
 @media print{.band{background:none;color:#000}.actions,#tip{display:none}}
 </style><script>try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}</script></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
-Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 29 · 2 Nov 2026 · aacaca0
-The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 29 · 2 Nov 2026 · aacaca0</span> · results last changed <span class="content-day" data-tip="2 Nov 2026
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 31 · 2 Nov 2026 · 1d18e26
+The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 31 · 2 Nov 2026 · 1d18e26</span> · results last changed <span class="content-day" data-tip="2 Nov 2026
 The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">2 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
 Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods and logic
 Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods and logic</a><button type="button" class="btn ghost" data-theme-toggle data-tip="Light or dark
@@ -346,10 +346,22 @@ python run.py --live   # the AI step asked afresh, with your own ANTHROPIC_API_K
 <p>Open <code>out/index.html</code> in a browser. The nine metric queries are plain SQL files in
 <code>sql/metrics/</code>; each runs on its own against <code>out/staple.db</code>.</p></section>
 <footer>Written in Python, SQL and JavaScript: 14 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Nothing is installed beyond Python. Every number comes from the queries in <span class="hv" data-tip="sql/metrics/
-ai_step, backorder_exposure, carry_list_curve, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on hover, keyboard focus or tap. The first line is the value.
+ai_step, backorder_exposure, carry_list_curve, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on mouse hover or keyboard focus. On a touch screen one tap
+// shows it and keeps it; the next tap anywhere closes it, and opens the spot it lands on if that is another one.
+// A tap never cancels anything, so it still presses what it lands on. The first line is the value.
 const tip = document.getElementById('tip')
-let current = null
-function show(text, x, y, el) {
+let open = null // the spot showing: its element, the chart point if any, what opened it, and where on it
+function place() {
+  const r = open.el.getBoundingClientRect()
+  if (!open.el.isConnected || (!r.width && !r.height)) return hide()
+  const x = open.dx == null ? r.left : r.left + open.dx
+  const y = open.dy == null ? null : r.top + open.dy
+  let top = (y ?? r.top) - tip.offsetHeight - 10
+  if (top < 4) top = (y ?? r.bottom) + 14
+  tip.style.left = Math.max(4, Math.min(x, innerWidth - tip.offsetWidth - 8)) + 'px'
+  tip.style.top = top + 'px'
+}
+function show(el, text, by, point, x, y) {
   const [head, ...rest] = text.split('\n')
   const strong = document.createElement('strong')
   strong.textContent = head
@@ -358,48 +370,82 @@ function show(text, x, y, el) {
   tip.replaceChildren(strong, ...(rest.length ? [body] : []))
   tip.hidden = false
   const r = el.getBoundingClientRect()
-  const left = x ?? r.left
-  let top = (y ?? r.top) - tip.offsetHeight - 10
-  if (top < 4) top = (y ?? r.bottom) + 14
-  tip.style.left = Math.max(4, Math.min(left, innerWidth - tip.offsetWidth - 8)) + 'px'
-  tip.style.top = top + 'px'
+  open = { el, point, by, dx: x == null ? null : x - r.left, dy: y == null ? null : y - r.top }
+  place()
 }
 function hide() {
   tip.hidden = true
-  current = null
+  open = null
   document.querySelectorAll('.cross').forEach((c) => (c.style.opacity = 0))
 }
 const target = (e) => e.target.closest && e.target.closest('[data-tip]')
+
+const curves = new Map()
+document.querySelectorAll('svg[data-curve]').forEach((svg) => curves.set(svg, { d: JSON.parse(svg.dataset.curve), cross: svg.querySelector('.cross'), i: 2 }))
+function nearest(svg, clientX) {
+  const { d } = curves.get(svg)
+  const r = svg.getBoundingClientRect()
+  const xv = ((clientX - r.left) / r.width) * d.w
+  return d.xs.reduce((b, x, j) => (Math.abs(x - xv) < Math.abs(d.xs[b] - xv) ? j : b), 0)
+}
+function at(svg, j) {
+  const c = curves.get(svg)
+  c.i = j
+  c.cross.setAttribute('x1', c.d.xs[j]); c.cross.setAttribute('x2', c.d.xs[j]); c.cross.style.opacity = 1
+  return c.d.tips[j]
+}
+
+// Mouse and pen: open on entering a spot, close on leaving it.
 document.addEventListener('pointerover', (e) => {
-  const el = target(e)
-  if (el && el !== current) { current = el; show(el.dataset.tip, null, null, el) }
+  const el = e.pointerType !== 'touch' && target(e)
+  if (el && open?.el !== el) show(el, el.dataset.tip, 'hover')
 })
 document.addEventListener('pointerout', (e) => {
-  const el = target(e)
-  if (el && !el.contains(e.relatedTarget)) hide()
+  const el = e.pointerType !== 'touch' && target(e)
+  if (el && open?.by === 'hover' && open.el === el && !el.contains(e.relatedTarget)) hide()
 })
-document.addEventListener('focusin', (e) => { const el = target(e); if (el) { current = el; show(el.dataset.tip, null, null, el) } })
-document.addEventListener('focusout', hide)
-document.querySelectorAll('svg[data-curve]').forEach((svg) => {
-  const d = JSON.parse(svg.dataset.curve)
-  const cross = svg.querySelector('.cross')
-  let i = 2
-  const at = (j) => {
-    cross.setAttribute('x1', d.xs[j]); cross.setAttribute('x2', d.xs[j]); cross.style.opacity = 1
-    return d.tips[j]
-  }
+// Keyboard: the browser's own focus-visible test is true for a Tab and false for a tap, so a tap never opens one here.
+document.addEventListener('focusin', (e) => {
+  const el = e.target
+  if (!el.matches || !el.matches(':focus-visible')) return
+  if (curves.has(el)) return show(el, at(el, curves.get(el).i), 'focus', curves.get(el).i)
+  const spot = target(e)
+  if (spot) show(spot, spot.dataset.tip, 'focus')
+})
+document.addEventListener('focusout', () => { if (open?.by === 'focus') hide() })
+// Finger: a tap is a press and lift within 10 px that the browser did not cancel to scroll.
+let press = null
+document.addEventListener('pointerdown', (e) => { press = e.pointerType === 'touch' ? [e.clientX, e.clientY] : null })
+document.addEventListener('pointercancel', () => (press = null))
+document.addEventListener('pointerup', (e) => {
+  if (!press || e.pointerType !== 'touch') return
+  const moved = Math.hypot(e.clientX - press[0], e.clientY - press[1])
+  press = null
+  if (moved > 10) return
+  const svg = e.target.closest && e.target.closest('svg[data-curve]')
+  const el = svg || target(e)
+  const point = svg ? nearest(svg, e.clientX) : undefined
+  const same = open && el && open.el === el && open.point === point
+  if (open) hide()
+  if (!el || same) return
+  if (svg) show(svg, at(svg, point), 'tap', point, e.clientX + 14, e.clientY)
+  else show(el, el.dataset.tip, 'tap')
+})
+// An open tip moves with its spot when anything scrolls, and closes if the spot is gone.
+addEventListener('scroll', () => open && place(), { capture: true, passive: true })
+addEventListener('resize', () => open && place())
+
+curves.forEach((c, svg) => {
   svg.addEventListener('pointermove', (ev) => {
-    const r = svg.getBoundingClientRect()
-    const xv = ((ev.clientX - r.left) / r.width) * d.w
-    i = d.xs.reduce((b, x, j) => (Math.abs(x - xv) < Math.abs(d.xs[b] - xv) ? j : b), 0)
-    show(at(i), ev.clientX + 14, ev.clientY, svg)
+    if (ev.pointerType === 'touch') return
+    const j = nearest(svg, ev.clientX)
+    show(svg, at(svg, j), 'hover', j, ev.clientX + 14, ev.clientY)
   })
-  svg.addEventListener('pointerleave', hide)
-  svg.addEventListener('focus', () => show(at(i), null, null, svg))
+  svg.addEventListener('pointerleave', (ev) => { if (ev.pointerType !== 'touch' && open?.by === 'hover' && open.el === svg) hide() })
   svg.addEventListener('keydown', (ev) => {
     if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
-    i = Math.max(0, Math.min(d.ks.length - 1, i + (ev.key === 'ArrowRight' ? 1 : -1)))
-    show(at(i), null, null, svg)
+    const j = Math.max(0, Math.min(c.d.ks.length - 1, c.i + (ev.key === 'ArrowRight' ? 1 : -1)))
+    show(svg, at(svg, j), 'focus', j)
     ev.preventDefault()
   })
 })
