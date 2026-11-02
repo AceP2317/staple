@@ -83,8 +83,8 @@ body.app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:
 .pickers{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.pick-label{font-size:.8rem;font-weight:700;color:var(--ink)}
 .day-btn,.side-btn,.vbtn{font:inherit;font-size:.8rem;background:var(--surface);color:var(--ink);border:1px solid var(--ring);
 border-radius:6px;padding:3px 9px;cursor:pointer}
-.day-btn.on,.side-btn.on,.vbtn.on{background:var(--band);color:var(--band-ink);border-color:var(--band)}
-.day-btn i{font-style:normal;margin-left:3px}.ev-s{color:var(--muted)}.ev-b{color:var(--warn)}.day-btn.on i{color:var(--cta)}
+.day-btn.on,.side-btn.on,.vbtn.on{background:var(--s1);color:var(--on-hi);border-color:var(--s1);font-weight:700}
+.day-btn i{font-style:normal;margin-left:3px}.ev-s{color:var(--muted)}.ev-b{color:var(--warn)}.day-btn.on i{color:inherit}
 .day-btn:focus-visible,.side-btn:focus-visible,.vbtn:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
 .invented{font-size:.72rem;font-weight:400;color:var(--muted);border:1px solid var(--ring);border-radius:4px;padding:0 6px;vertical-align:2px}
 .sides{display:none;margin-left:auto;gap:4px}
@@ -96,7 +96,8 @@ section.day{margin:0}.day h2{margin:2px 0 8px}
 .tiles.small{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.tiles.small .tile{padding:8px 10px}.tiles.small .value{font-size:1.35rem;line-height:1.25}.tiles.small .sub{font-size:.74rem;line-height:1.35}
 section.panel,section.card,.card{display:block;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:12px 14px;margin:0 0 12px}
 .panel h3,.card h3{margin:0 0 6px}.panel>p,.card>p{margin:0 0 8px;font-size:.88rem}.card .sub,.sheet .sub{font-size:.8rem;color:var(--muted);margin:0 0 6px}
-.card figure{border:0;padding:0}.card .tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.card figure{border:0;padding:0}.proof-pane .bar-row{grid-template-columns:1fr;gap:2px}
+.proof-pane .bar-value{white-space:normal;flex:1 1 0;min-width:0}.card .tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .do{font-size:.85rem;background:var(--tint);border-left:3px solid var(--cta);padding:6px 10px;border-radius:4px;margin:10px 0 0}
 .steps{margin:0;padding-left:20px;font-size:.88rem}
 .flash{animation:flash 1.4s}@keyframes flash{from{box-shadow:0 0 0 3px var(--cta)}to{box-shadow:0 0 0 3px transparent}}
@@ -161,8 +162,8 @@ body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:no
 table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
 @media print{.band{background:none;color:#000}.actions,#tip{display:none}}
 </style></head><body class="app" data-side="plan" data-chosen="T25"><header class="band"><div class="band-in"><div><h1 data-tip="Staple
-Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple</h1><p class="lede">Plans a repair fleet&#x27;s next day: who takes each call, what each truck carries, and what people do before 08:00.</p><p class="stamp"><span class="build-stamp" data-tip="Build 23 · 1 Nov 2026 · ba2587c
-The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 23 · 1 Nov 2026 · ba2587c</span> · results last changed <span class="content-day" data-tip="1 Nov 2026
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple</h1><p class="lede">Plans a repair fleet&#x27;s next day: who takes each call, what each truck carries, and what people do before 08:00.</p><p class="stamp"><span class="build-stamp" data-tip="Build 25 · 1 Nov 2026 · c188a19
+The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 25 · 1 Nov 2026 · c188a19</span> · results last changed <span class="content-day" data-tip="1 Nov 2026
 The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">1 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="manual.html" target="_blank" rel="noopener" data-tip="Instruction Manual
 Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you." tabindex="0">Instruction Manual</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods and logic
 Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods and logic</a></nav></div></header><main><div class="intro"><ol class="how"><li data-tip="1. Claude codes every booking.
