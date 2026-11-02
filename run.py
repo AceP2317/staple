@@ -1,10 +1,11 @@
 """The one command: `python run.py` builds the made-up world and every result from it, into out/.
 `python run.py --live` asks the Claude API afresh for the AI step, with your own ANTHROPIC_API_KEY.
-`python run.py --pages` also writes the three pages to docs/, the copy the repository publishes."""
+`python run.py --pages` also writes the three pages to docs/, the copy the repository publishes.
+The report is the week's plan (staple/plan.py) beside the 92-day evidence behind it."""
 import sys
 import time
 
-from staple import backorders, backtest, db, dispatch, load, metrics, report, triage, world
+from staple import backorders, backtest, db, dispatch, load, metrics, plan, report, triage, world
 
 
 def main():
@@ -49,8 +50,15 @@ def main():
               f"minutes a call, ${r['cost_per_call']:.0f} a call")
     found = metrics.run(conn)
     print(f"metrics: {len(found)} SQL files in sql/metrics/, each result written to out/metrics/<name>.csv")
+    week = plan.build(conn)
+    print(f"the week's plan, {plan.WEEK} days coded by Claude and replayed; first-visit fix against the nearest technician:")
+    for d in week["days"]:
+        o, b, m = d["ours"], d["base"], d["morning"]
+        print(f"  {d['day']}: {o['fixes'] / o['calls']:.1%} against {b['fixes'] / b['calls']:.1%}; Claude asked "
+              f"{d['ai']['asked']} of {d['ai']['coded']}; {len(m['sick'])} sick, {len(m['broken'])} breakdowns, "
+              f"{len(m['moved'])} calls moved; {len(d['todo'])} to-do items")
     for folder in [db.OUT] + ([report.PUBLISHED] if "--pages" in sys.argv[1:] else []):
-        for warning in report.write(found, folder):
+        for warning in report.write(found, week, folder):
             print(f"  WARN build stamp: {warning}")
         print(f"pages: {', '.join(str(folder / f) for f in report.FILES.values())}")
     print(f"done in {time.perf_counter() - started:.1f}s")

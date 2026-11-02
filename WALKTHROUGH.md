@@ -9,20 +9,21 @@ comes from invented history, so this page names no result. The results live on t
 `python run.py` works like a planning run. It first writes the master data and three years of history into
 one SQLite file. Each step after that reads the file and writes its answer back as a table: the parts
 predictor's back-test, the truck loads, the back-order list, the AI step and the dispatch replay. The metric
-queries read only those tables, and the pages read only the query results. So a number on the report can
-always be traced to one query, and that query to one table.
+queries read only those tables, and the report's evidence reads only the query results. So a number in the
+evidence can always be traced to one query, and that query to one table. The plan beside it is the dispatch
+replay's own record of the most recent week, so every route and load on it is one the replay decided.
 
 ## The one command and its checks
 
 - `run.py` is the one command. It builds the world, runs every step in order, prints a summary of each, runs
-  the metric queries and writes the three pages into `out/`. With `--pages` it also writes the copy GitHub
+  the metric queries, records the week's plan and writes the three pages into `out/`. With `--pages` it also writes the copy GitHub
   Pages serves, and with `--live` it asks Claude afresh instead of reading the cached answers.
 - `check.py` holds every check, each runnable alone by name (`python check.py report`). Each one plants a
   fault or a known answer and must catch it, because a check that never fails looks exactly like one that
-  sees nothing. It guards the size ceiling, the ban on third-party packages and a private list of names
-  that must never appear in a public file. It recomputes the predictor by hand and holds each claimed gain
-  against its control. It also checks the load and dispatch rules, the AI step's calibration, the metric
-  queries, the pages, this walkthrough and a fresh public copy of the repository.
+  sees nothing. It guards the ban on third-party packages, a private list of names that must never appear
+  in a public file, and the weight of each published page. It recomputes the predictor by hand and holds each claimed gain
+  against its control. It also checks the load and dispatch rules, the AI step's calibration, the week's plan,
+  the metric queries, the pages, this walkthrough and a fresh public copy of the repository.
 
 ## The made-up world
 
@@ -75,6 +76,17 @@ always be traced to one query, and that query to one table.
 - `data/followup-cache.json` holds the follow-up question Claude wrote for each unsure phrasing, with the
   answer choices and the problem code each one points to.
 
+## The week's plan
+
+- `staple/plan.py` turns the most recent week of held-back days into the plan the report shows. It recodes
+  each booking with Claude's reading of the customer's words, asking the saved follow-up question where
+  Claude was unsure. It replays the week under Staple's rule and under the current way, seeded so the sick
+  calls and breakdowns are the ones the full replay met on the same days, and records every route, load and
+  move as the replay makes it. It then shapes each day into what people act on: a load sheet per truck, the
+  calls to warn or rebook, the back-orders to chase, and every call a sick call or breakdown moved. Nothing
+  in it decides anything. Like an MRP run that keeps its planned orders instead of printing only the service
+  level, it keeps what the replay already planned.
+
 ## The metrics
 
 - `staple/metrics.py` writes the made-up costs and rates from the code into an `assumptions` table, runs
@@ -99,13 +111,16 @@ always be traced to one query, and that query to one table.
 
 ## The pages
 
-- `staple/report.py` builds the three pages from the query results and the code's own constants. It writes a
-  hover hint for nearly every number, heading, bar and column, and stamps each page with the build that made
+- `staple/report.py` builds the three pages from the query results, the week's plan and the code's own
+  constants. The report is one screen: the plan on the left, its proof on the right, each scrolling on its
+  own. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
   it. The manuals quote every constant, prompt, query and check straight from the code, so they cannot
   disagree with what ran.
 - `staple/pages/house.css` is the look: colors as named tokens, light and dark, the hover marker and the
   phone layout.
 - `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, and moves the chart's crosshair.
+- `staple/pages/plan.js` switches the plan screen: the day, the chosen technician, the night plan or the day
+  as it ran, and on a phone the plan or the proof. Every day is already in the page; it only shows and hides.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the
   code goes.
 - `staple/pages/method.html` is the methods manual's text: every formula, rule, prompt and check, filled the
@@ -121,7 +136,7 @@ always be traced to one query, and that query to one table.
 - `.gitignore` keeps the built output, Python's caches and a private folder out of the repository.
 - `.gitattributes` keeps shell scripts' line endings Unix-style, because bash fails on a Windows line ending.
 - `scripts/guard.sh` runs the repository's own guards before each commit: one test per mistake already made.
-- `scripts/guards/fast/public-files-carry-no-private-names.sh` runs the size, package and private-names
-  check on every commit, so nothing reaches the public repository without it.
+- `scripts/guards/fast/public-files-carry-no-private-names.sh` runs the package and private-names check on
+  every commit, so nothing reaches the public repository without it.
 - `scripts/guards/fast/a-guards-throwaway-repo-writes-into-the-commit-being-made.sh` makes sure a guard that
   builds a scratch repository can never write into the commit being made.

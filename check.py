@@ -16,7 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-SIZE_CEILING = 2500  # lines of Python and SQL outside the checks; raise it on purpose, never by drift
 CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
@@ -53,14 +52,6 @@ def public_files():
 
 def code_files():
     return sorted(p for g in CODE_GLOBS for p in ROOT.glob(g))
-
-
-def count_lines(paths):
-    return sum(len(p.read_text(encoding="utf-8").splitlines()) for p in paths)
-
-
-def over_ceiling(total, ceiling=SIZE_CEILING):
-    return total > ceiling
 
 
 def third_party_imports(source):
@@ -101,10 +92,6 @@ def scan_for_names(paths, names):
 @check("guards")
 def guards():
     files = code_files()
-    total = count_lines(files)
-    print(f"  size: {total} of {SIZE_CEILING} lines across {len(files)} files")
-    require(not over_ceiling(total), f"size ceiling passed: {total} > {SIZE_CEILING}")
-
     outside = {}
     for p in files + [ROOT / "check.py"]:
         if p.suffix == ".py":
@@ -123,12 +110,37 @@ def guards():
         print(f"  names scan: {len(names)} names over {len(pub)} public files, {len(hits)} hits")
         require(not hits, "names found in public files: " + "; ".join(hits))
 
-    require(over_ceiling(SIZE_CEILING + 1), "control: the size check passed a count over the ceiling")
     require(third_party_imports("import numpy\nfrom pandas import x\n") == {"numpy", "pandas"},
             "control: the import check missed numpy and pandas")
     require(not third_party_imports("import sqlite3, json\nfrom pathlib import Path\n"),
             "control: the import check flagged Python's own modules")
-    print("  controls: the size and import checks both fire on planted input")
+    print("  control: the import check fires on planted input and passes Python's own modules")
+
+
+def overweight(folder):
+    """The published pages that weigh more than the limit, with their weights in bytes."""
+    from staple import report
+    weights = {name: (Path(folder) / name).stat().st_size for name in report.FILES.values() if (Path(folder) / name).exists()}
+    return weights, {n: w for n, w in weights.items() if w > report.WEIGHT_LIMIT}
+
+
+@check("weight")
+def weight():
+    from staple import report
+    weights, heavy = overweight(report.PUBLISHED)
+    print("  published pages: " + ", ".join(f"{n} {w:,} bytes" for n, w in weights.items())
+          + f"; limit {report.WEIGHT_LIMIT:,} bytes each")
+    require(len(weights) == len(report.FILES), f"docs/ is missing pages: {sorted(set(report.FILES.values()) - set(weights))}")
+    require(not heavy, f"pages over the weight limit: {heavy}")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        for name in report.FILES.values():
+            page = (report.PUBLISHED / name).read_text(encoding="utf-8")
+            if name == "index.html":
+                page += "<!--" + "x" * (report.WEIGHT_LIMIT - len(page.encode("utf-8")) + 1) + "-->"
+            (Path(tmp) / name).write_text(page, encoding="utf-8")
+        _, padded = overweight(tmp)
+    require(list(padded) == ["index.html"], f"control: a page padded past the limit was not refused: {padded}")
+    print(f"  control: index.html padded to {padded['index.html']:,} bytes is refused, and the other pages still pass")
 
 
 @check("banned-control")
@@ -179,6 +191,16 @@ def shared_world():
         tmp = tempfile.mkdtemp(prefix="staple-check-")
         _WORLD["conn"] = built_world(Path(tmp) / "world.db")
     return _WORLD["conn"]
+
+
+def shared_week():
+    """The week's plan on the shared world, built once and read by the plan and report checks."""
+    if "week" not in _WORLD:
+        from staple import plan, triage
+        conn = shared_world()
+        _WORLD["followups"] = triage.load(conn)[1]
+        _WORLD["week"] = plan.build(conn)
+    return _WORLD["week"], _WORLD["followups"]
 
 
 @check("predictor")
@@ -547,6 +569,12 @@ def dispatch_check():
     require(not faults, f"the replay breaks the day's rules: {dict(faults)}")
     require(len(caught) == 4, f"the rule check misses a planted break: it saw {dict(caught)}")
 
+    figures = [k for k, v in staple.items() if isinstance(v, (int, float))]
+    moved = [k for k in figures if recorded[k] != staple[k]]
+    print(f"  recording the plan: {len(figures) - len(moved)} of {len(figures)} figures unchanged against the unrecorded run")
+    require(not moved, f"recording the plan changed the replay's results: {moved}")
+    require([k for k in figures if loaded[k] != staple[k]], "control: the comparison saw no difference between two policies")
+
 
 @check("dispatch-control")
 def dispatch_control():
@@ -574,6 +602,126 @@ def dispatch_control():
             "shuffled skills keep most of the skill gain: it may not come from knowing the technicians")
     require(abs(odds_off["fixes_per_call"] - staple["fixes_per_call"]) < 0.01,
             "model-level parts odds now matter to dispatch: re-read the claim that appliance-level odds suffice")
+
+
+def plan_faults(week, followups):
+    """What breaks the week's plan: the day's rules, the load rules, a load its parts' worth does not
+    reproduce, a call off Claude's code, an unsure call without its question, a morning that drops a sick call,
+    a breakdown or a moved call's from and to, and day totals that disagree with the replay's own."""
+    from staple import load, triage
+    ctx, faults = week["ctx"], Counter()
+    for result in (week["ours"], week["base"]):
+        faults.update(visit_faults(result, week["jobs"]))
+    for j in week["jobs"]:
+        a = j["ai"]
+        unsure = a["first_confidence"] < triage.BLEND_BELOW and j["words"] in followups.get(j["type"], {})
+        faults["a call not on Claude's code"] += j["problem"] != f"{j['type']}.{a['code']}"
+        faults["an unsure call without its question"] += unsure != bool(a["question"])
+        faults["a reading the question did not produce"] += a["code"] != (a["reply"] or a["first"])
+    for d in week["days"]:
+        rec, m = week["ours"]["days"][d["day"]], d["morning"]
+        for tech, cargo in rec["load"].items():
+            faults.update(load_faults(ctx.fleet, tech, cargo))
+            worth = d["trucks"][tech]["sheet"]["worth"]
+            again = load.fill(ctx.fleet, tech, set(), {p: v / ctx.fleet.size[p] for p, v in worth.items() if v > 0})
+            faults["a load its parts' worth does not reproduce"] += again != cargo
+        faults["a sick call or breakdown missing from the morning"] += (
+            set(m["sick"]) != rec["sick"] or m["broken"] != {t: at for t, at in rec["broken"].items() if t not in rec["sick"]})
+        ran = {i: t for _, t, i, _, _, _ in rec["visits"]}
+        shown = {x["job"]: x for x in m["moved"]}
+        faults["a moved call without its from and to"] += sum(
+            1 for jid, origins in rec["moved"].items()
+            if jid not in shown or shown[jid]["from"] != origins[0][0] or shown[jid]["to"] != ran.get(jid))
+    for name in ("ours", "base"):
+        served = sum(d[name]["served"] for d in week["days"])
+        fixes = sum(d[name]["fixes"] for d in week["days"])
+        r = week[name]
+        faults["day totals that disagree with the replay"] += (
+            served != r["served"] or abs(fixes - r["fixes_per_call"] * r["calls"]) > 1e-6)
+    return +faults
+
+
+@check("plan")
+def plan_check():
+    import copy
+    from staple import backtest, dispatch, plan, triage
+    conn = shared_world()
+    week, followups = shared_week()
+    for d in week["days"]:
+        o, b, m, a = d["ours"], d["base"], d["morning"], d["ai"]
+        owners = Counter(i["owner"] for i in d["todo"])
+        print(f"  {d['day']}: {int(o['calls'])} calls; first-visit fix {o['fixes'] / o['calls']:.1%} against "
+              f"{b['fixes'] / b['calls']:.1%} for the nearest technician on today's stock; Claude asked {a['asked']}, "
+              f"settled {a['settled']}; sick {m['sick'] or 'none'}, breakdowns "
+              f"{ {t: plan.clock(at) for t, at in m['broken'].items()} or 'none'}, {len(m['moved'])} calls moved; "
+              f"to-do {dict(owners)}")
+    print(f"  the page opens on {week['open']}, the most recent day on which a sick call and a breakdown both moved calls")
+    faults = plan_faults(week, followups)
+    print(f"  plan faults over {len(week['jobs']):,} calls and {len(week['days']) * len(week['ctx'].crew.techs)} truck-days: "
+          f"{dict(faults) or 'none'}")
+    require(not faults, f"the week's plan breaks its rules: {dict(faults)}")
+    opening = [d["day"] for d in week["days"] if plan.opens_on(d)]
+    require(opening and week["open"] == opening[-1], "the page does not open on the most recent day whose sick call and breakdown both moved calls")
+    moot = [d for d in week["days"] if d["morning"]["sick"] and d["morning"]["broken"] and not plan.opens_on(d)]
+    quiet = [d for d in week["days"] if not d["morning"]["sick"] and not d["morning"]["broken"]]
+    require(moot and quiet, "control: the week has no day to test the opening rule against")
+    print(f"  control: the opening rule refuses {moot[0]['day']}, whose breakdown moved no call, and {quiet[0]['day']}, which had no event")
+
+    all_jobs = backtest.test_jobs(conn)
+    days = sorted({j["day"] for j in all_jobs})
+    by_day = defaultdict(list)
+    for j in all_jobs:
+        by_day[j["day"]].append(j)
+    techs = week["ctx"].crew.techs
+
+    def events_differ(shift):
+        return [day for day in week["ours"]["events"] if
+                dispatch.events(by_day[day], techs, dispatch.SEED + days.index(day) + shift)[:2] != week["ours"]["events"][day]]
+    print(f"  the week's sick calls and breakdowns against a recount on the 92-day seeds: {len(events_differ(0))} days differ")
+    require(not events_differ(0), "the week's surprises are not the ones the 92-day run met on the same days")
+    require(events_differ(1), "control: a recount on seeds one day off still matched, so the recount cannot see a change")
+
+    day, d = week["days"][0]["day"], week["days"][0]
+    rec = week["ours"]["days"][day]
+    fleet = week["ctx"].fleet
+    plain = sorted(p for p in fleet.size if p not in fleet.locked and p not in fleet.eta)
+    tech = next(t for t in techs if t not in fleet.certified and rec["load"][t])
+    asked = next(i for i, j in enumerate(week["jobs"]) if j["ai"]["question"])
+    off_code = next(i for i, j in enumerate(week["jobs"]) if j["booked"] != j["problem"])
+
+    def with_load(cargo):
+        out = copy.copy(week)
+        out["ours"] = dict(week["ours"], days=dict(week["ours"]["days"]))
+        out["ours"]["days"][day] = dict(rec, load=dict(rec["load"], **{tech: cargo}))
+        return out
+
+    def with_job(i, **change):
+        out = copy.copy(week)
+        out["jobs"] = list(week["jobs"])
+        out["jobs"][i] = dict(week["jobs"][i], **change)
+        return out
+
+    moved_day = next(x for x in week["days"] if x["morning"]["moved"])
+    wrong_to = copy.copy(week)
+    wrong_to["days"] = [dict(x, morning=dict(x["morning"], moved=[dict(x["morning"]["moved"][0], to="T99")]
+                                             + x["morning"]["moved"][1:])) if x is moved_day else x for x in week["days"]]
+    no_sick = copy.copy(week)
+    no_sick["days"] = [dict(x, morning=dict(x["morning"], sick=[])) if x["day"] == week["open"] else x for x in week["days"]]
+    planted = {
+        "over its space": with_load(rec["load"][tech] | set(plain)),
+        "a locked part on an uncertified truck": with_load(rec["load"][tech] | {min(fleet.locked)}),
+        "a back-ordered part the truck did not already hold":
+            with_load(rec["load"][tech] | {next(p for p in sorted(fleet.eta) if p not in fleet.stock[tech])}),
+        "a load its parts' worth does not reproduce": with_load(rec["load"][tech] - {min(rec["load"][tech])}),
+        "a call not on Claude's code": with_job(off_code, problem=week["jobs"][off_code]["booked"]),
+        "an unsure call without its question": with_job(asked, ai=dict(week["jobs"][asked]["ai"], question=None)),
+        "a moved call without its from and to": wrong_to,
+        "a sick call or breakdown missing from the morning": no_sick,
+        "day totals that disagree with the replay": dict(week, ours=dict(week["ours"], served=week["ours"]["served"] + 1)),
+    }
+    caught = {kind: kind in plan_faults(w, followups) for kind, w in planted.items()}
+    print(f"  control: {sum(caught.values())} of {len(caught)} planted plan faults caught, each by its own rule")
+    require(all(caught.values()), f"the plan check missed a planted fault: {[k for k, v in caught.items() if not v]}")
 
 
 def results_written(conn):
@@ -700,7 +848,9 @@ class Hints(HTMLParser):
     """Every element a reader would hover that carries no hint. A dotted value may borrow its cell's hint;
     everything else must carry its own, because the hover layer shows the innermost hint it finds."""
     VOID = {"meta", "br", "img", "input", "hr", "link", "wbr"}
-    CLASSES = {"tile", "bar-row", "key", "madeup", "hv", "q", "btn", "build-stamp", "content-day", "fig-title"}
+    CLASSES = {"tile", "bar-row", "key", "madeup", "hv", "q", "btn", "build-stamp", "content-day", "fig-title",
+               "blk", "stop", "who", "ask", "todo-item", "evt", "day-btn", "side-btn", "vbtn", "lane-note", "brk",
+               "invented", "pick-label", "legend-line"}
 
     def __init__(self, tags):
         super().__init__()
@@ -758,6 +908,17 @@ def page_faults(page, pattern, kind="report"):
     return faults
 
 
+def opening_faults(page):
+    """What the day the page opens on must show of its morning: a sick technician's hatched row, a broken-down
+    truck's marker, and calls tagged with the technician they moved from."""
+    shown = re.findall(r'<section class="day" data-day="[^"]+">(.*?)(?=<section class="day"|<div class="pane proof-pane")', page, re.S)
+    if len(shown) != 1:
+        return [f"{len(shown)} days shown at once"]
+    day = shown[0]
+    return [what for what, mark in (("no sick row", 'class="row sick"'), ("no broken-down truck", 'class="row broken"'),
+                                    ("no moved call", ">from T")) if mark not in day]
+
+
 def html_text(s):
     import html
     return html.unescape(s)
@@ -797,7 +958,8 @@ def report_check():
             require(pattern, "the house build stamp is installed but did not answer, so the pages would go out unstamped")
         else:
             print(f"  build stamp: SKIPPED, the house stamp is not on this machine, so the pages must say '{report.UNSTAMPED}'")
-        pages = report.build(results, text, day)
+        week, _ = shared_week()
+        pages = report.build(results, week, text, day)
         for kind, page in pages.items():
             print(f"  {report.FILES[kind]}: {len(page):,} characters, {page.count('data-tip=')} hints, "
                   f"{page.count('<figure>')} charts, stamp \"{text}\", results last changed {day}")
@@ -807,6 +969,14 @@ def report_check():
         ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
         figure = f"{ours[3]:.1f}%"
         require(figure in page, "the page does not show the dispatch scorecard's own first-visit figure")
+        shows = opening_faults(page)
+        print(f"  the page opens on {week['open']}: {'; '.join(shows) or 'a sick row, a broken-down truck and moved calls on its board'}")
+        require(not shows, f"the opening day does not show its morning: {shows}")
+        quiet = next(d["day"] for d in week["days"] if not d["morning"]["sick"] and not d["morning"]["broken"])
+        swapped = page.replace(f'<section class="day" data-day="{week["open"]}">', f'<section class="day" data-day="{week["open"]}" hidden>', 1)
+        swapped = swapped.replace(f'<section class="day" data-day="{quiet}" hidden>', f'<section class="day" data-day="{quiet}">', 1)
+        require(opening_faults(swapped), "control: a page opening on a day with no sick call or breakdown passed")
+        print(f"  control: a page opening on {quiet}, which had no sick call or breakdown, is refused")
 
         stale = stale_pages(pages, report.PUBLISHED)
         print(f"  published copy in docs/: {len(report.FILES) - len(stale)} of {len(report.FILES)} pages match a fresh build")

@@ -105,17 +105,22 @@ def list_load(fleet, tech, day_jobs, lists, k, keep_stock):
     return fill(fleet, tech, set(fleet.stock[tech]) if keep_stock else set(), wanted)
 
 
-def balanced_load(fleet, tech, day_jobs, lists, surprise, before):
-    """Each part's worth for tomorrow, per unit of space: the booked calls' odds and the unplanned calls'
-    share, times a repeat visit, less its holding, and less a move unless it is already on board."""
+def worth(fleet, tech, day_jobs, lists, surprise, before):
+    """Each part's worth for tomorrow in dollars: the booked calls' odds and the unplanned calls' share,
+    times a repeat visit, less its holding, and less a move unless it is already on board."""
     # ponytail: worth adds each call's odds as if one part fixed it; a call needing two parts is counted
     # generously. A per-call model of complete part sets is the upgrade if real data shows it matters.
-    worth = Counter(surprise[tech])
+    gross = Counter(surprise[tech])
     for j in day_jobs:
         if not j["unplanned"]:
             for part, p in lists[j["job"]]:
-                worth[part] += p * REPEAT_VISIT
-    net = {p: w - fleet.holding(p) + (MOVE if p in before else -MOVE) for p, w in worth.items()}
+                gross[part] += p * REPEAT_VISIT
+    return {p: w - fleet.holding(p) + (MOVE if p in before else -MOVE) for p, w in gross.items()}
+
+
+def balanced_load(fleet, tech, day_jobs, lists, surprise, before):
+    """The parts worth carrying, best worth per unit of space first, while the truck has room."""
+    net = worth(fleet, tech, day_jobs, lists, surprise, before)
     return fill(fleet, tech, set(), {p: v / fleet.size[p] for p, v in net.items() if v > 0})
 
 
