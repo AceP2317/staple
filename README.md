@@ -1,6 +1,7 @@
 # Staple
 
-Which parts belong on the truck, and which technician should take the call.
+Plans a repair fleet's next day: which technician takes each call, what each truck carries, and what people
+do before 08:00.
 
 **[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods and logic](https://acep2317.github.io/staple/method.html)
 
@@ -15,6 +16,11 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## What it does
 
+- **Plans tomorrow, and says what to do.** The live report opens on one invented day's plan beside its proof.
+  The plan holds a to-do list for the parts room, the call center, dispatch and the buyer; every technician's
+  route on a map and a board, as planned at night and as the day ran after a sick call and a breakdown; and
+  each truck's load sheet. The proof holds that day against the current way, and the evidence from every
+  held-back day. A day picker covers the most recent week.
 - **Predicts the parts.** For a booked repair, it ranks the parts most likely to fix it by counting what
   fixed past jobs on the same model family and problem. Where a family's history is thin, it leans on the
   wider appliance group.
@@ -26,8 +32,8 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 - **Ranks the back-orders.** Each part the centers cannot ship, by the second visits it puts at risk before
   it arrives.
 - **Reads the customer's words.** Claude Haiku 5.5 (`claude-haiku-5-5`) turns what the customer said into a
-  problem code with a confidence, and asks one short follow-up question when it is unsure. Its answers ship
-  cached in the repository, so a run needs no key.
+  problem code with a confidence, and asks one short follow-up question when it is unsure. The week's plan
+  runs on its codes. Its answers ship cached in the repository, so a run needs no key.
 - **Sends the call.** It replays every held-back day with sick calls, breakdowns and priority changes. Each
   call goes to the technician with the lowest expected cost: drive and repair time, plus a second visit
   times the chance that technician's skill or truck fails the job.
@@ -82,5 +88,5 @@ trucks, measured on first-time fix and parts-caused reschedules.
 ## How it was built
 
 Designed and directed by Ian Provencher, built with Claude Code. Python's standard library and SQLite only,
-held under a size ceiling that `check.py` enforces. [WALKTHROUGH.md](WALKTHROUGH.md) explains every file in
+which `check.py` enforces. [WALKTHROUGH.md](WALKTHROUGH.md) explains every file in
 plain words.

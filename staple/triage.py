@@ -236,6 +236,13 @@ def asked(answer, followup, job, reply):
     return (picked, 1.0) if picked else reading(answer)
 
 
+def honest(job, offered):
+    """The simulated customer's reply to a follow-up question: the offered answer that matches the problem
+    they booked, or none when no offered answer fits."""
+    booked = job["problem"].split(".")[1]
+    return next((a["code"] for a in offered if a["code"] == booked), None)
+
+
 def run(conn, answers, followups):
     """Scores every reading on the whole held-back period and writes the triage table. It takes no job list,
     so no caller can leave the table holding a subset; score() scores a subset and writes nothing."""
@@ -255,7 +262,6 @@ def score(conn, jobs, answers, followups, seed=7):
         rng.shuffle(values)
         by_type[a] = dict(zip(table, values))
     booked = lambda j: j["problem"].split(".")[1]
-    honest = lambda j, offered: next((a["code"] for a in offered if a["code"] == booked(j)), None)
     at_random = lambda j, offered: random.Random(j["job"]).choice(offered)["code"]
     follow = lambda j: followups.get(j["type"], {}).get(j["words"])
     readings = {

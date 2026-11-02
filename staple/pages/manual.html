@@ -1,5 +1,7 @@
 <ol class="toc">
 <li><a href="#first">What Staple is for, and what to do first</a></li>
+<li><a href="#plan">How to read the plan screen</a></li>
+<li><a href="#todo">Every to-do, and who does it</a></li>
 <li><a href="#numbers">What the numbers mean</a></li>
 <li><a href="#labels">Every label and status, and what to do about it</a></li>
 <li><a href="#derived">How to read the computed columns</a></li>
@@ -18,16 +20,65 @@ stock lives on the trucks, those are one decision, so Staple scores them togethe
 {{types}} appliance types and {{techs}} technicians. The last {{test_days}} days are held back. Each method learns
 from the earlier days only, and is then scored on the held-back days as if they had not happened yet. That is a
 back-test, and it is the same test I would run first on real history.</p>
-<p><strong>What to do first.</strong> Read the four headline figures at the top of the report. Each one names the
-figure it is compared with. Then read the sections in order: where repeat visits come from, which parts to carry,
-what to load tonight, who takes the call, reading the customer's words, and the back-orders to chase.</p>
+<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before 08:00. On the right is the proof: that day against the current way, then the evidence from all {{test_days}} held-back days. The next section walks through every part of the screen.</p>
 <p><strong>Hover over anything with a dotted underline, or anything that turns your pointer into a question
 mark.</strong> The hint shows the figures behind it and the query they come from. A blue <span class="q"{{sample_q}}>?</span>
 opens this manual at the word it explains. Under every chart, "Show the numbers" opens the table the chart is
 drawn from.</p></section>
 
+<section id="plan"><h2>How to read the plan screen</h2>
+<p>The report is one screen with two sides, and on a desktop each side scrolls on its own, so the page itself never
+does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current way.
+Choosing a technician anywhere on the left lights up their route, their row and their load sheet, and shows their card
+on the right.</p>
+<h3>Across the top</h3>
+<p>Three steps say what Staple does, in order: Claude codes every booking, Staple plans the trucks, and people act
+before 08:00. Under them, the day buttons pick one of the most recent {{week}} held-back days. They are not picked by
+hand. A ✚ marks a technician who called out sick and a ⚠ a truck that broke down, so the days with surprises show
+before a click. The page opens on the most recent day on which a sick call and a breakdown both moved calls to other
+trucks.</p>
+<h3>The left side, top to bottom</h3>
+<ul>
+<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, second visits
+avoided, and parts moved overnight. Each compares the plan with the current way on the same day.</li>
+<li><strong>AI at booking</strong>: how many bookings Claude coded at once, and a card for every booking it was unsure
+of. A card shows the customer's words, Claude's first reading with its confidence, the one question it asked, the
+answers offered with the one taken in yellow, and the code the call runs on. Where the answer changed the carry list,
+the card shows what the first guess would have loaded and what the truck loads now.</li>
+<li><strong>To do before 08:00</strong>: every action, grouped by who takes it. The next section lists every kind.
+Clicking an item lights up its truck and opens, on the right, the evidence behind that kind of action.</li>
+<li><strong>07:00 and after</strong>: each sick call and breakdown, every call it moved, from whom to whom, and its
+first-visit chance before and after. A moved call can use only the parts its new truck already carries.</li>
+<li><strong>Routes and the board</strong>: the map of the twelve zones beside a row for each technician from 08:00 to
+17:00. Each block is a call, shaded by its first-visit chance, darker for likelier. The switch shows the plan as made
+at night or the day as it ran. On the day as it ran, a sick technician's row is hatched, a broken truck's row stops at
+a ⚠ marker, a moved call is outlined and tagged with the technician it came from, and on the map a dashed line joins
+it to its new truck. A yellow corner marks a call Claude asked about, a hatched block a call added on the day, a red
+underline a visit missing a needed part, and ▲ a call escalated to urgent.</li>
+<li><strong>Load sheet</strong>: the chosen truck's list for the parts room tonight. Each row says put on or take off,
+the part and its made-up cost, its worth, and the booked calls behind it with each one's chance of needing it. Under
+it, the parts kept aboard: those tomorrow's calls may need, and a count by appliance of the stock kept for unplanned
+calls.</li>
+</ul>
+<h3>The right side</h3>
+<p>First, the day against the current way, with both replays on Claude's codes and the same surprises. Then the
+chosen technician's card: their appliances, how often they fix each first time, and how fast. Then the evidence from
+all {{test_days}} held-back days, which runs on the call-taker's booked codes so it measures the planning apart from the
+reading. Each card ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
+what this does and does not show.</p></section>
+
+<section id="todo"><h2>Every to-do, and who does it</h2>
+<div class="scroll"><table class="wrap"><thead><tr><th>Owner and when</th><th>The item</th><th>Why it appears</th><th>What to do</th></tr></thead><tbody>
+<tr><td>Parts room, tonight</td><td>Truck V07 (T07): put on 11, take off 10</td><td>The truck's balanced load for tomorrow differs from tonight's. One item per truck whose load changes.</td><td>Load and unload at the center from that truck's load sheet.</td></tr>
+<tr><td>Call center, before 08:00</td><td>Call back about call 123</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Warn the customer on call 123</td><td>A part the call has at least a {{likely}} chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Rebook call 123</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
+<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The three back-ordered parts with the most second-visit dollars at risk before they ship. Where calls likely to need one sit in a zone with no holder nearby, the item names a truck to move a spare from.</td><td>Expedite, source elsewhere, or move the spare.</td></tr>
+</tbody></table></div></section>
+
 <section id="numbers"><h2>What the numbers mean</h2>
-<h3>The four headline figures</h3>
+<h3>The four figures across all held-back days</h3>
+<p>They head the right side, under the day's comparison, and run on the call-taker's booked codes.</p>
 <p><strong>Fixed on the first visit</strong> is the share of all held-back calls that Staple's dispatch fixes on
 the first visit. A call fixes first time only when the truck holds every part it needs, and the technician's own
 success rate on that appliance then decides it. A call rolled to tomorrow counts as not fixed. The comparison is

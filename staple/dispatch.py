@@ -24,6 +24,7 @@ REPAIR = {"refrigerator": 75, "washer": 60, "dryer": 50, "dishwasher": 55, "rang
 MINUTE = 1.0             # dollars for one minute of a technician and truck (made up)
 SICK, BREAKDOWN, ESCALATE, EASE = 0.03, 0.02, 0.05, 0.05   # daily chances, made up
 URGENT = {"refrigerator.NOT_COOLING", "refrigerator.FF_WARM", "furnace.NO_HEAT", "furnace.NO_START"}
+SEED = 2026              # seeds the day's surprises: day d of the replayed days draws from SEED + d
 LOW = {"refrigerator.NOISE", "dryer.NOISE", "furnace.NOISE", "range.DOOR", "washer.NOISE_SHAKE"}
 
 
@@ -88,7 +89,7 @@ def miss_odds(lists, job, has):
     return min(1.0, sum(p for part, p in lists[job["job"]] if not has(part)))
 
 
-def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=2026, part_odds=None):
+def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEED, part_odds=None):
     """One policy over every held-back day. rule is "nearest", "skills" or "skills and parts". part_odds, when
     given, replaces the predictor's odds in the dispatcher's parts judgment only; trucks still load on the real ones."""
     crew = crew or Crew(conn)
@@ -100,13 +101,13 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
         by_day[j["day"]].append(j)
     before = {t: set(fleet.stock[t]) for t in crew.techs}
     t = Counter()
-    kept, rolled_ids, happened = [], [], {}
+    kept, rolled_ids, happened, days = [], [], {}, {}
     for d, day in enumerate(sorted(by_day)):
         day_jobs = by_day[day]
         sick, broken, changed = events(day_jobs, crew.techs, seed + d)
         routes, out, truck = {tech: [] for tech in crew.techs}, set(), {}
         ends = {tech: (0.0, crew.home[tech]) for tech in crew.techs}
-        rolled = []
+        rolled, placed, moved_from = [], {}, defaultdict(list)
 
         def able(job):
             return [tech for tech in crew.techs if (tech, job["type"]) in crew.skill and tech not in out]
@@ -128,10 +129,16 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
             routes[tech].append(job)
             ends[tech] = end_of(crew, tech, routes[tech], crew.skill)
 
+        def note(job, options):
+            # The choice and the runner-up at the moment of placing, for the plan view; it decides nothing.
+            if record:
+                placed[job["job"]] = options[0][::-1] + (options[1][::-1] if len(options) > 1 else (None, None))
+
         def place(job, night):
-            options = [(c, tech) for tech in able(job) if (c := cost_of(job, tech, night)) is not None]
+            options = sorted((c, tech) for tech in able(job) if (c := cost_of(job, tech, night)) is not None)
             if options:
-                put(job, min(options)[1])
+                note(job, options)
+                put(job, options[0][1])
             else:
                 rolled.append(job)
 
@@ -157,6 +164,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
                     break
                 jid = max(ranks, key=lambda i: (ranks[i][0], -i))
                 tech = ranks.pop(jid)[1]
+                note(waiting[jid], sorted((v, t) for t, v in costs[jid].items() if v is not None))
                 put(waiting.pop(jid), tech)
                 for other, j in waiting.items():
                     if tech in costs[other]:
@@ -166,6 +174,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
         night = sorted((j for j in day_jobs if not j["unplanned"]), key=lambda j: (priority(j, {}), j["job"]))
         for band in (1, 2, 3):
             plan_night([j for j in night if priority(j, {}) == band])
+        night_routes, night_rolled, prev = {t: [j["job"] for j in r] for t, r in routes.items()}, list(rolled), before
         if loads == "balanced":
             truck = {tech: load.balanced_load(fleet, tech, routes[tech], lists, surprise, before[tech])
                      for tech in crew.techs}
@@ -178,6 +187,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
             stranded, routes[tech] = routes[tech], []
             for j in stranded:
                 moved[j["job"]] += 1
+                moved_from[j["job"]].append((tech, "sick"))
                 place(j, night=False)
         for j in sorted((j for j in day_jobs if j["unplanned"]), key=lambda j: (priority(j, changed), j["job"])):
             place(j, night=False)
@@ -190,6 +200,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
             for j, start, _ in line:
                 if start >= at:
                     moved[j["job"]] += 1
+                    moved_from[j["job"]].append((tech, "breakdown"))
                     place(j, night=False)
         for tech in crew.techs:
             # ponytail: the day's end drops the lowest-priority call, last first, until the route fits; a real
@@ -215,6 +226,10 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
         if record:
             rolled_ids.extend(j["job"] for j in rolled)
             happened[day] = (sick, broken)
+            days[day] = {"night": night_routes, "night_rolled": [j["job"] for j in night_rolled], "load": truck,
+                         "before": prev, "placed": placed, "moved": dict(moved_from), "sick": sick, "broken": broken,
+                         "changed": changed, "rolled": [j["job"] for j in rolled],
+                         "visits": [v for v in kept if v[0] == day]}
         t["rolled"] += len(rolled)
         t["urgent_rolled"] += sum(1 for j in rolled if priority(j, changed) == 1)
         t["sick"] += len(sick)
@@ -228,7 +243,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=202
               "cost_per_call": (t["drive"] + t["repair"]) * MINUTE / t["served"]
                                + (1 - t["fixes"] / t["served"]) * load.REPEAT_VISIT}
     if record:
-        result.update(visits=kept, rolled_jobs=rolled_ids, events=happened)
+        result.update(visits=kept, rolled_jobs=rolled_ids, events=happened, days=days)
     return result
 
 

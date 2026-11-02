@@ -8,6 +8,7 @@
 <li><a href="#backorders">The fleet back-order list</a></li>
 <li><a href="#ai">The AI step</a></li>
 <li><a href="#dispatch">The dispatch replay</a></li>
+<li><a href="#plan">The week's plan</a></li>
 <li><a href="#sql">The metric queries</a></li>
 <li><a href="#checks">The checks and their controls</a></li>
 <li><a href="#corners">Corners cut on purpose</a></li>
@@ -268,6 +269,55 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
 broken truck working after its breakdown, no route past 17:00. A control may roll at most one per cent more calls
 than Staple, so no control can win by overbooking.</p></section>
+
+<section id="plan"><h2>The week's plan</h2>
+<p>Source: <code>staple/plan.py</code>. Nothing in it plans anything. Every route, load and move on the plan screen is
+what the dispatch replay decided, recorded as it decided it.</p>
+<h3>Which days</h3>
+<p>The most recent {{week}} held-back days. Unplanned calls are marked over the whole held-back period exactly as the
+92-day run marks them, then the week is kept.</p>
+<h3>Claude's codes</h3>
+<p>Each booking's code is replaced by Claude's reading of its words, from the same saved answers the AI step scores.
+Where Claude's confidence is below {{blend_below}} and a saved follow-up question exists, the simulated customer picks
+the offered answer whose code is the booked code, as in the AI step. Where no offered answer fits, Claude's top guess
+stands, and the call goes on the call center's list.</p>
+<h3>Two replays, with the 92-day run's surprises</h3>
+<p>The week is replayed twice: under Staple (skills and parts, balanced loads) and under the current way (the nearest
+technician, today's stock). Both use seed 2026 plus the index of the week's first day among all held-back days. So
+each day's sick calls, breakdowns and priority changes are the ones the 92-day run met on the same day, and the plan
+check recounts them to prove it. The week starts from today's truck stock rather than the 92-day run's last loads.</p>
+<h3>What is recorded</h3>
+<p>For each day: the night routes before 07:00, each truck's load and the load before it, each call's chosen technician
+with the runner-up and the cost gap, the 07:00 sick calls, the breakdowns, the priority changes, every visit as the day
+ran with its start, end and whether the truck covered it, and the rolled calls. Recording changes no figure, and the
+dispatch check proves it on every policy. The day's figures are counted from the recorded visits exactly as the
+replay counts them, and the plan check holds them equal.</p>
+<h3>The first-visit chance on the board</h3>
+<p>For call <var>j</var> on technician <var>t</var>'s truck, with <var>o_j(p)</var> the carry list's odds and
+<var>r_t,a</var> the technician's rate on the appliance:</p>
+<code class="formula">chance(j, t) = (1 − min(1, Σ_(p not aboard t) o_j(p))) · r_t,a</code>
+<p>A moved call is scored on the truck that took it, so its chance before and after shows what the move cost.</p>
+<h3>Where each carry-list part stands</h3>
+<p>The first that holds of: needs a certified technician, aboard, on a truck nearby (based within {{nearby}} minutes),
+at a center but not loaded, back-ordered.</p>
+<h3>The load sheet</h3>
+<p>A part on tonight's load and not the last is put on; on the last and not tonight's, taken off; on both, kept. Its
+worth is the balanced rule's own sum, split out as <code>load.worth</code>: each planned call's chance of needing it times
+{{repeat_visit}}, plus its share of unplanned calls, less its holding cost, with a {{move}} move counted against it
+when it is not aboard and for it when it is. The calls behind a part are those at least {{behind}} likely to need it,
+the three likeliest named.</p>
+<h3>The to-do rules</h3>
+<ul>
+<li><strong>Parts room</strong>: one item per truck whose load changes, ordered by the worth of what goes on.</li>
+<li><strong>Call center</strong>: every call whose follow-up answer did not settle the code.</li>
+<li><strong>Dispatch</strong>: every planned call with a part at least {{likely}} likely that is back-ordered with no
+truck nearby holding one, and every call the night plan rolled.</li>
+<li><strong>Buyer</strong>: the top three parts on that day's back-order forecast. Where calls likely to need one sit in
+a zone with no holder nearby, the item names the zone with most of them and a truck to move a spare from.</li>
+</ul>
+<h3>The day the page opens on</h3>
+<p>The most recent of the {{week}} days on which a sick call and a breakdown both moved at least one call to another
+truck. A breakdown after a truck's last call strands its stock but moves nothing, so it does not count.</p></section>
 
 <section id="sql"><h2>The metric queries</h2>
 <p>Each file in <code>sql/metrics/</code> opens with its definition, read here from the file itself. Each runs on its
