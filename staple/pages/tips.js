@@ -55,3 +55,18 @@ document.querySelectorAll('svg[data-curve]').forEach((svg) => {
     ev.preventDefault()
   })
 })
+
+// The light/dark switch: every page opens light unless this browser saved dark, which the page's head applies first.
+const themeBtn = document.querySelector('[data-theme-toggle]')
+function setTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  themeBtn.textContent = dark ? 'Light mode' : 'Dark mode'
+}
+if (themeBtn) {
+  setTheme(document.documentElement.dataset.theme === 'dark')
+  themeBtn.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark'
+    setTheme(dark)
+    try { localStorage.setItem('staple-theme', dark ? 'dark' : 'light') } catch (err) { console.warn('Staple: the light/dark choice was not saved', err) }
+  })
+}

@@ -2,11 +2,6 @@
 --page:#f5f6f7;--surface:#ffffff;--tint:#f1f5fa;--ink:#002859;--ink-2:#455b73;--muted:#56697f;--grid:#e0e3e6;
 --axis:#c5ccd4;--dim:#b9c2cc;--s1:#0048bb;--s2:#c99700;--ring:rgba(0,40,89,.12);--link:#0048bb;--code:#eef2f7;
 --c1:#dbe6f6;--c2:#a6c1ea;--c3:#6a95dc;--c4:#2f68c8;--c5:#00348f;--on-lo:#002859;--on-hi:#ffffff;--warn:#c2410c;--crit:#b42318;--good:#1f7a3a}
-@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--band:#001733;
---band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;--cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;
---ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;
---ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
---c1:#18335c;--c2:#27508f;--c3:#4579cc;--c4:#7ea5ea;--c5:#bfd4fa;--on-lo:#f0f4fa;--on-hi:#00142e;--warn:#fb923c;--crit:#f87171;--good:#4ade80}}
 :root[data-theme="dark"]{color-scheme:dark;--band:#001733;--band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;
 --cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;--ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;
 --grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
@@ -126,7 +121,7 @@ border-radius:6px;padding:8px 10px;font-size:.76rem;line-height:1.4;cursor:point
 .brk-map{fill:var(--warn);font-size:12px}
 .has-sel .rt{opacity:.22}.has-sel .rt.sel{opacity:1}.rt.sel polyline{stroke-width:2.4;opacity:1}.rt.sel .num{display:block}
 .board{font-size:.7rem}.row{display:grid;grid-template-columns:2.4rem 1fr;gap:4px;align-items:center;height:15px;border-radius:3px}
-.row.sel{background:var(--tint)}.row.sel .who{color:var(--ink);font-weight:700}.who{cursor:pointer;font-variant-numeric:tabular-nums}
+.row.sel{background:var(--tint);box-shadow:inset 3px 0 0 var(--s1)}.row.sel .who{color:var(--ink);font-weight:700}.who{cursor:pointer;font-variant-numeric:tabular-nums}
 .lane{position:relative;height:11px;background:linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/11.111% 100%}
 .ticks{height:14px;background:none}.ticks span{position:absolute;top:0;transform:translateX(-50%);color:var(--muted);font-size:.62rem;line-height:14px}
 .ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}

@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from html.parser import HTMLParser
 import os
 import re
+import struct
 import subprocess
 import sys
 import tempfile
@@ -20,7 +21,6 @@ CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sq
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
-PAGES_URL = "https://acep2317.github.io/staple/"   # read from the GitHub Pages API when it was turned on
 
 CHECKS = {}
 
@@ -905,6 +905,77 @@ def page_faults(page, pattern, kind="report"):
         faults.append("a placeholder left unfilled")
     if re.search(r"""(?:src|href)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//|@import""", page):
         faults.append("something fetched from the network")
+    style = re.search(r"<style>(.*?)</style>", page, re.S)
+    faults += selected_faults(style.group(1)) if style else ["no styles"]
+    if not re.search(r'<html[^>]*\sdata-theme="light"', page):
+        faults.append("a page that does not open in light")
+    if not re.search(r"<button[^>]*\sdata-theme-toggle", page):
+        faults.append("no light/dark switch")
+    if not all(f'href="{n}"' in page for n in ("icon.svg", "icon-32.png", "apple-touch-icon.png")):
+        faults.append("a tab icon missing")
+    if not re.search(r'<meta property="og:image" content="https://[^"]+/card\.png\?v=\d+">', page):
+        faults.append("no share card")
+    return faults
+
+
+def asset_faults(folder):
+    """The files beside the pages: each tab icon as drawn now, and the share card photographed from today's card."""
+    from staple import report
+    faults = [f"{n} differs from a fresh drawing" for n, data in report.assets().items()
+              if not (Path(folder) / n).exists() or (Path(folder) / n).read_bytes() != data]
+    card = (Path(folder) / report.CARD).read_bytes() if (Path(folder) / report.CARD).exists() else b""
+    if card[12:16] != b"IHDR" or struct.unpack(">II", card[16:24]) != report.CARD_SIZE:
+        faults.append(f"the share card is not a {report.CARD_SIZE[0]} by {report.CARD_SIZE[1]} PNG")
+    if (report.PAGES / "card.sha").read_text(encoding="utf-8").strip() != report.card_fingerprint():
+        faults.append("the share card was photographed from other words or colors; run `python run.py --card`")
+    return faults
+
+
+def schemes(css):
+    """The color tokens of each scheme the styles define, named light, dark, or by the selector that set them."""
+    found = {}
+    for selector, body in re.findall(r"(:root[^{]*)\{([^{}]*)\}", css):
+        selector = selector.strip()
+        name = "light" if selector == ":root" else "dark" if selector == ':root[data-theme="dark"]' else selector
+        found[name] = {**found.get("light", {}), **dict(re.findall(r"(--[\w-]+):\s*([^;}]+)", body))}
+    return found
+
+
+def contrast(a, b):
+    def lum(hexcode):
+        r, g, b_ = (int(hexcode[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        f = lambda c: c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b_)
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def selected_faults(css):
+    """Selected states that would not stand out. In every scheme a selected fill or edge must reach 3:1 against the
+    page and the panels, the accessibility floor for a control's state, and selected text 4.5:1 against its fill."""
+    themes = schemes(css)
+    if set(themes) != {"light", "dark"}:
+        return [f"color schemes found: {sorted(themes)}, not just light and dark"]
+    faults = []
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if not re.search(r"\.(?:on|sel)\b", selector):
+            continue
+        fill = re.search(r"background(?:-color)?:\s*var\((--[\w-]+)\)", body)
+        marks = re.findall(r"(?:background(?:-color)?|border[\w-]*|outline|box-shadow):[^;}]*?var\((--[\w-]+)\)", body)
+        if not fill and not marks:
+            continue
+        ink = re.search(r"(?<![-\w])color:\s*var\((--[\w-]+)\)", body)
+        where = selector.strip().split(",")[0]
+        for name, t in themes.items():
+            colors = [t.get(m, "").strip() for m in marks + ([ink[1]] if ink else [])] + [t["--page"], t["--surface"]]
+            if not all(re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in colors):
+                faults.append(f"{where} in {name}: a color that is not a plain hex code, so it cannot be measured")
+                continue
+            best = max(min(contrast(t[m], t["--page"]), contrast(t[m], t["--surface"])) for m in marks)
+            if best < 3:
+                faults.append(f"{where} in {name}: selected stands out only {best:.2f}:1 from the page and panels")
+            if fill and ink and contrast(t[ink[1]], t[fill[1]]) < 4.5:
+                faults.append(f"{where} in {name}: selected text {contrast(t[ink[1]], t[fill[1]]):.2f}:1 on its fill")
     return faults
 
 
@@ -981,6 +1052,22 @@ def report_check():
         stale = stale_pages(pages, report.PUBLISHED)
         print(f"  published copy in docs/: {len(report.FILES) - len(stale)} of {len(report.FILES)} pages match a fresh build")
         require(not stale, f"docs/ is stale or missing ({', '.join(stale)}); run `python run.py --pages` and commit docs/")
+        beside = asset_faults(report.PUBLISHED)
+        print(f"  beside the pages: {len(report.assets())} icon and card files; faults: {beside or 'none'}")
+        require(not beside, "; ".join(beside))
+        bent = Path(tmp) / "bent"
+        bent.mkdir()
+        for name, data in report.assets().items():
+            (bent / name).write_bytes(data[:-1] + bytes([data[-1] ^ 1]) if name == "icon-32.png" else data)
+        require(asset_faults(bent) == ["icon-32.png differs from a fresh drawing"], "control: a changed tab icon passed")
+        print("  control: a tab icon one byte off a fresh drawing is refused")
+        lede, report.LEDE = report.LEDE, report.LEDE + " Changed."
+        try:
+            reworded = asset_faults(report.PUBLISHED)
+        finally:
+            report.LEDE = lede
+        require(any("photographed from other words" in f for f in reworded), "control: a card older than its words passed")
+        print("  control: a share card photographed before its words changed is refused")
 
         tip = r'data-tip="[^"]*" tabindex="0"'
         planted = {"stamp taken out": re.sub(r'(<span class="build-stamp"[^>]*>)[^<]*', r"\1nothing", page, count=1),
@@ -988,7 +1075,15 @@ def report_check():
                    "a script fetched from the network": page.replace("<script>", '<script src="https://example.com/x.js"></script><script>', 1),
                    "a column heading's hint taken off": re.sub(rf"<th {tip}>", "<th>", page, count=1),
                    "a dotted value's hint taken off": re.sub(rf'<span class="hv" {tip}>', '<span class="hv">', page, count=1),
-                   "a placeholder left in": page.replace("</main>", "{{seed}}</main>", 1)}
+                   "a placeholder left in": page.replace("</main>", "{{seed}}</main>", 1),
+                   "a selected button the color of the page in dark mode": page.replace(
+                       ".vbtn.on{background:var(--s1);color:var(--on-hi);border-color:var(--s1)",
+                       ".vbtn.on{background:var(--band);color:var(--band-ink);border-color:var(--band)", 1),
+                   "a page that opens dark": page.replace('<html lang="en" data-theme="light">', '<html lang="en" data-theme="dark">', 1),
+                   "the light/dark switch taken out": re.sub(r"<button[^>]*data-theme-toggle.*?</button>", "", page, count=1, flags=re.S),
+                   "the tab icon taken out": page.replace('<link rel="icon" href="icon.svg"', '<link rel="x" href="none.svg"', 1),
+                   "the share card taken out": re.sub(r'<meta property="og:image" [^>]*>', "", page, count=1)}
+        require(all(p != page for p in planted.values()), "control: a planted fault left the page unchanged")
         caught = {name: bool(page_faults(p, pattern)) for name, p in planted.items()}
         print(f"  control: {sum(caught.values())} of {len(caught)} planted faults refused")
         require(all(caught.values()), f"the page check passed a planted fault: {caught}")
@@ -1086,6 +1181,7 @@ def doc_faults(readme, walkthrough, tracked):
 @check("docs")
 def docs():
     from staple import triage, world
+    from staple.report import PAGES_URL
     readme, walkthrough = ((ROOT / n).read_text(encoding="utf-8") for n in ("README.md", "WALKTHROUGH.md"))
     tracked = sorted(p.relative_to(ROOT).as_posix() for p in public_files())
     pins = {"the live report": PAGES_URL, "the job count": f"{world.JOBS:,} jobs", "the held-back days":
@@ -1116,6 +1212,7 @@ def fresh_clone():
     """Clone the public repository as a stranger would, run the one command there, then every check there,
     and hold the live published report to the clone's copy."""
     import urllib.request
+    from staple.report import PAGES_URL
     if PUBLIC_CLONE:
         print("  SKIPPED inside a public clone, which would only clone itself")
         return
