@@ -303,10 +303,24 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
             f'<title>{e(title)}</title>{head}<style>{css}</style><script>{remembered}</script></head><body{app}><header class="band"><div class="band-in"><div>'
             f'<h1{tipattr(h1_tip)}>{e("Staple" if kind == "report" else title)}</h1><p class="lede">{e(lede)}</p>{stamp_line(stamp_text, day)}</div>'
             f'<nav class="actions">{nav}</nav></div></header><main>{body}'
-            f'<footer>Built with Python\'s standard library and SQLite. Every number comes from the queries in '
+            f'<footer>{e(written_in("these pages"))} Nothing is installed beyond Python. Every number comes from the queries in '
             f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}. '
             f'Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div>'
             f'<script>{js}</script></body></html>\n')
+
+
+def languages():
+    """How many files of each language the repository holds, counted on each build so no page states a stale count."""
+    return {"Python": len(list(ROOT.glob("*.py")) + list((ROOT / "staple").glob("*.py"))),
+            "SQL": len(list((ROOT / "sql").glob("*.sql")) + list(metrics.SQL.glob("*.sql"))),
+            "metric queries": len(list(metrics.SQL.glob("*.sql"))), "JavaScript": len(list(PAGES.glob("*.js")))}
+
+
+def written_in(where="the pages"):
+    n = languages()
+    return (f"Written in Python, SQL and JavaScript: {n['Python']} Python files invent the history, predict parts, load "
+            f"trucks, ask Claude, replay dispatch, write {where} and check it all; {n['SQL']} SQL files hold the tables "
+            f"and the {n['metric queries']} metric queries; {n['JavaScript']} JavaScript files run the hints and switches.")
 
 
 def tokens():

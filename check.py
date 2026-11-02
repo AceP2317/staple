@@ -1181,14 +1181,19 @@ def doc_faults(readme, walkthrough, tracked):
 @check("docs")
 def docs():
     from staple import triage, world
-    from staple.report import PAGES_URL
+    from staple.report import PAGES_URL, written_in
     readme, walkthrough = ((ROOT / n).read_text(encoding="utf-8") for n in ("README.md", "WALKTHROUGH.md"))
     tracked = sorted(p.relative_to(ROOT).as_posix() for p in public_files())
     pins = {"the live report": PAGES_URL, "the job count": f"{world.JOBS:,} jobs", "the held-back days":
-            f"last {world.TEST_DAYS} days", "the seed": f"Seed {world.SEED}", "the model": triage.MODEL}
+            f"last {world.TEST_DAYS} days", "the seed": f"Seed {world.SEED}", "the model": triage.MODEL,
+            "the file counts": written_in()}
     stale = [name for name, text in pins.items() if text not in readme]
     print(f"  README carries {len(pins) - len(stale)} of {len(pins)} values read from the code: {', '.join(pins)}")
     require(not stale, f"the README no longer matches the code on: {', '.join(stale)}")
+    miscounted = readme.replace(" Python files", "0 Python files", 1)
+    require(miscounted != readme and "the file counts" in [n for n, t in pins.items() if t not in miscounted],
+            "control: a README with a wrong Python file count passed")
+    print("  control: a README naming the wrong number of Python files is refused")
     faults = doc_faults(readme, walkthrough, tracked)
     print(f"  walkthrough names {len(tracked)} published files; faults: {faults or 'none'}")
     require(not faults, "; ".join(faults))
