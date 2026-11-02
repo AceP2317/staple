@@ -118,15 +118,21 @@ replay's own record of the most recent week, so every route and load on it is on
   disagree with what ran.
 - `staple/pages/house.css` is the look: colors as named tokens, light and dark, the hover marker and the
   phone layout.
-- `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, and moves the chart's crosshair.
+- `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, moves the chart's crosshair, and runs the
+  light/dark switch: every page opens light, and the browser remembers a reader who picks dark.
 - `staple/pages/plan.js` switches the plan screen: the day, the chosen technician, the night plan or the day
   as it ran, and on a phone the plan or the proof. Every day is already in the page; it only shows and hides.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the
   code goes.
 - `staple/pages/method.html` is the methods manual's text: every formula, rule, prompt and check, filled the
   same way.
+- `staple/pages/card.png` is the share card a link preview shows, a photograph of the card page `report.py`
+  writes, taken by headless Chrome with `python run.py --card`, the one step outside Python. `staple/pages/card.sha`
+  fingerprints the card page it was taken from, so `check.py report` refuses a card older than its words or colors.
 - `docs/index.html`, `docs/manual.html` and `docs/method.html` are the published copy GitHub Pages serves.
   `python run.py --pages` writes them, and `check.py report` refuses a copy that differs from a fresh build.
+  Beside them it writes `docs/card.png` and the tab icons, `docs/icon.svg`, `docs/icon-32.png` and
+  `docs/apple-touch-icon.png`, which `report.py` draws from the stylesheet's own colors.
 
 ## Repository plumbing
 

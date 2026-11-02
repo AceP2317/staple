@@ -6,11 +6,14 @@ network, carry the house build stamp, label every chart as made-up data, and giv
 hover hint with the data behind it.
 """
 import datetime as dt
+import hashlib
 import html
 import json
 import math
 import re
+import struct
 import subprocess
+import zlib
 from collections import Counter
 from pathlib import Path
 
@@ -22,6 +25,10 @@ FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html
 PUBLISHED = ROOT / "docs"      # the copy the repository serves as its web page; `python run.py --pages` writes it
 UNSTAMPED = "unstamped build"
 WEIGHT_LIMIT = 2_000_000    # bytes a published page may weigh: what a phone should load for one page
+PAGES_URL = "https://acep2317.github.io/staple/"   # where GitHub Pages serves docs/, read from its API when turned on
+LEDE = "Plans a repair fleet's next day: who takes each call, what each truck carries, and what people do before 08:00."
+CARD, CARD_VERSION, CARD_SIZE = "card.png", 1, (1200, 630)   # bump CARD_VERSION whenever the card's pixels change
+STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, as bars on a 32-unit square
 # The author's house build stamp, read in place from its one copy and never re-implemented here. On a
 # machine without it the page says "unstamped build" and the run prints why, rather than leaving it blank.
 STAMP_MODULE = Path.home() / "dev" / "login-starter" / "lib" / "house" / "build-stamp.cjs"
@@ -120,7 +127,7 @@ CHECK_ABOUT = {
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
     "plan": "The week's plan, coded by Claude and replayed. Every call carries Claude's code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay's; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run's on the same days. Each rule has a planted fault that must be caught.",
     "sql": "Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.",
-    "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. The published copy must match a fresh build, and planted faults must be refused.",
+    "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.",
     "fresh-clone": "The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone's published copy. Damaging that copy must make the clone's own report check fail.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
@@ -275,20 +282,88 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
     buttons = {"report": ["report", "method"], "manual": ["back", "method"], "method": ["back", "report"]}[kind]
     nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else " target=\"_blank\" rel=\"noopener\""}'
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
+    nav += (f'<button type="button" class="btn ghost" data-theme-toggle'
+            f'{tipattr("Light or dark" + chr(10) + "The page opens light. This switches it, and this browser remembers the choice.")}>Dark mode</button>')
     css, js = (PAGES / "house.css").read_text(encoding="utf-8"), (PAGES / "tips.js").read_text(encoding="utf-8")
     if kind == "report":
         js += "\n" + (PAGES / "plan.js").read_text(encoding="utf-8")
     app = f' class="app" data-side="plan" data-chosen="{chosen}"' if kind == "report" else ""
     h1_tip = ("Staple\nPlans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the "
               "technicians and loads the trucks, and people act on a to-do list before 08:00.")
-    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<title>{e(title)}</title><style>{css}</style></head><body{app}><header class="band"><div class="band-in"><div>'
+    remembered = 'try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}'
+    url = PAGES_URL + ("" if kind == "report" else FILES[kind])
+    share = "".join(f'<meta property="og:{k}" content="{e(str(v))}">' for k, v in (
+        ("type", "website"), ("site_name", "Staple"), ("title", title), ("description", lede), ("url", url),
+        ("image", f"{PAGES_URL}{CARD}?v={CARD_VERSION}"), ("image:width", CARD_SIZE[0]), ("image:height", CARD_SIZE[1]),
+        ("image:alt", "Staple: " + LEDE)))
+    head = (f'<meta name="description" content="{e(lede)}">{share}<meta name="twitter:card" content="summary_large_image">'
+            '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="icon-32.png" sizes="32x32">'
+            '<link rel="apple-touch-icon" href="apple-touch-icon.png">')
+    return (f'<!doctype html>\n<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<title>{e(title)}</title>{head}<style>{css}</style><script>{remembered}</script></head><body{app}><header class="band"><div class="band-in"><div>'
             f'<h1{tipattr(h1_tip)}>{e("Staple" if kind == "report" else title)}</h1><p class="lede">{e(lede)}</p>{stamp_line(stamp_text, day)}</div>'
             f'<nav class="actions">{nav}</nav></div></header><main>{body}'
             f'<footer>Built with Python\'s standard library and SQLite. Every number comes from the queries in '
             f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}. '
             f'Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div>'
             f'<script>{js}</script></body></html>\n')
+
+
+def tokens():
+    """The light scheme's colors, read from the stylesheet so the icons and the card never hold a second copy."""
+    light = re.search(r":root\{([^}]*)\}", (PAGES / "house.css").read_text(encoding="utf-8")).group(1)
+    return dict(re.findall(r"(--[\w-]+):\s*(#[0-9a-fA-F]{6})", light))
+
+
+def mark_svg(size=32):
+    t = tokens()
+    bars = "".join(f'<rect x="{x0}" y="{y0}" width="{x1 - x0}" height="{y1 - y0}"/>' for x0, y0, x1, y1 in STAPLE)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="{size}" height="{size}">'
+            f'<rect width="32" height="32" rx="7" fill="{t["--band"]}"/><g fill="{t["--cta"]}">{bars}</g></svg>')
+
+
+def mark_png(size):
+    """The mark as an opaque square PNG, four by four samples a pixel. Opaque, because iOS puts a clear icon on black."""
+    t = tokens()
+    band, cta = (bytes.fromhex(t[k][1:]) for k in ("--band", "--cta"))
+    rows = []
+    for y in range(size):
+        row = bytearray(b"\x00")
+        for x in range(size):
+            hit = sum(any(x0 <= (x + (i + .5) / 4) * 32 / size < x1 and y0 <= (y + (j + .5) / 4) * 32 / size < y1
+                          for x0, y0, x1, y1 in STAPLE) for i in range(4) for j in range(4)) / 16
+            row += bytes(round(b + (c - b) * hit) for b, c in zip(band, cta))
+        rows.append(bytes(row))
+    chunk = lambda kind, data: struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(b"".join(rows), 9)) + chunk(b"IEND", b""))
+
+
+def assets():
+    """The files published beside the pages: the tab icons, drawn here, and the share card, photographed once."""
+    return {"icon.svg": mark_svg().encode(), "icon-32.png": mark_png(32), "apple-touch-icon.png": mark_png(180),
+            CARD: (PAGES / CARD).read_bytes()}
+
+
+def card_html():
+    """The share card as a 1200 by 630 page. `python run.py --card` photographs it into staple/pages/card.png."""
+    w, h = CARD_SIZE
+    root = re.search(r":root\{[^}]*\}", (PAGES / "house.css").read_text(encoding="utf-8")).group(0)
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{root}'
+            f'html,body{{margin:0;width:{w}px;height:{h}px;overflow:hidden}}*{{box-sizing:border-box}}'
+            f'body{{background:var(--band);color:var(--band-ink);font-family:system-ui,"Segoe UI",sans-serif;padding:70px 80px;'
+            f'display:flex;flex-direction:column;justify-content:space-between}}.top{{display:flex;align-items:center;gap:30px}}'
+            f'h1{{font-size:110px;line-height:1;margin:0;letter-spacing:-2px}}p{{margin:0}}'
+            f'.lede{{font-size:42px;line-height:1.28;max-width:1040px;text-wrap:balance}}.steps{{font-size:26px;font-weight:700;color:var(--cta);white-space:nowrap}}'
+            f'.foot{{font-size:25px;color:var(--band-2);margin-top:10px}}</style></head><body>'
+            f'<div class="top">{mark_svg(116)}<h1>Staple</h1></div><p class="lede">{e(LEDE)}</p>'
+            f'<div><p class="steps">Claude codes every booking · Staple plans the trucks · people act before 08:00</p>'
+            f'<p class="foot">Every name and figure is invented; the method is real · {PAGES_URL.split("//")[1].rstrip("/")}</p>'
+            f'</div></body></html>')
+
+
+def card_fingerprint():
+    return hashlib.sha256(card_html().encode("utf-8")).hexdigest()
 
 
 def day_name(day):
@@ -853,8 +928,7 @@ def build_report(results, week, stamp_text, day):
     body = (f'{intro}<div class="panes"><div class="pane plan-pane"><p class="pane-label">The plan · one invented week, '
             f'on Claude\'s codes</p>{left}</div><div class="pane proof-pane"><p class="pane-label">The proof · why it beats '
             f'the current way</p>{right}</div></div>')
-    return shell("report", "Staple report", "Plans a repair fleet's next day: who takes each call, what each truck carries, "
-                 "and what people do before 08:00.", body, stamp_text, day, chosen)
+    return shell("report", "Staple report", LEDE, body, stamp_text, day, chosen)
 
 
 def as_sent(template):
@@ -973,6 +1047,8 @@ def write(results, week, folder=db.OUT):
     folder.mkdir(parents=True, exist_ok=True)
     for kind, page in build(results, week, text, day).items():
         (folder / FILES[kind]).write_text(page, encoding="utf-8")
+    for name, data in assets().items():
+        (folder / name).write_bytes(data)
     if folder == PUBLISHED and text.endswith("+"):
         warnings.append("the published copy names unsaved changes; commit the code, then rerun --pages and commit docs/")
     return warnings

@@ -61,6 +61,7 @@ python run.py            # the made-up world, every result, the metric tables an
 python check.py          # every check, each with a control that proves it can fail
 python run.py --live     # the AI step asked afresh, with your own ANTHROPIC_API_KEY
 python run.py --pages    # also writes the published copy of the pages to docs/
+python run.py --card     # photographs the share card with headless Chrome, when its words or colors change
 ```
 
 Then open `out/index.html` in a browser.

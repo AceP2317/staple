@@ -1,14 +1,41 @@
 """The one command: `python run.py` builds the made-up world and every result from it, into out/.
 `python run.py --live` asks the Claude API afresh for the AI step, with your own ANTHROPIC_API_KEY.
 `python run.py --pages` also writes the three pages to docs/, the copy the repository publishes.
+`python run.py --card` only photographs the share card with Chrome; run it when the card's words or colors change.
 The report is the week's plan (staple/plan.py) beside the 92-day evidence behind it."""
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
+from pathlib import Path
 
 from staple import backorders, backtest, db, dispatch, load, metrics, plan, report, triage, world
 
+CHROMES = ["chrome", "google-chrome", "chromium", r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+           "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+
+
+def card():
+    """Photographs the share card page at its exact size with headless Chrome, the one step not in Python."""
+    chrome = next((c for c in (shutil.which(n) or (n if Path(n).exists() else None) for n in CHROMES) if c), None)
+    if not chrome:
+        sys.exit("no Chrome found, so the share card was not photographed; looked for: " + ", ".join(CHROMES))
+    db.OUT.mkdir(parents=True, exist_ok=True)
+    page, shot = db.OUT / "card.html", report.PAGES / report.CARD
+    page.write_text(report.card_html(), encoding="utf-8")
+    w, h = report.CARD_SIZE
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
+        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
+                        f"--user-data-dir={profile}", f"--window-size={w},{h}", f"--screenshot={shot.resolve()}",
+                        page.resolve().as_uri()], check=True, capture_output=True, timeout=120)
+    (report.PAGES / "card.sha").write_text(report.card_fingerprint() + "\n", encoding="utf-8")
+    print(f"share card: {shot}, photographed from {page}; bump report.CARD_VERSION if its pixels changed")
+
 
 def main():
+    if "--card" in sys.argv[1:]:
+        return card()
     started = time.perf_counter()
     conn = db.fresh()
     world.build(conn)
