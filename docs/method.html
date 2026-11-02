@@ -1,15 +1,18 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Staple methods manual</title><style>:root{color-scheme:light;--band:#003980;--band-ink:#ffffff;--band-2:#c9d6ea;--cta:#ffcd00;--cta-ink:#002859;
 --page:#f5f6f7;--surface:#ffffff;--tint:#f1f5fa;--ink:#002859;--ink-2:#455b73;--muted:#56697f;--grid:#e0e3e6;
---axis:#c5ccd4;--dim:#b9c2cc;--s1:#0048bb;--s2:#c99700;--ring:rgba(0,40,89,.12);--link:#0048bb;--code:#eef2f7}
+--axis:#c5ccd4;--dim:#b9c2cc;--s1:#0048bb;--s2:#c99700;--ring:rgba(0,40,89,.12);--link:#0048bb;--code:#eef2f7;
+--c1:#dbe6f6;--c2:#a6c1ea;--c3:#6a95dc;--c4:#2f68c8;--c5:#00348f;--on-lo:#002859;--on-hi:#ffffff;--warn:#c2410c;--crit:#b42318;--good:#1f7a3a}
 @media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--band:#001733;
 --band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;--cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;
 --ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;
---ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52}}
+--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
+--c1:#18335c;--c2:#27508f;--c3:#4579cc;--c4:#7ea5ea;--c5:#bfd4fa;--on-lo:#f0f4fa;--on-hi:#00142e;--warn:#fb923c;--crit:#f87171;--good:#4ade80}}
 :root[data-theme="dark"]{color-scheme:dark;--band:#001733;--band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;
 --cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;--ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;
---grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52}
-*{box-sizing:border-box}
+--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
+--c1:#18335c;--c2:#27508f;--c3:#4579cc;--c4:#7ea5ea;--c5:#bfd4fa;--on-lo:#f0f4fa;--on-hi:#00142e;--warn:#fb923c;--crit:#f87171;--good:#4ade80}
+*{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--page);color:var(--ink-2);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--link)}
 .band{background:var(--band);color:var(--band-ink)}
@@ -69,10 +72,97 @@ box-shadow:0 4px 16px rgba(0,23,51,.18);max-width:360px}
 #tip strong{display:block;color:var(--ink);font-size:.85rem;margin-bottom:2px}
 @media (max-width:560px){.bar-row{grid-template-columns:1fr;gap:2px}.bar{width:calc(var(--v)*45%)}
 .bar-value{white-space:normal;flex:1 1 0;min-width:0}.tick,.ref-label,.end-label{font-size:19px}.band h1{font-size:1.7rem}}
+body.app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.app .band-in{max-width:none;padding:10px 16px}.app .band h1{font-size:1.45rem}.app .band .lede{margin:2px 0 0}
+.app main{max-width:none;width:100%;flex:1;min-height:0;display:flex;flex-direction:column;padding:8px 16px 4px}
+.app footer{flex:none;padding-top:4px;font-size:.72rem}
+.intro{flex:none;display:grid;gap:8px;margin-bottom:8px}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;list-style:none;margin:0;padding:0;font-size:.8rem;line-height:1.35}
+.how li{background:var(--surface);border:1px solid var(--ring);border-left:4px solid var(--s1);border-radius:6px;padding:6px 10px}
+.how strong{display:block;color:var(--ink)}
+.pickers{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.pick-label{font-size:.8rem;font-weight:700;color:var(--ink)}
+.day-btn,.side-btn,.vbtn{font:inherit;font-size:.8rem;background:var(--surface);color:var(--ink);border:1px solid var(--ring);
+border-radius:6px;padding:3px 9px;cursor:pointer}
+.day-btn.on,.side-btn.on,.vbtn.on{background:var(--band);color:var(--band-ink);border-color:var(--band)}
+.day-btn i{font-style:normal;margin-left:3px}.ev-s{color:var(--muted)}.ev-b{color:var(--warn)}.day-btn.on i{color:var(--cta)}
+.day-btn:focus-visible,.side-btn:focus-visible,.vbtn:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
+.invented{font-size:.72rem;font-weight:400;color:var(--muted);border:1px solid var(--ring);border-radius:4px;padding:0 6px;vertical-align:2px}
+.sides{display:none;margin-left:auto;gap:4px}
+.panes{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.pane{position:relative;overflow-y:auto;min-height:0;padding:0 8px 24px 0}
+.pane-label{position:sticky;top:0;z-index:3;margin:0;padding:2px 0 6px;background:var(--page);font-size:.7rem;font-weight:700;
+letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+section.day{margin:0}.day h2{margin:2px 0 8px}
+.tiles.small{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.tiles.small .tile{padding:8px 10px}.tiles.small .value{font-size:1.35rem;line-height:1.25}.tiles.small .sub{font-size:.74rem;line-height:1.35}
+section.panel,section.card,.card{display:block;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:12px 14px;margin:0 0 12px}
+.panel h3,.card h3{margin:0 0 6px}.panel>p,.card>p{margin:0 0 8px;font-size:.88rem}.card .sub,.sheet .sub{font-size:.8rem;color:var(--muted);margin:0 0 6px}
+.card figure{border:0;padding:0}.card .tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.do{font-size:.85rem;background:var(--tint);border-left:3px solid var(--cta);padding:6px 10px;border-radius:4px;margin:10px 0 0}
+.steps{margin:0;padding-left:20px;font-size:.88rem}
+.flash{animation:flash 1.4s}@keyframes flash{from{box-shadow:0 0 0 3px var(--cta)}to{box-shadow:0 0 0 3px transparent}}
+.asks{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+.ask{flex:0 0 228px;scroll-snap-align:start;background:var(--tint);border:1px solid var(--ring);border-top:3px solid var(--cta);
+border-radius:6px;padding:8px 10px;font-size:.76rem;line-height:1.4;cursor:pointer}
+.ask p{margin:0 0 4px}.ask .said{color:var(--ink);font-style:italic}.ask .then{font-weight:700;color:var(--ink)}
+.ask .parts span{color:var(--muted)}.ask:hover,.ask:focus-visible{outline:2px solid var(--cta);outline-offset:-1px}
+.conf{display:inline-block;width:56px;height:6px;border-radius:3px;background:var(--grid);vertical-align:middle;overflow:hidden}
+.conf i{display:block;height:100%;background:var(--s1)}
+.opts{display:flex;flex-wrap:wrap;gap:3px;list-style:none;margin:2px 0 5px;padding:0}.opts li{border:1px solid var(--axis);border-radius:9px;padding:0 6px}.opts .pick{background:var(--cta);color:var(--cta-ink);border-color:var(--cta);font-weight:700}
+.todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.todo-group h4{margin:0 0 4px;font-size:.8rem;color:var(--ink)}
+.todo-group ul{list-style:none;margin:0;padding:0;max-height:12.5rem;overflow-y:auto;font-size:.78rem}
+.todo-item{padding:3px 6px;border-radius:4px;cursor:pointer;line-height:1.35}
+.todo-item:hover,.todo-item:focus-visible{background:var(--tint);outline:none}
+.ai-tag{font-size:.62rem;background:var(--cta);color:var(--cta-ink);border-radius:3px;padding:0 3px;margin-right:4px}
+.morning{margin:0;padding-left:18px;font-size:.85rem}.morning ul{margin:2px 0 6px;padding-left:16px;font-size:.78rem}
+.evt{cursor:pointer}.evt:hover>strong,.evt:focus-visible>strong{text-decoration:underline}
+.switch{display:inline-flex;gap:4px;margin:0 0 8px}
+.mapboard{display:grid;grid-template-columns:minmax(220px,.95fr) minmax(0,1.6fr);gap:12px;align-items:start}
+.map .zone{fill:var(--tint);stroke:var(--grid)}.map .zone-n{fill:var(--muted);font-size:9px}.map .center{fill:var(--ink)}
+.rt{cursor:pointer}.rt polyline{fill:none;stroke:var(--s1);stroke-width:1;opacity:.4;stroke-linejoin:round}
+.rt .stop{fill:var(--surface);stroke:var(--s1);stroke-width:1}.rt .stop.ai{stroke:var(--cta);stroke-width:1.6}
+.rt .home{fill:var(--s1)}.rt .num{display:none;font-size:6px;font-weight:700;fill:var(--ink);text-anchor:middle;pointer-events:none}
+.rt .hand{stroke:var(--warn);stroke-width:1.3;stroke-dasharray:3 2}.rt .stop.moved{stroke:var(--warn);stroke-width:1.6}
+.brk-map{fill:var(--warn);font-size:12px}
+.has-sel .rt{opacity:.22}.has-sel .rt.sel{opacity:1}.rt.sel polyline{stroke-width:2.4;opacity:1}.rt.sel .num{display:block}
+.board{font-size:.7rem}.row{display:grid;grid-template-columns:2.4rem 1fr;gap:4px;align-items:center;height:15px;border-radius:3px}
+.row.sel{background:var(--tint)}.row.sel .who{color:var(--ink);font-weight:700}.who{cursor:pointer;font-variant-numeric:tabular-nums}
+.lane{position:relative;height:11px;background:linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/11.111% 100%}
+.ticks{height:14px;background:none}.ticks span{position:absolute;top:0;transform:translateX(-50%);color:var(--muted);font-size:.62rem;line-height:14px}
+.ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
+.blk{position:absolute;top:0;bottom:0;border-radius:2px;box-shadow:0 0 0 1px var(--surface);overflow:hidden;white-space:nowrap;
+font-size:8px;line-height:11px;padding-left:2px;cursor:pointer}
+.c1{background:var(--c1);color:var(--on-lo)}.c2{background:var(--c2);color:var(--on-lo)}.c3{background:var(--c3);color:var(--on-hi)}
+.c4{background:var(--c4);color:var(--on-hi)}.c5{background:var(--c5);color:var(--on-hi)}
+.blk.ai::before,.ai-sw::before{content:"";position:absolute;top:0;right:0;width:5px;height:5px;background:var(--cta);border-radius:0 0 0 3px}
+.blk.moved,.moved-sw{box-shadow:0 0 0 1.5px var(--warn);font-weight:700}
+.blk.unpl,.unpl-sw{background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.5) 3px 4.5px)}
+.blk.miss,.miss-sw{border-bottom:3px solid var(--crit)}
+.blk.up::after{content:"\25B2";position:absolute;right:1px;top:0;font-size:7px;color:var(--cta)}
+.blk:hover,.blk:focus-visible{outline:2px solid var(--ink);outline-offset:0;z-index:2}
+.lane-note{position:absolute;inset:0;display:flex;align-items:center;padding-left:6px;border-radius:2px;font-size:.62rem;color:var(--ink);
+background:repeating-linear-gradient(135deg,var(--tint) 0 4px,var(--axis) 4px 6px)}
+.dead{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,transparent 0 4px,var(--axis) 4px 6px)}
+.brk{position:absolute;top:-2px;z-index:1;white-space:nowrap;background:var(--surface);color:var(--warn);font-size:.6rem;font-weight:700;
+line-height:15px;padding:0 3px;border-left:2px solid var(--warn)}
+body:not([data-view="ran"]) .v-ran,body[data-view="ran"] .v-night{display:none}
+.legend-line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:.72rem;color:var(--muted);margin:8px 0 0}
+.sw{position:relative;display:inline-block;width:14px;height:9px;border-radius:2px;vertical-align:middle;margin-right:3px;background:var(--c3)}
+.sw.c1{background:var(--c1)}.sw.c2{background:var(--c2)}.sw.c4{background:var(--c4)}.sw.c5{background:var(--c5)}
+.sheet h4{margin:0 0 2px;color:var(--ink);font-size:.95rem}
+table.load,table.cmp{width:100%;margin-top:4px}table.load td,table.cmp td{white-space:normal}
+table.cmp th,table.cmp td{padding-right:8px}table.cmp td:not(:first-child){white-space:nowrap}
+tr.put-on td:first-child{color:var(--good);font-weight:700}tr.take-off td:first-child{color:var(--crit);font-weight:700}
+.keep{font-size:.8rem;margin:6px 0}.route{font-size:.78rem;margin:0;padding-left:24px;columns:2 220px}
+@media (max-width:900px){body.app{height:auto;overflow:visible}.app main{display:block}.panes{display:block}
+.pane{overflow:visible;padding-right:0}.sides{display:inline-flex}.how{grid-template-columns:1fr}
+body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:none}
+.mapboard{grid-template-columns:1fr}.map{max-width:440px}
+table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
 @media print{.band{background:none;color:#000}.actions,#tip{display:none}}
 </style></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
-A parts predictor, truck loads, a dispatch replay and an AI step, on invented repair history." tabindex="0">Staple methods manual</h1><p class="lede">Every formula, rule, prompt, query and check behind the report.</p><p class="stamp"><span class="build-stamp" data-tip="Build 20 · 1 Nov 2026 · 4c4b951
-The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 20 · 1 Nov 2026 · 4c4b951</span> · results last changed <span class="content-day" data-tip="1 Nov 2026
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple methods manual</h1><p class="lede">Every formula, rule, prompt, query and check behind the report.</p><p class="stamp"><span class="build-stamp" data-tip="Build 23 · 1 Nov 2026 · ba2587c
+The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 23 · 1 Nov 2026 · ba2587c</span> · results last changed <span class="content-day" data-tip="1 Nov 2026
 The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">1 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
 Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="manual.html" target="_blank" rel="noopener" data-tip="Instruction Manual
 Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you." tabindex="0">Instruction Manual</a></nav></div></header><main><ol class="toc">
@@ -85,6 +175,7 @@ Opens the instruction manual in a new tab: what each figure means, every label, 
 <li><a href="#backorders">The fleet back-order list</a></li>
 <li><a href="#ai">The AI step</a></li>
 <li><a href="#dispatch">The dispatch replay</a></li>
+<li><a href="#plan">The week's plan</a></li>
 <li><a href="#sql">The metric queries</a></li>
 <li><a href="#checks">The checks and their controls</a></li>
 <li><a href="#corners">Corners cut on purpose</a></li>
@@ -365,6 +456,55 @@ cost a call    = Σ (drive + repair) · $1 / served + (1 − Σ fix / served) ·
 broken truck working after its breakdown, no route past 17:00. A control may roll at most one per cent more calls
 than Staple, so no control can win by overbooking.</p></section>
 
+<section id="plan"><h2>The week's plan</h2>
+<p>Source: <code>staple/plan.py</code>. Nothing in it plans anything. Every route, load and move on the plan screen is
+what the dispatch replay decided, recorded as it decided it.</p>
+<h3>Which days</h3>
+<p>The most recent 7 held-back days. Unplanned calls are marked over the whole held-back period exactly as the
+92-day run marks them, then the week is kept.</p>
+<h3>Claude's codes</h3>
+<p>Each booking's code is replaced by Claude's reading of its words, from the same saved answers the AI step scores.
+Where Claude's confidence is below 0.7 and a saved follow-up question exists, the simulated customer picks
+the offered answer whose code is the booked code, as in the AI step. Where no offered answer fits, Claude's top guess
+stands, and the call goes on the call center's list.</p>
+<h3>Two replays, with the 92-day run's surprises</h3>
+<p>The week is replayed twice: under Staple (skills and parts, balanced loads) and under the current way (the nearest
+technician, today's stock). Both use seed 2026 plus the index of the week's first day among all held-back days. So
+each day's sick calls, breakdowns and priority changes are the ones the 92-day run met on the same day, and the plan
+check recounts them to prove it. The week starts from today's truck stock rather than the 92-day run's last loads.</p>
+<h3>What is recorded</h3>
+<p>For each day: the night routes before 07:00, each truck's load and the load before it, each call's chosen technician
+with the runner-up and the cost gap, the 07:00 sick calls, the breakdowns, the priority changes, every visit as the day
+ran with its start, end and whether the truck covered it, and the rolled calls. Recording changes no figure, and the
+dispatch check proves it on every policy. The day's figures are counted from the recorded visits exactly as the
+replay counts them, and the plan check holds them equal.</p>
+<h3>The first-visit chance on the board</h3>
+<p>For call <var>j</var> on technician <var>t</var>'s truck, with <var>o_j(p)</var> the carry list's odds and
+<var>r_t,a</var> the technician's rate on the appliance:</p>
+<code class="formula">chance(j, t) = (1 − min(1, Σ_(p not aboard t) o_j(p))) · r_t,a</code>
+<p>A moved call is scored on the truck that took it, so its chance before and after shows what the move cost.</p>
+<h3>Where each carry-list part stands</h3>
+<p>The first that holds of: needs a certified technician, aboard, on a truck nearby (based within 30 minutes),
+at a center but not loaded, back-ordered.</p>
+<h3>The load sheet</h3>
+<p>A part on tonight's load and not the last is put on; on the last and not tonight's, taken off; on both, kept. Its
+worth is the balanced rule's own sum, split out as <code>load.worth</code>: each planned call's chance of needing it times
+$165, plus its share of unplanned calls, less its holding cost, with a $2 move counted against it
+when it is not aboard and for it when it is. The calls behind a part are those at least 5% likely to need it,
+the three likeliest named.</p>
+<h3>The to-do rules</h3>
+<ul>
+<li><strong>Parts room</strong>: one item per truck whose load changes, ordered by the worth of what goes on.</li>
+<li><strong>Call center</strong>: every call whose follow-up answer did not settle the code.</li>
+<li><strong>Dispatch</strong>: every planned call with a part at least 10% likely that is back-ordered with no
+truck nearby holding one, and every call the night plan rolled.</li>
+<li><strong>Buyer</strong>: the top three parts on that day's back-order forecast. Where calls likely to need one sit in
+a zone with no holder nearby, the item names the zone with most of them and a truck to move a spare from.</li>
+</ul>
+<h3>The day the page opens on</h3>
+<p>The most recent of the 7 days on which a sick call and a breakdown both moved at least one call to another
+truck. A breakdown after a truck's last call strands its stock but moves nothing, so it does not count.</p></section>
+
 <section id="sql"><h2>The metric queries</h2>
 <p>Each file in <code>sql/metrics/</code> opens with its definition, read here from the file itself. Each runs on its
 own against the database. The report reads only their results, plus the made-up values in the
@@ -501,7 +641,7 @@ ORDER BY line_fill_pct;</pre></section>
 it measured and fails the run on a broken rule. Where a check could pass without looking, it also feeds itself a
 planted input that must fail, because a check that cannot fail looks exactly like one that sees nothing. The checks,
 read from <code>check.py</code>:</p>
-<dl><dt><code>guards</code></dt><dd>The code stays under its size ceiling, imports nothing outside Python&#x27;s own library, and names no private name in a public file. Planted inputs must trip both size and import checks.</dd><dt><code>banned-control</code></dt><dd>A name planted in a scratch file must be caught by the names scan, and a longer word containing a name must not be.</dd><dt><code>predictor</code></dt><dd>One well-populated and one thin cell are recomputed by hand from the three levels&#x27; counts. The thin cell must sit near the wider odds with the pull, and far from them without it.</dd><dt><code>backtest</code></dt><dd>Coverage on the held-back jobs. The predictor must beat the national list, and the lean must help the newest families.</dd><dt><code>control</code></dt><dd>The predictor trained on shuffled history must score no better than the national baseline.</dd><dt><code>dollars</code></dt><dd>Every load policy&#x27;s costs, with planted loads recomputed by hand. No load may break the space, lock or back-order rules, and a planted bad load must show all three faults. The balanced truck must be the cheapest load, and the back-order flag must be calibrated.</dd><dt><code>backorders</code></dt><dd>The fleet back-order forecast against what the held-back days brought, within three Poisson spreads. A forecast three times too high must fail.</dd><dt><code>triage</code></dt><dd>The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.</dd><dt><code>dispatch</code></dt><dd>Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.</dd><dt><code>dispatch-control</code></dt><dd>Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.</dd><dt><code>sql</code></dt><dd>Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.</dd><dt><code>report</code></dt><dd>The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. The published copy must match a fresh build, and planted faults must be refused.</dd><dt><code>data</code></dt><dd>Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.</dd><dt><code>docs</code></dt><dd>The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.</dd><dt><code>fresh-clone</code></dt><dd>The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone&#x27;s published copy. Damaging that copy must make the clone&#x27;s own report check fail.</dd></dl></section>
+<dl><dt><code>guards</code></dt><dd>The code imports nothing outside Python&#x27;s own library and names no private name in a public file. A planted import must trip the import check.</dd><dt><code>weight</code></dt><dd>Each published page stays under 2 MB, the most a phone should load for one page. A page padded past the limit must be refused.</dd><dt><code>banned-control</code></dt><dd>A name planted in a scratch file must be caught by the names scan, and a longer word containing a name must not be.</dd><dt><code>predictor</code></dt><dd>One well-populated and one thin cell are recomputed by hand from the three levels&#x27; counts. The thin cell must sit near the wider odds with the pull, and far from them without it.</dd><dt><code>backtest</code></dt><dd>Coverage on the held-back jobs. The predictor must beat the national list, and the lean must help the newest families.</dd><dt><code>control</code></dt><dd>The predictor trained on shuffled history must score no better than the national baseline.</dd><dt><code>dollars</code></dt><dd>Every load policy&#x27;s costs, with planted loads recomputed by hand. No load may break the space, lock or back-order rules, and a planted bad load must show all three faults. The balanced truck must be the cheapest load, and the back-order flag must be calibrated.</dd><dt><code>backorders</code></dt><dd>The fleet back-order forecast against what the held-back days brought, within three Poisson spreads. A forecast three times too high must fail.</dd><dt><code>triage</code></dt><dd>The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.</dd><dt><code>dispatch</code></dt><dd>Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.</dd><dt><code>dispatch-control</code></dt><dd>Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.</dd><dt><code>plan</code></dt><dd>The week&#x27;s plan, coded by Claude and replayed. Every call carries Claude&#x27;s code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay&#x27;s; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run&#x27;s on the same days. Each rule has a planted fault that must be caught.</dd><dt><code>sql</code></dt><dd>Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.</dd><dt><code>report</code></dt><dd>The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. The published copy must match a fresh build, and planted faults must be refused.</dd><dt><code>data</code></dt><dd>Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.</dd><dt><code>docs</code></dt><dd>The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.</dd><dt><code>fresh-clone</code></dt><dd>The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone&#x27;s published copy. Damaging that copy must make the clone&#x27;s own report check fail.</dd></dl></section>
 
 <section id="corners"><h2>Corners cut on purpose</h2>
 <p>Each is marked in the code where it is cut, with the ceiling it sets and the upgrade that would lift it. Read from
