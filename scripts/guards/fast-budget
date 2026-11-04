@@ -1,0 +1,1 @@
+30000  the hover-tip check drives a headless browser through every published page before each publish, and takes about 27 s on its own (2026-11-04)
