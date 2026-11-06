@@ -1,4 +1,4 @@
-"""Three static pages: the report (index.html), its instruction manual and its methods manual.
+"""Four static pages: the report (index.html), its instruction manual, its methods manual and its code languages page.
 
 Every figure on the report comes from a query in sql/metrics/, and every constant the manuals quote is read
 from the code that uses it, so no page can state a number the code does not. The pages load nothing from the
@@ -10,18 +10,20 @@ import hashlib
 import html
 import json
 import math
+import os
 import re
 import struct
 import subprocess
+import warnings
 import zlib
 from collections import Counter
 from pathlib import Path
 
-from staple import db, dispatch, load, metrics, plan, predict, triage, world
+from staple import db, dispatch, examples, load, metrics, plan, predict, triage, world
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES = Path(__file__).resolve().parent / "pages"
-FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html"}
+FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html", "languages": "languages.html"}
 PUBLISHED = ROOT / "docs"      # the copy the repository serves as its web page; `python run.py --pages` writes it
 UNSTAMPED = "unstamped build"
 WEIGHT_LIMIT = 2_000_000    # bytes a published page may weigh: what a phone should load for one page
@@ -33,6 +35,57 @@ STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, 
 # machine without it the page says "unstamped build" and the run prints why, rather than leaving it blank.
 STAMP_MODULE = Path.home() / "dev" / "login-starter" / "lib" / "house" / "build-stamp.cjs"
 SOURCES = ["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
+# Every file kind by extension, named as the house map in login-starter names it; `check.py languages` refuses any other.
+CODE_LANGUAGES = {"py": "Python", "sql": "SQL", "js": "JavaScript", "sh": "Bash", "html": "HTML", "css": "CSS"}
+FORMATS = {"json": "Data files (JSON)", "md": "Written notes (Markdown)", "png": "Pictures", "svg": "Pictures",
+           "sha": "Fingerprints", "gitignore": "Git settings", "gitattributes": "Git settings", "": "Files with no extension"}
+LANGUAGES_JSON = "languages.json"   # the counts and sentence, published beside the pages for the sites that quote them
+PLACES = (   # where code runs, each with the languages that run there; `check.py languages` refuses a language in none
+    ("browser", "In your browser", ("HTML", "CSS", "JavaScript"),
+     "When you open a page, your browser draws it and runs its two scripts. Each page carries its own styles and "
+     "scripts, so it fetches nothing from any other site."),
+    ("builder", "On the builder's computer", ("Python", "SQL", "Bash"),
+     "Whoever builds Staple runs it here: python run.py invents the history and writes every result and page, python "
+     "check.py runs every check, and the Bash guards run before each commit. On this machine that is Windows, with "
+     "the Bash that Git for Windows ships."),
+    ("github", "On GitHub's computers", (),
+     "GitHub keeps the repository and serves the docs folder as the public pages. After each push, GitHub Pages runs "
+     "Jekyll, its site builder, over that folder. Staple's pages carry no Jekyll settings, so it copies them as they "
+     "are, and check.py fresh-clone proves it by comparing the live report with the committed copy. None of Staple's "
+     "own code runs there."),
+    ("anthropic", "On Anthropic's computers", (),
+     "Claude Haiku 5.5 read every customer description once and wrote each follow-up question. Staple sends it the "
+     "prompts the methods manual prints word for word, and none of Staple's code runs there. The answers are saved in "
+     "the data folder, so the pages rebuild without a key; python run.py --live asks the Claude API again with your "
+     "own key."))
+LANGUAGE_ABOUT = {   # what each language is, then what it does in this build
+    "HTML": ("The language a web page is written in: headings, paragraphs, tables and links, which the browser lays "
+             "out.", "The report's HTML is written by report.py. The manuals' text and this page's sit in HTML "
+             "templates, each with a named gap where a value from the code goes."),
+    "CSS": ("The rules for how a page looks: colors, spacing, and a layout for a phone.",
+            "One stylesheet holds the light and dark colors as named tokens, and the build pastes it into every page."),
+    "JavaScript": ("The language a browser runs inside a page, to answer a click, a tap or a key.",
+                   "One script shows a hint on hover, focus or tap and runs the light and dark switch. The other "
+                   "switches the plan screen's day, technician and view. Neither uses a framework or fetches anything."),
+    "Python": ("A general programming language, run from a terminal. Staple uses only the library Python ships "
+               "with, so nothing is installed.", "It invents the history, predicts parts, loads trucks, reads "
+               "Claude's saved answers, replays dispatch, works the methods page's examples, writes the pages and "
+               "runs every check."),
+    "SQL": ("The language for asking a database a question. Python's own library carries SQLite, which keeps the "
+            "whole invented world in one file and runs every query.", "One file defines the tables, and each metric "
+            "query computes one table the report is built from."),
+    "Bash": ("The command language of a Unix shell, run here by the Bash that Git for Windows ships.",
+             "The guard runner starts the repository's guards before each commit, and each guard is one script."),
+}
+PROGRAMS = {   # every program the code starts, as `check.py languages` finds it in the code, and what it does here
+    "git": ("git", "Lists the repository's files for these counts and the names scan, and clones the public "
+                   "repository fresh for check.py fresh-clone."),
+    "node": ("Node.js (node)", "Runs the house build stamp from the author's toolkit to stamp each page. The "
+                               "hover-tip guard also runs the house tap check with it."),
+    "chrome": ("Chrome", "Photographs the share card in python run.py --card, the one build step outside Python."),
+    "claude": ("Claude Code (claude)", "Built the saved answers and follow-up questions with python -m staple.triage "
+                                       "build, on a subscription rather than a key."),
+}
 _STAMP_JS = ("const s=require(process.argv[1]);const r=s.readBuildStamp({cwd:process.argv[2]});"
              "const d=s.fileDays({cwd:process.argv[2],under:JSON.parse(process.argv[3])});"
              "const last=d?Object.values(d).sort().pop():null;"
@@ -129,6 +182,9 @@ CHECK_ABOUT = {
     "sql": "Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.",
+    "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
+    "links": "Every link from the manual into the methods page, and every link within a page, lands on an id the page holds. A manual link turned to an anchor that does not exist must be refused.",
+    "languages": "Every file git would publish is a code language or a format Staple's map names, and that map agrees with the house map where it is on the machine. Every language held has a section on the code languages page, every program the Python code starts has a purpose line, and the published languages.json matches a fresh count and the published page. A planted .rb file, a map calling Bash PowerShell, a language with no section, a planted start of another program and a JSON with one count off must all be refused, and a folder with no git must be walked with a warning.",
     "fresh-clone": "The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone's published copy. Damaging that copy must make the clone's own report check fail.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
@@ -275,11 +331,13 @@ def stamp_line(stamp_text, day):
 
 NAV = {"report": ("Instruction Manual", "manual.html", "Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you."),
        "method": ("Methods and logic", "method.html", "Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks."),
+       "languages": ("Code languages", "languages.html", "Opens the code languages page in a new tab: what Staple is written in, where each part runs, and every program it starts."),
        "back": ("Back to the report", "index.html", "Returns to the report.")}
 
 
 def shell(kind, title, lede, body, stamp_text, day, chosen=None):
-    buttons = {"report": ["report", "method"], "manual": ["back", "method"], "method": ["back", "report"]}[kind]
+    buttons = {"report": ["report", "method", "languages"], "manual": ["back", "method", "languages"],
+               "method": ["back", "report", "languages"], "languages": ["back", "report", "method"]}[kind]
     nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else " target=\"_blank\" rel=\"noopener\""}'
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
     nav += (f'<button type="button" class="btn ghost" data-theme-toggle'
@@ -309,18 +367,71 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
             f'<script>{js}</script></body></html>\n')
 
 
-def languages():
-    """How many files of each language the repository holds, counted on each build so no page states a stale count."""
-    return {"Python": len(list(ROOT.glob("*.py")) + list((ROOT / "staple").glob("*.py"))),
-            "SQL": len(list((ROOT / "sql").glob("*.sql")) + list(metrics.SQL.glob("*.sql"))),
-            "metric queries": len(list(metrics.SQL.glob("*.sql"))), "JavaScript": len(list(PAGES.glob("*.js")))}
+def walked(root=ROOT):
+    """The folder's files where there is no git, skipping .git and what .gitignore names: a folder/, a name, *.ext."""
+    root = Path(root)
+    ignore = [g.strip() for g in (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+              if g.strip() and not g.startswith("#")] if (root / ".gitignore").exists() else []
+
+    def skip(rel, folder):
+        base = rel.rsplit("/", 1)[-1]
+        return base == ".git" or any((folder and g.rstrip("/") in (base, rel)) if g.endswith("/")
+                                     else base.endswith(g[1:]) if g.startswith("*.") else g in (base, rel) for g in ignore)
+    out = []
+    for here, dirs, names in os.walk(root):
+        rel = Path(here).relative_to(root).as_posix()
+        at = (lambda n: n) if rel == "." else (lambda n: f"{rel}/{n}")
+        dirs[:] = [d for d in dirs if not skip(at(d), True)]
+        out += [at(n) for n in names if not skip(at(n), False)]
+    return sorted(out)
+
+
+def repo_files(root=ROOT):
+    """Every file git would publish, relative to the repository: tracked, plus new files not ignored."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "-co", "--exclude-standard"],
+                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as err:
+        warnings.warn(f"git could not list the files ({err}), so the folder was walked, skipping what .gitignore names")
+        return walked(root)
+    return sorted(p for p in out.split("\0") if p and (Path(root) / p).is_file())
+
+
+def kind_of(path):
+    """A file's kind as the house map reads it: a dotfile's own name, else what follows the last dot."""
+    base = path.rsplit("/", 1)[-1]
+    if base.startswith(".") and "." not in base[1:]:
+        return base[1:].lower()
+    return base.rsplit(".", 1)[1].lower() if "." in base[1:] else ""
+
+
+def languages(files=None):
+    """Every file by language or format, read from git's list on each build so no page states a stale count. The
+    counts leave out docs/, the published copy the build writes from the rest."""
+    files = repo_files() if files is None else files
+    source = [p for p in files if not p.startswith(PUBLISHED.name + "/")]
+    formats = {}
+    for p in source:
+        if kind_of(p) in FORMATS:
+            formats.setdefault(FORMATS[kind_of(p)], []).append(p)
+    return {"code": {lang: [p for p in source if CODE_LANGUAGES.get(kind_of(p)) == lang] for lang in CODE_LANGUAGES.values()},
+            "formats": formats, "published": [p for p in files if p not in source],
+            "unknown": [p for p in files if kind_of(p) not in CODE_LANGUAGES and kind_of(p) not in FORMATS]}
+
+
+def counted(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
 
 
 def written_in(where="the pages"):
-    n = languages()
+    code = languages()["code"]
+    n = {lang: len(paths) for lang, paths in code.items()}
+    queries = sum(p.startswith("sql/metrics/") for p in code["SQL"])
     return (f"Written in Python, SQL and JavaScript: {n['Python']} Python files invent the history, predict parts, load "
             f"trucks, ask Claude, replay dispatch, write {where} and check it all; {n['SQL']} SQL files hold the tables "
-            f"and the {n['metric queries']} metric queries; {n['JavaScript']} JavaScript files run the hints and switches.")
+            f"and the {queries} metric queries; {n['JavaScript']} JavaScript files run the hints and switches. Beside "
+            f"them, {counted(n['Bash'], 'Bash script')} {'runs' if n['Bash'] == 1 else 'run'} the checks before each "
+            f"commit, and {counted(n['HTML'], 'HTML file')} and {counted(n['CSS'], 'CSS file')} lay out the pages.")
 
 
 def tokens():
@@ -353,10 +464,12 @@ def mark_png(size):
             + chunk(b"IDAT", zlib.compress(b"".join(rows), 9)) + chunk(b"IEND", b""))
 
 
+ASSETS = ("icon.svg", "icon-32.png", "apple-touch-icon.png", CARD)
+
+
 def assets():
     """The files published beside the pages: the tab icons, drawn here, and the share card, photographed once."""
-    return {"icon.svg": mark_svg().encode(), "icon-32.png": mark_png(32), "apple-touch-icon.png": mark_png(180),
-            CARD: (PAGES / CARD).read_bytes()}
+    return dict(zip(ASSETS, (mark_svg().encode(), mark_png(32), mark_png(180), (PAGES / CARD).read_bytes())))
 
 
 def card_html():
@@ -976,27 +1089,33 @@ def facts():
 
 def thresholds():
     made, design = "made up: replace with a real figure", "design choice"
-    items = [("Held-back days", f"{world.TEST_DAYS} days", "The back-test's hold-out.", design),
-             ("Pull toward wider groups", f"{predict.PULL} jobs", "How far thin history leans on the wider level.", "design choice; check.py backtest measures its effect"),
-             ("Carry list quoted", f"{load.SHOWN_K} parts", "The list length the report quotes.", design),
-             ("Repeat visit", f"${load.REPEAT_VISIT:.0f}", "A second truck roll.", made),
-             ("Moving a part", f"${load.MOVE:.0f}", "Loading or unloading one part overnight.", made),
-             ("Holding rate", f"{load.HOLDING_RATE:.0%} a year", "Cost of money tied up in stock.", made),
-             ("Unplanned share", f"{load.UNPLANNED:.0%}", "Calls added or moved on the day.", made),
-             ("Nearby", f"{load.NEARBY_MINUTES} minutes", "Another truck counts as nearby within this drive.", design),
-             ("List-length tolerance", f"${load.LEAN_TOLERANCE:.0f} a truck-day", "The shortest list within this of the cheapest is chosen.", design),
-             ("Permanent", f"{load.PERMANENT:.0%} of days", "A part aboard this often counts as permanent.", design),
-             ("Back-order flag", f"{load.BACKORDER_FLAG:.0%} odds", "A booking at this chance of needing a stuck part is flagged.", made),
-             ("Truck space", f"{world.CAPACITY} units", "Space on one truck.", made),
-             ("Today's fill", f"{world.STOCK_FILL:.0%}", "How full today's trucks are kept.", made),
-             ("AI confidence", f"{triage.BLEND_BELOW}", "Below it, a reading leans on the appliance's overall odds and a follow-up question is asked.", design),
-             ("Working day", f"{dispatch.DAY} minutes", "08:00 to 17:00.", design),
-             ("Minute", f"${dispatch.MINUTE:.0f}", "One minute of a technician and truck.", made),
-             ("Sick day", f"{dispatch.SICK:.0%} a day", "Chance a technician calls out.", made),
-             ("Breakdown", f"{dispatch.BREAKDOWN:.0%} a day", "Chance a truck breaks down.", made),
-             ("Priority change", f"{dispatch.ESCALATE:.0%} up, {dispatch.EASE:.0%} down", "Chance a call escalates or eases on the day.", made)]
-    items += [(f"Repair time, {t}", f"{m} minutes", "An average technician's time on this appliance.", made) for t, m in dispatch.REPAIR.items()]
-    body = "".join(f"<tr><td>{e(a)}</td><td>{e(b)}</td><td>{e(c)}</td><td>{e(d)}</td></tr>" for a, b, c, d in items)
+    items = [("Held-back days", f"{world.TEST_DAYS} days", "The back-test's hold-out.", design, "principles", None),
+             ("Pull toward wider groups", f"{predict.PULL} jobs", "How far thin history leans on the wider level.", "design choice; check.py backtest measures its effect", "predictor", "ex-predictor"),
+             ("Carry list quoted", f"{load.SHOWN_K} parts", "The list length the report quotes.", design, "backtest", "ex-backtest"),
+             ("Repeat visit", f"${load.REPEAT_VISIT:.0f}", "A second truck roll.", made, "loads", None),
+             ("Moving a part", f"${load.MOVE:.0f}", "Loading or unloading one part overnight.", made, "loads", None),
+             ("Holding rate", f"{load.HOLDING_RATE:.0%} a year", "Cost of money tied up in stock.", made, "loads", None),
+             ("Unplanned share", f"{load.UNPLANNED:.0%}", "Calls added or moved on the day.", made, "loads", None),
+             ("Nearby", f"{load.NEARBY_MINUTES} minutes", "Another truck counts as nearby within this drive.", design, "availability", None),
+             ("List-length tolerance", f"${load.LEAN_TOLERANCE:.0f} a truck-day", "The shortest list within this of the cheapest is chosen.", design, "loads", "ex-loads"),
+             ("Permanent", f"{load.PERMANENT:.0%} of days", "A part aboard this often counts as permanent.", design, "loads", None),
+             ("Back-order flag", f"{load.BACKORDER_FLAG:.0%} odds", "A booking at this chance of needing a stuck part is flagged.", made, "availability", "ex-availability"),
+             ("Truck space", f"{world.CAPACITY} units", "Space on one truck.", made, "world", None),
+             ("Today's fill", f"{world.STOCK_FILL:.0%}", "How full today's trucks are kept.", made, "world", None),
+             ("AI confidence", f"{triage.BLEND_BELOW}", "Below it, a reading leans on the appliance's overall odds and a follow-up question is asked.", design, "ai", "ex-ai"),
+             ("Working day", f"{dispatch.DAY} minutes", "08:00 to 17:00.", design, "dispatch", None),
+             ("Minute", f"${dispatch.MINUTE:.0f}", "One minute of a technician and truck.", made, "dispatch", "ex-dispatch"),
+             ("Sick day", f"{dispatch.SICK:.0%} a day", "Chance a technician calls out.", made, "dispatch", None),
+             ("Breakdown", f"{dispatch.BREAKDOWN:.0%} a day", "Chance a truck breaks down.", made, "dispatch", None),
+             ("Priority change", f"{dispatch.ESCALATE:.0%} up, {dispatch.EASE:.0%} down", "Chance a call escalates or eases on the day.", made, "dispatch", None)]
+    items += [(f"Repair time, {t}", f"{m} minutes", "An average technician's time on this appliance.", made, "dispatch", None) for t, m in dispatch.REPAIR.items()]
+    def rule(name, section, example):
+        tip = (f"{name}\nOpens the methods manual in a new tab at "
+               + ("the worked example of this rule." if example else "the section that uses this value."))
+        return (f'<a href="{FILES["method"]}#{example or section}" target="_blank" rel="noopener"{tipattr(tip)}>'
+                f'{e(name)}</a>')
+    body = "".join(f"<tr><td>{rule(a, s, x)}</td><td>{e(b)}</td><td>{e(c)}</td><td>{e(d)}</td></tr>"
+                   for a, b, c, d, s, x in items)
     return Raw(f'<div class="scroll"><table class="wrap"><thead><tr><th>Threshold</th><th>Value</th><th>What it does</th>'
                f'<th>What sets it</th></tr></thead><tbody>{body}</tbody></table></div>')
 
@@ -1030,6 +1149,18 @@ def sql_metrics():
     return Raw("".join(out))
 
 
+def example_html(x):
+    """One worked example, always in this order: words, inputs, steps, Staple's own answer, then any formula."""
+    head = "".join(f"<th>{e(h)}</th>" for h in x.inputs[0])
+    body = "".join("<tr>" + "".join(f"<td>{e(str(v))}</td>" for v in row) + "</tr>" for row in x.inputs[1])
+    formula = f'<p class="ex-lead">{e(x.lead)}</p><code class="formula">{e(x.formula)}</code>' if x.formula else ""
+    return Raw(f'<div class="example" id="{x.id}"><h3>Worked example: {e(x.title)}</h3><p class="ex-words">{e(x.words)}</p>'
+               f'<div class="scroll"><table class="ex-inputs wrap"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+               f'<ol class="ex-steps">{"".join(f"<li>{e(s)}</li>" for s in x.steps)}</ol>'
+               f'<p class="ex-answer">Staple\'s answer: <strong>{e(x.show(x.compute()))}</strong>, worked out on every build by '
+               f'<code>{e(x.source)}</code> on the inputs above.</p>{formula}</div>')
+
+
 def fill_in(template, values):
     return re.sub(r"\{\{(\w+)\}\}", lambda m: values[m.group(1)], (PAGES / template).read_text(encoding="utf-8"))
 
@@ -1043,6 +1174,7 @@ def build_manuals(stamp_text, day):
     v["GLOSSARY"] = Raw("<dl>" + "".join(f'<dt id="{slug(t)}"><strong>{e(t)}</strong></dt><dd>{e(d)}</dd>'
                                          for t, d in sorted(GLOSSARY.items())) + "</dl>")
     v["SQL_METRICS"], v["CHECKS"], v["PONYTAILS"] = sql_metrics(), checks(), ponytails()
+    v.update({f"EX_{x.section}": example_html(x) for x in examples.EXAMPLES})
     manual = shell("manual", "Staple instruction manual", "What each figure means, how to read it, and what it cannot tell you.",
                    fill_in("manual.html", v), stamp_text, day)
     method = shell("method", "Staple methods manual", "Every formula, rule, prompt, query and check behind the report.",
@@ -1050,9 +1182,47 @@ def build_manuals(stamp_text, day):
     return manual, method
 
 
+def grid(head, rows):
+    return Raw('<div class="scroll"><table class="wrap"><thead><tr>' + "".join(f"<th>{e(h)}</th>" for h in head)
+               + "</tr></thead><tbody>" + "".join("<tr>" + "".join(f"<td>{e(str(c))}</td>" for c in r) + "</tr>" for r in rows)
+               + "</tbody></table></div>")
+
+
+def folders(paths):
+    n = Counter(p.rsplit("/", 1)[0] + "/" if "/" in p else "the top folder" for p in paths)
+    return ", ".join(f"{f} {k}" for f, k in sorted(n.items(), key=lambda kv: (kv[0] == "the top folder", kv[0])))
+
+
+def languages_json(found=None):
+    """The sentence and counts the sites quote, published as languages.json so neither site types a count."""
+    code = (found or languages())["code"]
+    return {"sentence": written_in(), "counts": {lang: len(p) for lang, p in code.items()},
+            "metric_queries": sum(p.startswith("sql/metrics/") for p in code["SQL"]), "page": PAGES_URL + FILES["languages"]}
+
+
+def build_languages(stamp_text, day):
+    found = languages()
+    code = {lang: paths for lang, paths in found["code"].items() if paths}
+    where = {lang: title for _, title, langs, _ in PLACES for lang in langs}
+    places = "".join(
+        f'<section id="{pid}"><h2>{e(title)}</h2><p>{e(words)}</p>' + "".join(
+            f'<h3>{e(lang)}</h3><p>{e(LANGUAGE_ABOUT[lang][0])}</p><p>{e(LANGUAGE_ABOUT[lang][1])}</p>'
+            f'<p class="sub">{counted(len(code[lang]), "file")}: {e(folders(code[lang]))}.</p>' for lang in langs if lang in code)
+        + "</section>" for pid, title, langs, words in PLACES)
+    v = {"SENTENCE": Raw(e(written_in())),
+         "MADE_OF": grid(("Language", "Files", "Where it runs"), [(lang, len(p), where.get(lang, "no section")) for lang, p in code.items()]),
+         "PLACES": Raw(places),
+         "PROGRAMS": Raw("<dl>" + "".join(f"<dt><strong>{e(n)}</strong></dt><dd>{e(p)}</dd>" for n, p in PROGRAMS.values()) + "</dl>"),
+         "NOT_CODE": grid(("Kind", "Files", "Which"), [(k, len(p), ", ".join(p)) for k, p in found["formats"].items()]),
+         "PUBLISHED": Raw(e(", ".join([*FILES.values(), *ASSETS, LANGUAGES_JSON])))}
+    return shell("languages", "Staple code languages", "What Staple is written in, where each part runs, and every program it starts.",
+                 fill_in("languages.html", v), stamp_text, day)
+
+
 def build(results, week, stamp_text, day):
     manual, method = build_manuals(stamp_text, day)
-    return {"report": build_report(results, week, stamp_text, day), "manual": manual, "method": method}
+    return {"report": build_report(results, week, stamp_text, day), "manual": manual, "method": method,
+            "languages": build_languages(stamp_text, day)}
 
 
 def write(results, week, folder=db.OUT):
@@ -1063,6 +1233,7 @@ def write(results, week, folder=db.OUT):
         (folder / FILES[kind]).write_text(page, encoding="utf-8")
     for name, data in assets().items():
         (folder / name).write_bytes(data)
+    (folder / LANGUAGES_JSON).write_text(json.dumps(languages_json(), indent=1) + "\n", encoding="utf-8")
     if folder == PUBLISHED and text.endswith("+"):
         warnings.append("the published copy names unsaved changes; commit the code, then rerun --pages and commit docs/")
     return warnings
