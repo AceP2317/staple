@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Staple code languages</title><meta name="description" content="What Staple is written in, where each part runs, and every program it starts."><meta property="og:type" content="website"><meta property="og:site_name" content="Staple"><meta property="og:title" content="Staple code languages"><meta property="og:description" content="What Staple is written in, where each part runs, and every program it starts."><meta property="og:url" content="https://acep2317.github.io/staple/languages.html"><meta property="og:image" content="https://acep2317.github.io/staple/card.png?v=1"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Staple: Plans a repair fleet&#x27;s next day: who takes each call, what each truck carries, and what people do before 08:00."><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="apple-touch-icon.png"><style>:root{color-scheme:light;--band:#003980;--band-ink:#ffffff;--band-2:#c9d6ea;--cta:#ffcd00;--cta-ink:#002859;
+--page:#f5f6f7;--surface:#ffffff;--tint:#f1f5fa;--ink:#002859;--ink-2:#455b73;--muted:#56697f;--grid:#e0e3e6;
+--axis:#c5ccd4;--dim:#b9c2cc;--s1:#0048bb;--s2:#c99700;--ring:rgba(0,40,89,.12);--link:#0048bb;--code:#eef2f7;
+--c1:#dbe6f6;--c2:#a6c1ea;--c3:#6a95dc;--c4:#2f68c8;--c5:#00348f;--on-lo:#002859;--on-hi:#ffffff;--warn:#c2410c;--crit:#b42318;--good:#1f7a3a}
+:root[data-theme="dark"]{color-scheme:dark;--band:#001733;--band-ink:#f0f4fa;--band-2:#a9bad3;--cta:#ffcd00;
+--cta-ink:#001733;--page:#00142e;--surface:#0b2244;--tint:#10284d;--ink:#f0f4fa;--ink-2:#b4c2d4;--muted:#97a8bc;
+--grid:#1c3557;--axis:#2a4a72;--dim:#3a5578;--s1:#5b8def;--s2:#b38a10;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
+--c1:#18335c;--c2:#27508f;--c3:#4579cc;--c4:#7ea5ea;--c5:#bfd4fa;--on-lo:#f0f4fa;--on-hi:#00142e;--warn:#fb923c;--crit:#f87171;--good:#4ade80}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--page);color:var(--ink-2);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--link)}
+.band{background:var(--band);color:var(--band-ink)}
+.band-in{max-width:960px;margin:0 auto;padding:22px 16px 18px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.band h1{font-size:2rem;line-height:1.1;margin:0;color:var(--band-ink)}
+.band .lede{margin:4px 0 0;color:var(--band-2)}
+.band .stamp{margin:6px 0 0;font-size:.8rem;color:var(--band-2)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-block;background:var(--cta);color:var(--cta-ink);font-weight:700;font-size:.9rem;text-decoration:none;
+border-radius:6px;padding:9px 14px;border:0}
+.btn.ghost{background:transparent;color:var(--band-ink);box-shadow:inset 0 0 0 1px var(--band-2)}
+.btn:hover,.btn:focus-visible{filter:brightness(1.06);outline:2px solid var(--band-ink);outline-offset:2px}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+h2{font-size:1.3rem;color:var(--ink);margin:0 0 8px}h3{font-size:1.05rem;color:var(--ink);margin:22px 0 6px}
+.hint-key{font-size:.85rem;color:var(--muted);margin:0 0 4px}
+.note{border:1px solid var(--ring);background:var(--surface);border-left:4px solid var(--cta);border-radius:8px;padding:12px 14px;margin:14px 0 18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 8px}
+.tile{background:var(--surface);border:1px solid var(--ring);border-top:4px solid var(--s1);border-radius:8px;padding:14px}
+.tile p{margin:0}.tile .label{font-size:.85rem}.tile .value{font-size:2rem;font-weight:700;color:var(--ink)}
+.tile .sub{color:var(--muted);font-size:.8rem}
+section{margin:36px 0}section>p{margin:0 0 12px}
+figure{margin:0;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:14px}
+figcaption{font-weight:700;font-size:.9rem;color:var(--ink);margin-bottom:10px}
+.madeup{font-weight:400;color:var(--muted);font-size:.75rem;border:1px solid var(--ring);border-radius:4px;padding:0 5px;margin-left:4px}
+.bars{display:grid;gap:6px}
+.bar-row{display:grid;grid-template-columns:minmax(9rem,16rem) 1fr;gap:10px;align-items:center;border-radius:4px;padding:1px 2px}
+.bar-label{font-size:.85rem}.track{display:flex;align-items:center;gap:8px;min-width:0}
+.bar{height:16px;width:calc(var(--v)*66%);border-radius:0 4px 4px 0;background:var(--dim);flex:none}
+.lead .bar{background:var(--s1)}.lead .bar-label{color:var(--ink);font-weight:700}.control .bar-label{color:var(--muted)}
+.bar-value{font-size:.8rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;margin-bottom:6px}
+.key i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:6px}
+svg{width:100%;height:auto;display:block}.grid{stroke:var(--grid);stroke-width:1}.tick{fill:var(--muted);font-size:12px}
+.ref{stroke:var(--ink-2);stroke-width:1}.ref-label,.end-label{fill:var(--ink-2);font-size:12px}
+.series{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}.dot{stroke:var(--surface);stroke-width:2}
+.cross{stroke:var(--muted);stroke-width:1;opacity:0}.hit{fill:transparent}
+details{margin-top:10px;font-size:.85rem}summary{cursor:pointer;color:var(--ink-2)}
+.scroll{overflow-x:auto}table{border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums;font-size:.85rem}
+th,td{text-align:left;padding:5px 12px 5px 0;border-bottom:1px solid var(--grid);vertical-align:top}th{color:var(--ink);font-weight:700}
+td{white-space:nowrap}.wrap td{white-space:normal}
+code,pre{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:.85em;background:var(--code);border-radius:4px}
+code{padding:1px 4px}pre{padding:10px 12px;overflow-x:auto;white-space:pre-wrap;color:var(--ink)}
+.formula{display:block;margin:8px 0;padding:8px 12px;background:var(--tint);border-radius:6px;color:var(--ink);overflow-x:auto;white-space:pre}
+.example{border-left:3px solid var(--s1);padding:0 0 0 14px;margin:14px 0}.example h3{margin-top:0}.ex-steps{margin:6px 0;padding-left:20px}.ex-answer{margin:6px 0}
+.toc{columns:2 220px;font-size:.9rem;margin:0 0 8px;padding-left:20px}
+footer{color:var(--muted);font-size:.8rem;border-top:1px solid var(--grid);padding-top:14px}
+[data-tip]{cursor:help}
+.hv{text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:3px}
+.tile:hover,.tile:focus-visible,.bar-row:hover,.bar-row:focus-visible{background:var(--tint);outline:none}
+.bar-row:hover .bar,.bar-row:focus-visible .bar{filter:brightness(1.12)}
+th[data-tip],h2[data-tip],h3[data-tip],figcaption [data-tip]{text-decoration:underline dotted;text-decoration-thickness:1px;text-underline-offset:4px}
+.q{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--s1);color:var(--surface);
+font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;text-decoration:none;vertical-align:2px;margin-left:4px}
+.q:hover,.q:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
+#tip{position:fixed;z-index:9;pointer-events:none;background:var(--surface);color:var(--ink-2);border:1px solid var(--ring);
+border-top:3px solid var(--s1);border-radius:6px;padding:8px 10px;font-size:.8rem;line-height:1.45;white-space:pre-line;
+box-shadow:0 4px 16px rgba(0,23,51,.18);max-width:360px}
+#tip strong{display:block;color:var(--ink);font-size:.85rem;margin-bottom:2px}
+@media (max-width:560px){.bar-row{grid-template-columns:1fr;gap:2px}.bar{width:calc(var(--v)*45%)}
+.bar-value{white-space:normal;flex:1 1 0;min-width:0}.tick,.ref-label,.end-label{font-size:19px}.band h1{font-size:1.7rem}}
+body.app{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.app .band-in{max-width:none;padding:10px 16px}.app .band h1{font-size:1.45rem}.app .band .lede{margin:2px 0 0}
+.app main{max-width:none;width:100%;flex:1;min-height:0;display:flex;flex-direction:column;padding:8px 16px 4px}
+.app footer{flex:none;padding-top:4px;font-size:.72rem}
+.intro{flex:none;display:grid;gap:8px;margin-bottom:8px}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;list-style:none;margin:0;padding:0;font-size:.8rem;line-height:1.35}
+.how li{background:var(--surface);border:1px solid var(--ring);border-left:4px solid var(--s1);border-radius:6px;padding:6px 10px}
+.how strong{display:block;color:var(--ink)}
+.pickers{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.pick-label{font-size:.8rem;font-weight:700;color:var(--ink)}
+.day-btn,.side-btn,.vbtn{font:inherit;font-size:.8rem;background:var(--surface);color:var(--ink);border:1px solid var(--ring);
+border-radius:6px;padding:3px 9px;cursor:pointer}
+.day-btn.on,.side-btn.on,.vbtn.on{background:var(--s1);color:var(--on-hi);border-color:var(--s1);font-weight:700}
+.day-btn i{font-style:normal;margin-left:3px}.ev-s{color:var(--muted)}.ev-b{color:var(--warn)}.day-btn.on i{color:inherit}
+.day-btn:focus-visible,.side-btn:focus-visible,.vbtn:focus-visible{outline:2px solid var(--s1);outline-offset:1px}
+.invented{font-size:.72rem;font-weight:400;color:var(--muted);border:1px solid var(--ring);border-radius:4px;padding:0 6px;vertical-align:2px}
+.sides{display:none;margin-left:auto;gap:4px}
+.panes{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.pane{position:relative;overflow-y:auto;min-height:0;padding:0 8px 24px 0}
+.pane-label{position:sticky;top:0;z-index:3;margin:0;padding:2px 0 6px;background:var(--page);font-size:.7rem;font-weight:700;
+letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+section.day{margin:0}.day h2{margin:2px 0 8px}
+.tiles.small{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.tiles.small .tile{padding:8px 10px}.tiles.small .value{font-size:1.35rem;line-height:1.25}.tiles.small .sub{font-size:.74rem;line-height:1.35}
+section.panel,section.card,.card{display:block;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:12px 14px;margin:0 0 12px}
+.panel h3,.card h3{margin:0 0 6px}.panel>p,.card>p{margin:0 0 8px;font-size:.88rem}.card .sub,.sheet .sub{font-size:.8rem;color:var(--muted);margin:0 0 6px}
+.card figure{border:0;padding:0}.proof-pane .bar-row{grid-template-columns:1fr;gap:2px}
+.proof-pane .bar-value{white-space:normal;flex:1 1 0;min-width:0}.card .tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.do{font-size:.85rem;background:var(--tint);border-left:3px solid var(--cta);padding:6px 10px;border-radius:4px;margin:10px 0 0}
+.steps{margin:0;padding-left:20px;font-size:.88rem}
+.flash{animation:flash 1.4s}@keyframes flash{from{box-shadow:0 0 0 3px var(--cta)}to{box-shadow:0 0 0 3px transparent}}
+.asks{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+.ask{flex:0 0 228px;scroll-snap-align:start;background:var(--tint);border:1px solid var(--ring);border-top:3px solid var(--cta);
+border-radius:6px;padding:8px 10px;font-size:.76rem;line-height:1.4;cursor:pointer}
+.ask p{margin:0 0 4px}.ask .said{color:var(--ink);font-style:italic}.ask .then{font-weight:700;color:var(--ink)}
+.ask .parts span{color:var(--muted)}.ask:hover,.ask:focus-visible{outline:2px solid var(--cta);outline-offset:-1px}
+.conf{display:inline-block;width:56px;height:6px;border-radius:3px;background:var(--grid);vertical-align:middle;overflow:hidden}
+.conf i{display:block;height:100%;background:var(--s1)}
+.opts{display:flex;flex-wrap:wrap;gap:3px;list-style:none;margin:2px 0 5px;padding:0}.opts li{border:1px solid var(--axis);border-radius:9px;padding:0 6px}.opts .pick{background:var(--cta);color:var(--cta-ink);border-color:var(--cta);font-weight:700}
+.todo{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.todo-group h4{margin:0 0 4px;font-size:.8rem;color:var(--ink)}
+.todo-group ul{list-style:none;margin:0;padding:0;max-height:12.5rem;overflow-y:auto;font-size:.78rem}
+.todo-item{padding:3px 6px;border-radius:4px;cursor:pointer;line-height:1.35}
+.todo-item:hover,.todo-item:focus-visible{background:var(--tint);outline:none}
+.ai-tag{font-size:.62rem;background:var(--cta);color:var(--cta-ink);border-radius:3px;padding:0 3px;margin-right:4px}
+.morning{margin:0;padding-left:18px;font-size:.85rem}.morning ul{margin:2px 0 6px;padding-left:16px;font-size:.78rem}
+.evt{cursor:pointer}.evt:hover>strong,.evt:focus-visible>strong{text-decoration:underline}
+.switch{display:inline-flex;gap:4px;margin:0 0 8px}
+.mapboard{display:grid;grid-template-columns:minmax(220px,.95fr) minmax(0,1.6fr);gap:12px;align-items:start}
+.map .zone{fill:var(--tint);stroke:var(--grid)}.map .zone-n{fill:var(--muted);font-size:9px}.map .center{fill:var(--ink)}
+.rt{cursor:pointer}.rt polyline{fill:none;stroke:var(--s1);stroke-width:1;opacity:.4;stroke-linejoin:round}
+.rt .stop{fill:var(--surface);stroke:var(--s1);stroke-width:1}.rt .stop.ai{stroke:var(--cta);stroke-width:1.6}
+.rt .home{fill:var(--s1)}.rt .num{display:none;font-size:6px;font-weight:700;fill:var(--ink);text-anchor:middle;pointer-events:none}
+.rt .hand{stroke:var(--warn);stroke-width:1.3;stroke-dasharray:3 2}.rt .stop.moved{stroke:var(--warn);stroke-width:1.6}
+.brk-map{fill:var(--warn);font-size:12px}
+.has-sel .rt{opacity:.22}.has-sel .rt.sel{opacity:1}.rt.sel polyline{stroke-width:2.4;opacity:1}.rt.sel .num{display:block}
+.board{font-size:.7rem}.row{display:grid;grid-template-columns:2.4rem 1fr;gap:4px;align-items:center;height:15px;border-radius:3px}
+.row.sel{background:var(--tint);box-shadow:inset 3px 0 0 var(--s1)}.row.sel .who{color:var(--ink);font-weight:700}.who{cursor:pointer;font-variant-numeric:tabular-nums}
+.lane{position:relative;height:11px;background:linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/11.111% 100%}
+.ticks{height:14px;background:none}.ticks span{position:absolute;top:0;transform:translateX(-50%);color:var(--muted);font-size:.62rem;line-height:14px}
+.ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
+.blk{position:absolute;top:0;bottom:0;border-radius:2px;box-shadow:0 0 0 1px var(--surface);overflow:hidden;white-space:nowrap;
+font-size:8px;line-height:11px;padding-left:2px;cursor:pointer}
+.c1{background:var(--c1);color:var(--on-lo)}.c2{background:var(--c2);color:var(--on-lo)}.c3{background:var(--c3);color:var(--on-hi)}
+.c4{background:var(--c4);color:var(--on-hi)}.c5{background:var(--c5);color:var(--on-hi)}
+.blk.ai::before,.ai-sw::before{content:"";position:absolute;top:0;right:0;width:5px;height:5px;background:var(--cta);border-radius:0 0 0 3px}
+.blk.moved,.moved-sw{box-shadow:0 0 0 1.5px var(--warn);font-weight:700}
+.blk.unpl,.unpl-sw{background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.5) 3px 4.5px)}
+.blk.miss,.miss-sw{border-bottom:3px solid var(--crit)}
+.blk.up::after{content:"\25B2";position:absolute;right:1px;top:0;font-size:7px;color:var(--cta)}
+.blk:hover,.blk:focus-visible{outline:2px solid var(--ink);outline-offset:0;z-index:2}
+.lane-note{position:absolute;inset:0;display:flex;align-items:center;padding-left:6px;border-radius:2px;font-size:.62rem;color:var(--ink);
+background:repeating-linear-gradient(135deg,var(--tint) 0 4px,var(--axis) 4px 6px)}
+.dead{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,transparent 0 4px,var(--axis) 4px 6px)}
+.brk{position:absolute;top:-2px;z-index:1;white-space:nowrap;background:var(--surface);color:var(--warn);font-size:.6rem;font-weight:700;
+line-height:15px;padding:0 3px;border-left:2px solid var(--warn)}
+body:not([data-view="ran"]) .v-ran,body[data-view="ran"] .v-night{display:none}
+.legend-line{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:.72rem;color:var(--muted);margin:8px 0 0}
+.sw{position:relative;display:inline-block;width:14px;height:9px;border-radius:2px;vertical-align:middle;margin-right:3px;background:var(--c3)}
+.sw.c1{background:var(--c1)}.sw.c2{background:var(--c2)}.sw.c4{background:var(--c4)}.sw.c5{background:var(--c5)}
+.sheet h4{margin:0 0 2px;color:var(--ink);font-size:.95rem}
+table.load,table.cmp{width:100%;margin-top:4px}table.load td,table.cmp td{white-space:normal}
+table.cmp th,table.cmp td{padding-right:8px}table.cmp td:not(:first-child){white-space:nowrap}
+tr.put-on td:first-child{color:var(--good);font-weight:700}tr.take-off td:first-child{color:var(--crit);font-weight:700}
+.keep{font-size:.8rem;margin:6px 0}.route{font-size:.78rem;margin:0;padding-left:24px;columns:2 220px}
+@media (max-width:900px){body.app{height:auto;overflow:visible}.app main{display:block}.panes{display:block}
+.pane{overflow:visible;padding-right:0}.sides{display:inline-flex}.how{grid-template-columns:1fr}
+body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:none}
+.mapboard{grid-template-columns:1fr}.map{max-width:440px}
+table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
+@media print{.band{background:none;color:#000}.actions,#tip{display:none}}
+</style><script>try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}</script></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple code languages</h1><p class="lede">What Staple is written in, where each part runs, and every program it starts.</p><p class="stamp"><span class="build-stamp" data-tip="Build 34 · 6 Nov 2026 · 3c196eb
+The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved." tabindex="0">Build 34 · 6 Nov 2026 · 3c196eb</span> · results last changed <span class="content-day" data-tip="6 Nov 2026
+The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">6 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
+Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="manual.html" target="_blank" rel="noopener" data-tip="Instruction Manual
+Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you." tabindex="0">Instruction Manual</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods and logic
+Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods and logic</a><button type="button" class="btn ghost" data-theme-toggle data-tip="Light or dark
+The page opens light. This switches it, and this browser remembers the choice." tabindex="0">Dark mode</button></nav></div></header><main><ol class="toc">
+<li><a href="#made-of">What Staple is made of</a></li>
+<li><a href="#browser">In your browser</a></li>
+<li><a href="#builder">On the builder's computer</a></li>
+<li><a href="#github">On GitHub's computers</a></li>
+<li><a href="#anthropic">On Anthropic's computers</a></li>
+<li><a href="#add-ons">Add-ons, and the programs Staple starts</a></li>
+<li><a href="#not-code">The files that are not code</a></li>
+</ol>
+
+<section id="made-of"><h2>What Staple is made of</h2>
+<p>Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 4 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python.</p>
+<p>Every count on this page is read from git's list of the repository's files each time the pages are built, so a
+new file changes it on the next build. The counts leave out the docs folder, which holds the published copy the build
+writes from the rest.</p>
+<div class="scroll"><table class="wrap"><thead><tr><th>Language</th><th>Files</th><th>Where it runs</th></tr></thead><tbody><tr><td>Python</td><td>15</td><td>On the builder&#x27;s computer</td></tr><tr><td>SQL</td><td>10</td><td>On the builder&#x27;s computer</td></tr><tr><td>JavaScript</td><td>2</td><td>In your browser</td></tr><tr><td>Bash</td><td>4</td><td>On the builder&#x27;s computer</td></tr><tr><td>HTML</td><td>3</td><td>In your browser</td></tr><tr><td>CSS</td><td>1</td><td>In your browser</td></tr></tbody></table></div></section>
+
+<section id="browser"><h2>In your browser</h2><p>When you open a page, your browser draws it and runs its two scripts. Each page carries its own styles and scripts, so it fetches nothing from any other site.</p><h3>HTML</h3><p>The language a web page is written in: headings, paragraphs, tables and links, which the browser lays out.</p><p>The report&#x27;s HTML is written by report.py. The manuals&#x27; text and this page&#x27;s sit in HTML templates, each with a named gap where a value from the code goes.</p><p class="sub">3 files: staple/pages/ 3.</p><h3>CSS</h3><p>The rules for how a page looks: colors, spacing, and a layout for a phone.</p><p>One stylesheet holds the light and dark colors as named tokens, and the build pastes it into every page.</p><p class="sub">1 file: staple/pages/ 1.</p><h3>JavaScript</h3><p>The language a browser runs inside a page, to answer a click, a tap or a key.</p><p>One script shows a hint on hover, focus or tap and runs the light and dark switch. The other switches the plan screen&#x27;s day, technician and view. Neither uses a framework or fetches anything.</p><p class="sub">2 files: staple/pages/ 2.</p></section><section id="builder"><h2>On the builder&#x27;s computer</h2><p>Whoever builds Staple runs it here: python run.py invents the history and writes every result and page, python check.py runs every check, and the Bash guards run before each commit. On this machine that is Windows, with the Bash that Git for Windows ships.</p><h3>Python</h3><p>A general programming language, run from a terminal. Staple uses only the library Python ships with, so nothing is installed.</p><p>It invents the history, predicts parts, loads trucks, reads Claude&#x27;s saved answers, replays dispatch, works the methods page&#x27;s examples, writes the pages and runs every check.</p><p class="sub">15 files: staple/ 13, the top folder 2.</p><h3>SQL</h3><p>The language for asking a database a question. Python&#x27;s own library carries SQLite, which keeps the whole invented world in one file and runs every query.</p><p>One file defines the tables, and each metric query computes one table the report is built from.</p><p class="sub">10 files: sql/ 1, sql/metrics/ 9.</p><h3>Bash</h3><p>The command language of a Unix shell, run here by the Bash that Git for Windows ships.</p><p>The guard runner starts the repository&#x27;s guards before each commit, and each guard is one script.</p><p class="sub">4 files: scripts/ 1, scripts/guards/fast/ 3.</p></section><section id="github"><h2>On GitHub&#x27;s computers</h2><p>GitHub keeps the repository and serves the docs folder as the public pages. After each push, GitHub Pages runs Jekyll, its site builder, over that folder. Staple&#x27;s pages carry no Jekyll settings, so it copies them as they are, and check.py fresh-clone proves it by comparing the live report with the committed copy. None of Staple&#x27;s own code runs there.</p></section><section id="anthropic"><h2>On Anthropic&#x27;s computers</h2><p>Claude Haiku 5.5 read every customer description once and wrote each follow-up question. Staple sends it the prompts the methods manual prints word for word, and none of Staple&#x27;s code runs there. The answers are saved in the data folder, so the pages rebuild without a key; python run.py --live asks the Claude API again with your own key.</p></section>
+
+<section id="add-ons"><h2>Add-ons, and the programs Staple starts</h2>
+<p>Staple has no add-ons. Its Python imports nothing outside the library Python ships with, and
+<code>check.py guards</code> refuses an import that would need installing, so there is no list of packages to keep.</p>
+<p>It does start four programs already on the builder's computer, each for one job. <code>check.py languages</code>
+finds every place the Python code starts a program and refuses one without a line here:</p>
+<dl><dt><strong>git</strong></dt><dd>Lists the repository&#x27;s files for these counts and the names scan, and clones the public repository fresh for check.py fresh-clone.</dd><dt><strong>Node.js (node)</strong></dt><dd>Runs the house build stamp from the author&#x27;s toolkit to stamp each page. The hover-tip guard also runs the house tap check with it.</dd><dt><strong>Chrome</strong></dt><dd>Photographs the share card in python run.py --card, the one build step outside Python.</dd><dt><strong>Claude Code (claude)</strong></dt><dd>Built the saved answers and follow-up questions with python -m staple.triage build, on a subscription rather than a key.</dd></dl></section>
+
+<section id="not-code"><h2>The files that are not code</h2>
+<p>Every other file git holds outside the docs folder, counted by kind, so every file is accounted for:</p>
+<div class="scroll"><table class="wrap"><thead><tr><th>Kind</th><th>Files</th><th>Which</th></tr></thead><tbody><tr><td>Git settings</td><td>2</td><td>.gitattributes, .gitignore</td></tr><tr><td>Written notes (Markdown)</td><td>2</td><td>README.md, WALKTHROUGH.md</td></tr><tr><td>Data files (JSON)</td><td>2</td><td>data/followup-cache.json, data/triage-cache.json</td></tr><tr><td>Files with no extension</td><td>1</td><td>scripts/guards/fast-budget</td></tr><tr><td>Pictures</td><td>1</td><td>staple/pages/card.png</td></tr><tr><td>Fingerprints</td><td>1</td><td>staple/pages/card.sha</td></tr></tbody></table></div>
+<p>The docs folder holds the published copy GitHub Pages serves: index.html, manual.html, method.html, languages.html, icon.svg, icon-32.png, apple-touch-icon.png, card.png, languages.json. <code>python run.py --pages</code>
+writes all of it from the files above. <code>check.py report</code> refuses pages that differ from a fresh build,
+and <code>check.py languages</code> refuses a languages.json that differs from a fresh count or from this page.</p></section>
+<footer>Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 4 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python. Every number comes from the queries in <span class="hv" data-tip="sql/metrics/
+ai_step, backorder_exposure, carry_list_curve, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on mouse hover or keyboard focus. On a touch screen one tap
+// shows it and keeps it; the next tap anywhere closes it, and opens the spot it lands on if that is another one.
+// A tap never cancels anything, so it still presses what it lands on. The first line is the value.
+const tip = document.getElementById('tip')
+let open = null // the spot showing: its element, the chart point if any, what opened it, and where on it
+function place() {
+  const r = open.el.getBoundingClientRect()
+  if (!open.el.isConnected || (!r.width && !r.height)) return hide()
+  const x = open.dx == null ? r.left : r.left + open.dx
+  const y = open.dy == null ? null : r.top + open.dy
+  let top = (y ?? r.top) - tip.offsetHeight - 10
+  if (top < 4) top = (y ?? r.bottom) + 14
+  tip.style.left = Math.max(4, Math.min(x, innerWidth - tip.offsetWidth - 8)) + 'px'
+  tip.style.top = top + 'px'
+}
+function show(el, text, by, point, x, y) {
+  const [head, ...rest] = text.split('\n')
+  const strong = document.createElement('strong')
+  strong.textContent = head
+  const body = document.createElement('div')
+  body.textContent = rest.join('\n')
+  tip.replaceChildren(strong, ...(rest.length ? [body] : []))
+  tip.hidden = false
+  const r = el.getBoundingClientRect()
+  open = { el, point, by, dx: x == null ? null : x - r.left, dy: y == null ? null : y - r.top }
+  place()
+}
+function hide() {
+  tip.hidden = true
+  open = null
+  document.querySelectorAll('.cross').forEach((c) => (c.style.opacity = 0))
+}
+const target = (e) => e.target.closest && e.target.closest('[data-tip]')
+
+const curves = new Map()
+document.querySelectorAll('svg[data-curve]').forEach((svg) => curves.set(svg, { d: JSON.parse(svg.dataset.curve), cross: svg.querySelector('.cross'), i: 2 }))
+function nearest(svg, clientX) {
+  const { d } = curves.get(svg)
+  const r = svg.getBoundingClientRect()
+  const xv = ((clientX - r.left) / r.width) * d.w
+  return d.xs.reduce((b, x, j) => (Math.abs(x - xv) < Math.abs(d.xs[b] - xv) ? j : b), 0)
+}
+function at(svg, j) {
+  const c = curves.get(svg)
+  c.i = j
+  c.cross.setAttribute('x1', c.d.xs[j]); c.cross.setAttribute('x2', c.d.xs[j]); c.cross.style.opacity = 1
+  return c.d.tips[j]
+}
+
+// Mouse and pen: open on entering a spot, close on leaving it.
+document.addEventListener('pointerover', (e) => {
+  const el = e.pointerType !== 'touch' && target(e)
+  if (el && open?.el !== el) show(el, el.dataset.tip, 'hover')
+})
+document.addEventListener('pointerout', (e) => {
+  const el = e.pointerType !== 'touch' && target(e)
+  if (el && open?.by === 'hover' && open.el === el && !el.contains(e.relatedTarget)) hide()
+})
+// Keyboard: the browser's own focus-visible test is true for a Tab and false for a tap, so a tap never opens one here.
+document.addEventListener('focusin', (e) => {
+  const el = e.target
+  if (!el.matches || !el.matches(':focus-visible')) return
+  if (curves.has(el)) return show(el, at(el, curves.get(el).i), 'focus', curves.get(el).i)
+  const spot = target(e)
+  if (spot) show(spot, spot.dataset.tip, 'focus')
+})
+document.addEventListener('focusout', () => { if (open?.by === 'focus') hide() })
+// Finger: a tap is a press and lift within 10 px that the browser did not cancel to scroll.
+let press = null
+document.addEventListener('pointerdown', (e) => { press = e.pointerType === 'touch' ? [e.clientX, e.clientY] : null })
+document.addEventListener('pointercancel', () => (press = null))
+document.addEventListener('pointerup', (e) => {
+  if (!press || e.pointerType !== 'touch') return
+  const moved = Math.hypot(e.clientX - press[0], e.clientY - press[1])
+  press = null
+  if (moved > 10) return
+  const svg = e.target.closest && e.target.closest('svg[data-curve]')
+  const el = svg || target(e)
+  const point = svg ? nearest(svg, e.clientX) : undefined
+  const same = open && el && open.el === el && open.point === point
+  if (open) hide()
+  if (!el || same) return
+  if (svg) show(svg, at(svg, point), 'tap', point, e.clientX + 14, e.clientY)
+  else show(el, el.dataset.tip, 'tap')
+})
+// An open tip moves with its spot when anything scrolls, and closes if the spot is gone.
+addEventListener('scroll', () => open && place(), { capture: true, passive: true })
+addEventListener('resize', () => open && place())
+
+curves.forEach((c, svg) => {
+  svg.addEventListener('pointermove', (ev) => {
+    if (ev.pointerType === 'touch') return
+    const j = nearest(svg, ev.clientX)
+    show(svg, at(svg, j), 'hover', j, ev.clientX + 14, ev.clientY)
+  })
+  svg.addEventListener('pointerleave', (ev) => { if (ev.pointerType !== 'touch' && open?.by === 'hover' && open.el === svg) hide() })
+  svg.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
+    const j = Math.max(0, Math.min(c.d.ks.length - 1, c.i + (ev.key === 'ArrowRight' ? 1 : -1)))
+    show(svg, at(svg, j), 'focus', j)
+    ev.preventDefault()
+  })
+})
+
+// The light/dark switch: every page opens light unless this browser saved dark, which the page's head applies first.
+const themeBtn = document.querySelector('[data-theme-toggle]')
+function setTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  themeBtn.textContent = dark ? 'Light mode' : 'Dark mode'
+}
+if (themeBtn) {
+  setTheme(document.documentElement.dataset.theme === 'dark')
+  themeBtn.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark'
+    setTheme(dark)
+    try { localStorage.setItem('staple-theme', dark ? 'dark' : 'light') } catch (err) { console.warn('Staple: the light/dark choice was not saved', err) }
+  })
+}
+</script></body></html>
