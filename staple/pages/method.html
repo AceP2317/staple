@@ -77,11 +77,7 @@ probability 0.08, with a ship date 3 to 14 days out.</p></section>
 <p>Source: <code>staple/predict.py</code>. For a booking with appliance <var>a</var>, model family <var>f</var> and
 booked problem <var>q</var>, it estimates for each part <var>p</var> of <var>a</var> the probability that the job
 needs <var>p</var>. Training jobs only; problems are the booked codes, because real history records nothing else.</p>
-<p>Let <var>n</var> be the number of training jobs at a level and <var>c(p)</var> how many of them needed
-<var>p</var>. With pull <var>P</var> = {{pull}}:</p>
-<code class="formula">p_type(p) = c_a(p) / n_a
-p_problem(p) = (c_q(p) + P · p_type(p)) / (n_q + P)
-p_family(p) = (c_f,q(p) + P · p_problem(p)) / (n_f,q + P)</code>
+{{EX_predictor}}
 <p>The family estimate is the answer. Each level is a pseudo-count estimate whose prior is the wider level's
 estimate with strength <var>P</var>, which is the posterior mean under a Beta prior. With 3 real jobs the wider
 level dominates; with 3,000 the family's own history decides. The carry list of length <var>k</var> is the
@@ -90,9 +86,9 @@ level dominates; with 3,000 the family's own history decides. The carry list of 
 by <var>c_a(p)</var> alone, whatever the problem.</p></section>
 
 <section id="backtest"><h2>The back-test</h2>
-<p>Source: <code>staple/backtest.py</code>. For each held-back job <var>j</var> with needed set <var>N(j)</var> and
-carry list <var>L_k(j)</var>:</p>
-<code class="formula">coverage(k) = |{ j : N(j) ⊆ L_k(j) }| / |J_test|,   k = {{ks}}</code>
+<p>Source: <code>staple/backtest.py</code>. Each held-back job is scored on whether its carry list held every part
+it needed.</p>
+{{EX_backtest}}
 <p>A job needing no part is covered by any list. Today's trucks are scored by the recorded flag of every needed
 part being on the truck. Variants scored at every <var>k</var>:</p>
 <ul>
@@ -144,7 +140,9 @@ must be loaded. So a part stays on the truck while it earns its space, and perma
 rather than being set.</p>
 <h3>Choosing a list length and the break-even</h3>
 <p>For each list policy, the recommended length is the shortest whose total is within {{lean_tolerance}} a
-truck-day of that policy's cheapest. The repeat-visit cost at which the chosen top-up stops paying is:</p>
+truck-day of that policy's cheapest.</p>
+{{EX_loads}}
+<p>The repeat-visit cost at which the chosen top-up stops paying is:</p>
 <code class="formula">R* = (Δhandling + Δholding) / (Δrepeat / R)    (top-up against today's trucks)</code>
 <p>A part is called permanent when it is aboard on at least {{permanent}} of a truck's days. Inventory ROI is covered
 jobs per truck-day times <var>R</var> times 365, divided by the stock value on board.</p>
@@ -156,22 +154,16 @@ must exceed three times that difference.</p></section>
 <section id="availability"><h2>Availability and the back-order flag</h2>
 <p>Each carry-list part gets the first mark that applies, for the job's technician and zone:</p>
 <ol>{{MARK_ORDER}}</ol>
-<p>The back-order flag sums, over every part of the booking's ranked list, the odds of the parts marked back-ordered:</p>
-<code class="formula">stuck(j) = Σ_(p : mark = back-ordered) o_j(p),   flag when stuck(j) ≥ {{backorder_flag}}</code>
+<p>The back-order flag sums, over every part of the booking's ranked list, the odds of the parts marked back-ordered.</p>
+{{EX_availability}}
 <p>Because the sum is a probability, its total over all held-back bookings forecasts how many will in fact need a
 stuck part. The check compares that forecast with the count, and it fails when the forecast misses by more than a
 quarter of the count.</p></section>
 
 <section id="backorders"><h2>The fleet back-order list</h2>
 <p>Source: <code>staple/backorders.py</code>. Which booking will need a stuck part cannot be known in advance, but how
-many will can, so the action is fleet-wide. Today's back-orders are taken to start on the first held-back day, in
-month <var>m</var>. From training only:</p>
-<code class="formula">calls_a(m) = training calls of appliance a in month m / training days in month m
-share(p)   = training calls needing p / training calls of a
-expected(p) = share(p) · calls_a(m) · ETA_p
-open zones  = zones with no holding truck based within {{nearby}} minutes
-stuck_share(p) = Σ_(z ∈ open) (calls_a,z − Σ_(holder t) calls_a,z,t) / calls_a
-stuck(p)   = expected(p) · stuck_share(p),   at_risk(p) = stuck(p) · R</code>
+many will can, so the action is fleet-wide. Today's back-orders are taken to start on the first held-back day.</p>
+{{EX_backorders}}
 <p>Demand is seasonal, so the month matters: a furnace part on back-order in winter carries three times the
 exposure it would in spring. The list is ranked by dollars at risk. Its back-test counts the held-back calls that
 needed each part before it shipped, and how many of them were marked back-ordered. The check accepts the forecast
@@ -207,6 +199,7 @@ question to put to the customer, verbatim:</p>
 <p>Questions ship in <code>data/followup-cache.json</code>, keyed the same way. In the replay, the simulated customer
 picks the offered answer whose code is the booked code. When no offered answer fits, the lean reading stands. The
 control replies at random, seeded by the job number, and must lower coverage.</p>
+{{EX_ai}}
 <h3>The keyword rules it is compared with</h3>
 <p>Words are lowercased, cut to letters, stripped of the suffixes "ing", "er", "es", "ed" and "s" when at least
 three letters remain, and cleared of eight stop words. The code whose label shares the most words with the
@@ -227,13 +220,9 @@ sick with probability {{sick}}. Each truck breaks down with probability {{breakd
 120 to 360. Each call escalates to urgent with probability {{escalate}} or eases to low with probability {{ease}}.
 Priority is 1 for {{URGENT}}, 3 for {{LOW}}, and 2 otherwise; the day's changes apply once the day starts.</p>
 <h3>The cost of sending technician t to call j</h3>
-<p>With drive minutes from the end of <var>t</var>'s route so far, and believed rate <var>r̂</var> and time
-multiplier <var>v̂</var> for <var>t</var> on <var>j</var>'s appliance:</p>
-<code class="formula">minutes = drive + repair_a · v̂
-nearest:          cost = drive
-skills only:      cost = minutes · {{minute}} + (1 − r̂) · R
-skills and parts: cost = minutes · {{minute}} + (1 − cover · r̂) · R
-cover = 1 − min(1, Σ_(p not available to t) o_j(p))</code>
+<p>Each candidate's cost adds the minutes the visit takes to a second visit, weighted by the chance this technician
+and truck fail the call.</p>
+{{EX_dispatch}}
 <p>At night a part is available when <var>t</var>'s truck may carry it, because the center loads overnight. During the
 day it is available only when it is on the truck now. A technician is a candidate only when they cover the appliance,
 are working, and their day still fits the call. Fit is always judged on the true repair times, so a wrong belief can
@@ -293,9 +282,9 @@ ran with its start, end and whether the truck covered it, and the rolled calls. 
 dispatch check proves it on every policy. The day's figures are counted from the recorded visits exactly as the
 replay counts them, and the plan check holds them equal.</p>
 <h3>The first-visit chance on the board</h3>
-<p>For call <var>j</var> on technician <var>t</var>'s truck, with <var>o_j(p)</var> the carry list's odds and
-<var>r_t,a</var> the technician's rate on the appliance:</p>
-<code class="formula">chance(j, t) = (1 − min(1, Σ_(p not aboard t) o_j(p))) · r_t,a</code>
+<p>The board shades each call by its chance of a first-visit fix: the truck must hold what the call needs, and the
+technician must make the repair take.</p>
+{{EX_plan}}
 <p>A moved call is scored on the truck that took it, so its chance before and after shows what the move cost.</p>
 <h3>Where each carry-list part stands</h3>
 <p>The first that holds of: needs a certified technician, aboard, on a truck nearby (based within {{nearby}} minutes),
@@ -323,6 +312,7 @@ truck. A breakdown after a truck's last call strands its stock but moves nothing
 <p>Each file in <code>sql/metrics/</code> opens with its definition, read here from the file itself. Each runs on its
 own against the database. The report reads only their results, plus the made-up values in the
 <code>assumptions</code> table, which is written from the code's constants.</p>
+{{EX_sql}}
 {{SQL_METRICS}}</section>
 
 <section id="checks"><h2>The checks and their controls</h2>

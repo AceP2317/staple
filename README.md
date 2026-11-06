@@ -54,12 +54,12 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 14 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches.
+Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 4 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
 Python 3 is the only requirement, and nothing is installed. It is built and tested on Python 3.14.
 
 ```
-python run.py            # the made-up world, every result, the metric tables and the three pages, into out/
+python run.py            # the made-up world, every result, the metric tables and the four pages, into out/
 python check.py          # every check, each with a control that proves it can fail
 python run.py --live     # the AI step asked afresh, with your own ANTHROPIC_API_KEY
 python run.py --pages    # also writes the published copy of the pages to docs/

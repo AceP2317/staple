@@ -205,6 +205,13 @@ def mark(fleet, tech, zone, part):
     return next(m for m in MARKS if holds[m]())
 
 
+def backorder_flag(ranked, where):
+    """A booking's odds of needing a part no truck nearby holds, summed over its parts marked back-ordered, and
+    whether they reach the flag."""
+    stuck = sum(o for p, o in ranked if where(p) == "back-ordered")
+    return stuck, stuck >= BACKORDER_FLAG
+
+
 def availability(fleet, jobs, lists, k=SHOWN_K):
     """The marks on every carry-list part, and a back-order flag: the job's odds of needing a part no
     truck nearby holds. The odds summed over all jobs should match how many were actually blocked."""
@@ -220,12 +227,12 @@ def availability(fleet, jobs, lists, k=SHOWN_K):
         ranked = lists[j["job"]]
         for p, _ in ranked[:k]:
             counts[where(p)] += 1
-        stuck = sum(o for p, o in ranked if where(p) == "back-ordered")
+        stuck, flag = backorder_flag(ranked, where)
         block = any(where(p) == "back-ordered" for p in j["needed"])
         expected += stuck
-        flagged += stuck >= BACKORDER_FLAG
+        flagged += flag
         blocked += block
-        caught += stuck >= BACKORDER_FLAG and block
+        caught += flag and block
     total = sum(counts.values())
     return {"marks": {m: counts[m] / total for m in MARKS}, "jobs": len(jobs), "expected": expected,
             "flagged": flagged, "blocked": blocked, "caught": caught}

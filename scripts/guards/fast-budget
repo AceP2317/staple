@@ -1,1 +1,1 @@
-30000  the hover-tip check drives a headless browser through every published page before each publish, and takes about 27 s on its own (2026-11-04)
+70200  the hover-tip check taps all four published pages in a headless browser before each publish, and took 63.2 s on its own, so this keeps the 30-to-27 headroom (2026-11-06)

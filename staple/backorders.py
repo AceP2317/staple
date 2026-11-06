@@ -14,6 +14,15 @@ from staple.load import NEARBY_MINUTES, REPEAT_VISIT, Fleet, mark
 from staple.world import ZONES, travel_minutes
 
 
+def exposure(part_calls, type_calls, per_day, eta, stuck_share):
+    """Calls expected to need a part before it ships, how many no truck nearby could cover, and the repeat-visit
+    dollars that puts at risk: the part's share of its appliance's calls, times that appliance's calls a day, times
+    the days until it ships."""
+    expected = part_calls / type_calls * per_day * eta
+    stuck = expected * stuck_share
+    return expected, stuck, stuck * REPEAT_VISIT
+
+
 def forecast(conn, fleet, start):
     """Per stuck part, from training only: calls expected before it arrives, and how many no truck could cover.
     Demand is seasonal, so a part's share of its appliance's calls is set against that appliance's calls per
@@ -44,10 +53,9 @@ def forecast(conn, fleet, start):
         total = sum(by_zone[appliance].values())
         stuck_share = sum((by_zone[appliance][z] - sum(by_zone_tech[appliance][(z, h)] for h in holders)) / total
                           for z in open_zones)
-        expected = calls.get(part, 0) / type_calls[appliance] * per_day[appliance] * eta
-        stuck = expected * stuck_share
+        expected, stuck, at_risk = exposure(calls.get(part, 0), type_calls[appliance], per_day[appliance], eta, stuck_share)
         rows.append({"part": part, "eta": eta, "holders": holders, "open_zones": len(open_zones),
-                     "expected": expected, "stuck": stuck, "at_risk": stuck * REPEAT_VISIT})
+                     "expected": expected, "stuck": stuck, "at_risk": at_risk})
     return sorted(rows, key=lambda r: (-r["at_risk"], r["part"]))
 
 

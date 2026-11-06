@@ -16,7 +16,7 @@ replay's own record of the most recent week, so every route and load on it is on
 ## The one command and its checks
 
 - `run.py` is the one command. It builds the world, runs every step in order, prints a summary of each, runs
-  the metric queries, records the week's plan and writes the three pages into `out/`. With `--pages` it also writes the copy GitHub
+  the metric queries, records the week's plan and writes the four pages into `out/`. With `--pages` it also writes the copy GitHub
   Pages serves, and with `--live` it asks Claude afresh instead of reading the cached answers.
 - `check.py` holds every check, each runnable alone by name (`python check.py report`). Each one plants a
   fault or a known answer and must catch it, because a check that never fails looks exactly like one that
@@ -111,7 +111,7 @@ replay's own record of the most recent week, so every route and load on it is on
 
 ## The pages
 
-- `staple/report.py` builds the three pages from the query results, the week's plan and the code's own
+- `staple/report.py` builds the four pages from the query results, the week's plan and the code's own
   constants. The report is one screen: the plan on the left, its proof on the right, each scrolling on its
   own. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
   it. The manuals quote every constant, prompt, query and check straight from the code, so they cannot
@@ -126,13 +126,21 @@ replay's own record of the most recent week, so every route and load on it is on
   code goes.
 - `staple/pages/method.html` is the methods manual's text: every formula, rule, prompt and check, filled the
   same way.
+- `staple/examples.py` holds one worked example for each section of the methods manual that computes a figure:
+  plain words, small made-up inputs, the steps worked by hand, and the same answer from the engine's own function.
+  The manual prints the engine's answer, and `check.py examples` refuses one that disagrees with the hand answer.
+- `staple/pages/languages.html` is the code languages page's text: what Staple is written in, where each part
+  runs, the programs it starts and the files that are not code, with every count read from git's list of files.
 - `staple/pages/card.png` is the share card a link preview shows, a photograph of the card page `report.py`
   writes, taken by headless Chrome with `python run.py --card`, the one step outside Python. `staple/pages/card.sha`
   fingerprints the card page it was taken from, so `check.py report` refuses a card older than its words or colors.
-- `docs/index.html`, `docs/manual.html` and `docs/method.html` are the published copy GitHub Pages serves.
+- `docs/index.html`, `docs/manual.html`, `docs/method.html` and `docs/languages.html` are the published copy
+  GitHub Pages serves.
   `python run.py --pages` writes them, and `check.py report` refuses a copy that differs from a fresh build.
   Beside them it writes `docs/card.png` and the tab icons, `docs/icon.svg`, `docs/icon-32.png` and
-  `docs/apple-touch-icon.png`, which `report.py` draws from the stylesheet's own colors.
+  `docs/apple-touch-icon.png`, which `report.py` draws from the stylesheet's own colors, and
+  `docs/languages.json`, the file counts and the languages sentence, which the author's two websites read rather
+  than typing the counts themselves.
 
 ## Repository plumbing
 
@@ -142,11 +150,15 @@ replay's own record of the most recent week, so every route and load on it is on
 - `.gitignore` keeps the built output, Python's caches and a private folder out of the repository.
 - `.gitattributes` keeps shell scripts' line endings Unix-style, because bash fails on a Windows line ending.
 - `scripts/guard.sh` runs the repository's own guards before each commit: one test per mistake already made.
+- `scripts/guards/fast-budget` is this repository's written time allowance for a guard that runs before each
+  commit, with the reason it is raised above the house default.
 - `scripts/guards/fast/public-files-carry-no-private-names.sh` runs the package and private-names check on
-  every commit, so nothing reaches the public repository without it.
+  every commit, so nothing reaches the public repository without it. The same commit also recomputes every
+  worked example, follows every manual link and holds the README and walkthrough to the files, because those
+  checks need no built world.
 - `scripts/guards/fast/a-guards-throwaway-repo-writes-into-the-commit-being-made.sh` makes sure a guard that
   builds a scratch repository can never write into the commit being made.
-- `scripts/guards/fast/a-hover-tip-drops-when-a-finger-lifts.sh` taps the published report in an emulated
-  phone and tablet before each commit that changes it: one tap must keep a hint open and the next tap must
-  close it, with or without the browser moving focus. It runs a shared check from the author's own toolkit,
+- `scripts/guards/fast/a-hover-tip-drops-when-a-finger-lifts.sh` taps every published page in an emulated
+  phone, and the report's chart in an emulated tablet, before each commit that changes them: one tap must keep
+  a hint open and the next tap must close it, with or without the browser moving focus. It runs a shared check from the author's own toolkit,
   so it runs only on the author's machine.

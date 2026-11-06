@@ -1,0 +1,32 @@
+<ol class="toc">
+<li><a href="#made-of">What Staple is made of</a></li>
+<li><a href="#browser">In your browser</a></li>
+<li><a href="#builder">On the builder's computer</a></li>
+<li><a href="#github">On GitHub's computers</a></li>
+<li><a href="#anthropic">On Anthropic's computers</a></li>
+<li><a href="#add-ons">Add-ons, and the programs Staple starts</a></li>
+<li><a href="#not-code">The files that are not code</a></li>
+</ol>
+
+<section id="made-of"><h2>What Staple is made of</h2>
+<p>{{SENTENCE}} Nothing is installed beyond Python.</p>
+<p>Every count on this page is read from git's list of the repository's files each time the pages are built, so a
+new file changes it on the next build. The counts leave out the docs folder, which holds the published copy the build
+writes from the rest.</p>
+{{MADE_OF}}</section>
+
+{{PLACES}}
+
+<section id="add-ons"><h2>Add-ons, and the programs Staple starts</h2>
+<p>Staple has no add-ons. Its Python imports nothing outside the library Python ships with, and
+<code>check.py guards</code> refuses an import that would need installing, so there is no list of packages to keep.</p>
+<p>It does start four programs already on the builder's computer, each for one job. <code>check.py languages</code>
+finds every place the Python code starts a program and refuses one without a line here:</p>
+{{PROGRAMS}}</section>
+
+<section id="not-code"><h2>The files that are not code</h2>
+<p>Every other file git holds outside the docs folder, counted by kind, so every file is accounted for:</p>
+{{NOT_CODE}}
+<p>The docs folder holds the published copy GitHub Pages serves: {{PUBLISHED}}. <code>python run.py --pages</code>
+writes all of it from the files above. <code>check.py report</code> refuses pages that differ from a fresh build,
+and <code>check.py languages</code> refuses a languages.json that differs from a fresh count or from this page.</p></section>

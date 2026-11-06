@@ -21,6 +21,7 @@ CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sq
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
+HOUSE_MAP = Path.home() / "dev" / "login-starter" / "scripts" / "languages.mjs"
 
 CHECKS = {}
 
@@ -45,9 +46,8 @@ def require(condition, message):
 
 def public_files():
     """Every file git would publish: tracked, plus new files not ignored."""
-    out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-co", "--exclude-standard"],
-                         capture_output=True, text=True, check=True).stdout
-    return [ROOT / p for p in out.splitlines() if p.strip() and (ROOT / p).is_file()]
+    from staple.report import repo_files
+    return [ROOT / p for p in repo_files(ROOT)]
 
 
 def code_files():
@@ -1203,6 +1203,223 @@ def docs():
     caught = sum(bool(f) for f in planted.values())
     print(f"  control: {caught} of {len(planted)} planted faults refused")
     require(caught == len(planted), f"the docs check passed a planted fault: {planted}")
+
+
+def example_faults(found):
+    """Each example whose hand answer disagrees with what the engine's own function computes."""
+    from staple.examples import agrees
+    out = []
+    for x in found:
+        got = x.compute()
+        if not agrees(got, x.by_hand):
+            out.append(f"{x.id}: worked by hand to {x.by_hand!r}, but {x.source} gives {got!r}")
+    return out
+
+
+EXAMPLE_ORDER = ('class="ex-words"', 'class="ex-inputs', 'class="ex-steps"', 'class="ex-answer"', 'class="formula"')
+
+
+def order_faults(page, found):
+    """Each example not drawn once, inside its own section, as words, inputs, steps, Staple's answer, then any formula."""
+    out = []
+    for x in found:
+        start = page.find(f'<div class="example" id="{x.id}">')
+        section = page.find(f'<section id="{x.section}">')
+        if page.count(f'id="{x.id}"') != 1 or not -1 < section < start < page.find("</section>", section):
+            out.append(f"{x.id}: not drawn once inside its section")
+            continue
+        end = min(i for i in (page.find('<div class="example"', start + 1), page.find("</section>", start)) if i > -1)
+        block, at = page[start:end], 0
+        for part in EXAMPLE_ORDER[:5 if x.formula else 4]:
+            nxt = block.find(part, at)
+            if nxt < 0:
+                out.append(f"{x.id}: {part.split(chr(34))[1]} missing or out of order")
+                break
+            at = nxt
+        if x.show(x.compute()) not in html_text(block):
+            out.append(f"{x.id}: the page does not print the engine's own answer")
+    return out
+
+
+@check("examples")
+def examples_check():
+    import dataclasses
+    from staple import examples, report
+    faults = example_faults(examples.EXAMPLES)
+    print(f"  {len(examples.EXAMPLES)} worked examples recomputed by the engine's own functions; "
+          f"{len(examples.EXAMPLES) - len(faults)} agree with the hand answer")
+    require(not faults, "; ".join(faults))
+    first = examples.EXAMPLES[0]
+    nudged = dataclasses.replace(first, by_hand=first.by_hand + 0.001)
+    require(example_faults([nudged]), f"control: {first.id} with its hand answer nudged by 0.001 passed")
+    print(f"  control: {first.id} with its hand answer nudged from {first.by_hand} to {nudged.by_hand} is refused")
+    _, method = report.build_manuals(report.UNSTAMPED, None)
+    shown = order_faults(method, examples.EXAMPLES)
+    print(f"  methods page: {len(examples.EXAMPLES) - len(shown)} of {len(examples.EXAMPLES)} examples in their sections, "
+          "as words, inputs, steps, Staple's answer, then the formula")
+    require(not shown, "; ".join(shown))
+    block = re.search(rf'<div class="example" id="{first.id}">.*?(?=<div class="example"|</section>)', method, re.S).group(0)
+    formula = re.search(r'<p class="ex-lead">.*?</code>', block, re.S).group(0)
+    turned = block.replace(formula, "").replace('<p class="ex-words">', formula + '<p class="ex-words">', 1)
+    require(order_faults(method.replace(block, turned, 1), [first]), "control: a formula drawn before its words passed")
+    print(f"  control: {first.id} with its formula drawn before its words is refused")
+
+
+def dead_links(pages):
+    """Every link to an anchor, on one built page or between them, that names an id its page does not hold."""
+    from staple import report
+    named = {report.FILES[k]: page for k, page in pages.items()}
+    out = []
+    for kind, page in pages.items():
+        for target, anchor in re.findall(r'href="([\w-]+\.html)?#([^"]+)"', page):
+            if target in report.FILES.values() and f'id="{anchor}"' not in named.get(target or report.FILES[kind], ""):
+                out.append(f"{report.FILES[kind]} to {target or 'itself'}#{anchor}")
+            elif not target and f'id="{anchor}"' not in page:
+                out.append(f"{report.FILES[kind]} to itself#{anchor}")
+    return out
+
+
+@check("links")
+def links():
+    from staple import report
+    manual, method = report.build_manuals(report.UNSTAMPED, None)
+    pages = {"manual": manual, "method": method}
+    into = re.findall(rf'href="{report.FILES["method"]}#([^"]+)"', manual)
+    dead = dead_links(pages)
+    print(f"  {len(into)} links from the manual into the methods page, "
+          f"{sum(len(re.findall(r'href=.#', p)) for p in pages.values())} within a page; {len(dead)} lead nowhere")
+    require(into and not dead, "links that lead nowhere: " + ", ".join(dead))
+    planted = manual.replace(f'href="{report.FILES["method"]}#{into[0]}"', f'href="{report.FILES["method"]}#ex-nowhere"', 1)
+    require(dead_links({"manual": planted, "method": method}) == [f"manual.html to method.html#ex-nowhere"],
+            "control: a manual link to an anchor the methods page lacks passed")
+    print(f"  control: a manual link turned from #{into[0]} to #ex-nowhere is refused")
+
+
+def house_map(text):
+    """The house map's two tables, read as text, because running the script writes its own inventory."""
+    tables = []
+    for name in ("CODE", "FORMATS"):
+        body = re.search(rf"export const {name} = \{{(.*?)\n\}}", text, re.S).group(1)
+        tables.append({a or b: v for a, b, v in re.findall(r"(?:'([^']*)'|(\w+))\s*:\s*'([^']*)'", body)})
+    return tables
+
+
+def house_disagreements(code, formats, house_code, house_formats):
+    """Where Staple's map and the house map name a kind differently: another language, or code against a format."""
+    faults = [f".{k} is {lang} here but {house_code.get(k) or house_formats.get(k) or 'unnamed'} in the house map"
+              for k, lang in code.items() if house_code.get(k) != lang.lower()]
+    return faults + [f".{k} is a format here but {house_code[k]} code in the house map" for k in formats if k in house_code]
+
+
+SUBPROCESS_CALLS = {"run", "Popen", "call", "check_call", "check_output"}
+
+
+def programs_started(source):
+    """The programs a Python source starts through subprocess: a literal name, the name given to shutil.which, or the
+    variable that holds the path. Python itself, as sys.executable, is left out."""
+    # ponytail: it reads Python's subprocess calls only, so a Bash script that starts a new program passes; reading
+    # each Bash line's first word against the shell's own commands is the upgrade.
+    found = set()
+    for node in ast.walk(ast.parse(source)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in SUBPROCESS_CALLS
+                and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+            continue
+        first = node.args[0].elts[0] if node.args and isinstance(node.args[0], ast.List) and node.args[0].elts else None
+        first = first.values[0] if isinstance(first, ast.BoolOp) else first
+        first = first.args[0] if isinstance(first, ast.Call) and first.args else first
+        if isinstance(first, ast.Attribute) and ast.unparse(first) == "sys.executable":
+            continue
+        name = first.value if isinstance(first, ast.Constant) else first.id if isinstance(first, ast.Name) else None
+        found.add(str(name).lower() if name else f"a command at line {node.lineno} the scan cannot read")
+    return found
+
+
+def program_faults(started):
+    from staple.report import PROGRAMS
+    return ([f"the code starts {p} with no purpose line in report.PROGRAMS" for p in sorted(started - set(PROGRAMS))]
+            + [f"report.PROGRAMS has a line for {p}, which nothing starts" for p in sorted(set(PROGRAMS) - started)])
+
+
+def section_faults(counts):
+    """Each language the repository holds that no place on the code languages page describes."""
+    from staple.report import LANGUAGE_ABOUT, PLACES
+    placed = {lang for _, _, langs, _ in PLACES for lang in langs}
+    return [f"{lang} has {n} files and no section on the code languages page" for lang, n in counts.items()
+            if n and not (lang in placed and lang in LANGUAGE_ABOUT)]
+
+
+def json_faults(data, page):
+    """Where the published counts disagree with the code languages page: a count, or the sentence."""
+    made = re.search(r'<section id="made-of">.*?</section>', page, re.S)
+    shown = {lang: int(n) for lang, n in re.findall(r"<tr><td>([^<]+)</td><td>(\d+)</td>", made.group(0))} if made else {}
+    counts = {k: v for k, v in data.get("counts", {}).items() if v}
+    faults = [] if shown == counts else [f"counts {counts} against the page's {shown}"]
+    return faults + ([] if data.get("sentence") and data["sentence"] in html_text(page) else ["a sentence the page does not carry"])
+
+
+@check("languages")
+def languages_check():
+    import json
+    import warnings
+    from staple import report
+    files = report.repo_files()
+    found = report.languages(files)
+    counts = {lang: len(p) for lang, p in found["code"].items()}
+    print(f"  {len(files)} files git would publish; code outside docs/: " + ", ".join(f"{n} {lang}" for lang, n in counts.items()))
+    print("  not code: " + ", ".join(f"{len(p)} {k}" for k, p in found["formats"].items())
+          + f"; the published copy in docs/: {len(found['published'])}")
+    require(not found["unknown"], f"file kinds no map names: {found['unknown']}; name each in report.CODE_LANGUAGES or FORMATS")
+    require(report.languages(files + ["staple/planted.rb"])["unknown"] == ["staple/planted.rb"],
+            "control: a planted .rb file was not refused")
+    print("  control: a planted .rb file is refused as a kind no map names")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, warnings.catch_warnings(record=True) as said:
+        warnings.simplefilter("always")
+        for name in ("keep.py", "out/skip.py", "skip.pyc", ".gitignore"):
+            (Path(tmp) / name).parent.mkdir(exist_ok=True)
+            (Path(tmp) / name).write_text("out/\n*.pyc\n" if name == ".gitignore" else "", encoding="utf-8")
+        walked = report.repo_files(Path(tmp))
+    require(walked == [".gitignore", "keep.py"] and any("walked" in str(w.message) for w in said),
+            f"control: a folder with no git gave {walked} and {len(said)} warnings")
+    print("  control: a folder with no git is walked past what .gitignore names, and the run warns that it was")
+
+    sections = section_faults(counts)
+    print(f"  code languages page: {len(counts) - len(sections)} of {len(counts)} languages described where they run")
+    require(not sections, "; ".join(sections))
+    require(section_faults({**counts, "Ruby": 1}) == ["Ruby has 1 files and no section on the code languages page"],
+            "control: a language with no section passed")
+    print("  control: a language held with no section is refused")
+    sources = [p for p in code_files() + [ROOT / "check.py"] if p.suffix == ".py"]
+    started = set().union(*(programs_started(p.read_text(encoding="utf-8")) for p in sources))
+    unnamed = program_faults(started)
+    print(f"  programs the Python code starts: {', '.join(sorted(started))}; {len(unnamed)} faults")
+    require(not unnamed, "; ".join(unnamed))
+    planted = programs_started('import subprocess\nsubprocess.run(["ffmpeg", "-i", "in.mp4"])\n')
+    require(program_faults(started | planted) == ["the code starts ffmpeg with no purpose line in report.PROGRAMS"],
+            f"control: a planted start of ffmpeg was read as {planted}")
+    print("  control: a planted start of ffmpeg with no purpose line is refused")
+
+    page, data = (report.PUBLISHED / n for n in (report.FILES["languages"], report.LANGUAGES_JSON))
+    require(page.exists() and data.exists(), f"docs/ has no {page.name} or {data.name}; run python run.py --pages")
+    page, data = page.read_text(encoding="utf-8"), json.loads(data.read_text(encoding="utf-8"))
+    require(data == report.languages_json(found), "docs/languages.json differs from a fresh count; run python run.py --pages")
+    disagree = json_faults(data, page)
+    print(f"  docs/{report.LANGUAGES_JSON}: matches a fresh count; against the published page: {disagree or 'agrees'}")
+    require(not disagree, "; ".join(disagree))
+    bent = dict(data, counts={**data["counts"], "Python": data["counts"]["Python"] + 1})
+    require(json_faults(bent, page), "control: a JSON with one count off passed against the page")
+    print("  control: a JSON with the Python count one off is refused against the page")
+
+    if not HOUSE_MAP.exists():
+        print(f"  WARN house map: {HOUSE_MAP} is not on this machine, so Staple's map was not compared with it")
+        return
+    house = house_map(HOUSE_MAP.read_text(encoding="utf-8"))
+    faults = house_disagreements(report.CODE_LANGUAGES, report.FORMATS, *house)
+    alone = sorted(f".{k}" if k else "no extension" for k in report.FORMATS if k not in house[0] and k not in house[1])
+    print(f"  against the house map: {len(faults)} disagreements; kinds only Staple names: {', '.join(alone) or 'none'}")
+    require(not faults, "; ".join(faults))
+    require(house_disagreements({**report.CODE_LANGUAGES, "sh": "PowerShell"}, report.FORMATS, *house),
+            "control: a map calling .sh PowerShell agreed with the house map")
+    print("  control: a map that calls .sh PowerShell is refused")
 
 
 def clean_git_env():
