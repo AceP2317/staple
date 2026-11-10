@@ -5,6 +5,7 @@ check can still fail: a check that never fails looks exactly like one that sees 
 """
 import ast
 from collections import Counter, defaultdict
+import datetime
 from html.parser import HTMLParser
 import os
 import re
@@ -880,16 +881,16 @@ def missing_hints(page, kind):
 
 
 def page_faults(page, pattern, kind="report"):
-    """What a page must carry: the house stamp in its own pattern (or, where the stamp is not installed,
-    the words that say so), the day its results last changed, a hint on everything a reader would hover,
+    """What a page must carry: the build stamp in its own pattern (or, where git holds no history, the
+    words that say so), the day its results last changed, a hint on everything a reader would hover,
     every placeholder filled, nothing fetched from the network, and on the report a made-up label and a
     table on every chart."""
     from staple import report
     faults = []
     found = re.search(r'<span class="build-stamp"[^>]*>([^<]*)</span>', page)
     shown = html_text(found.group(1)) if found else None
-    if not shown or not (re.fullmatch(pattern, shown) if pattern else shown == report.UNSTAMPED):
-        faults.append("no house build stamp")
+    if not shown or not (re.fullmatch(pattern, shown) if pattern else shown == report.NO_HISTORY):
+        faults.append("no build stamp")
     day = re.search(r'<span class="content-day"[^>]*>([^<]*)</span>', page)
     if not day or not (re.fullmatch(r"[1-9]\d? [A-Z][a-z]{2} \d{4}", day.group(1))
                        or (not pattern and day.group(1) == "unknown")):
@@ -996,12 +997,11 @@ def html_text(s):
 
 
 def without_stamp(page):
-    """The page with its own stamp and results day blanked, so a copy built at another commit compares
-    equal when, and only when, everything else on it is the same."""
-    for cls, mark in (("build-stamp", "{STAMP}"), ("content-day", "{DAY}")):
-        found = re.search(rf'<span class="{cls}"[^>]*>([^<]*)</span>', page)
-        if found and found.group(1):
-            page = page.replace(found.group(1), mark)
+    """The page with its stamp and results-day spans emptied, hints included, so a copy built at another
+    commit compares equal when, and only when, everything else on it is the same. Only those two spans are
+    touched: the same words in a sentence elsewhere on the page stay as they are."""
+    for cls in ("build-stamp", "content-day"):
+        page = re.sub(rf'<span class="{cls}"[^>]*>[^<]*</span>', f'<span class="{cls}"></span>', page)
     return page
 
 
@@ -1015,6 +1015,90 @@ def stale_pages(fresh, folder):
     return out
 
 
+def scratch_history(folder):
+    """A small repository built with git's plumbing, which runs no hooks: commit(path, when) saves one file
+    as one change dated when, and returns the change's code."""
+    env = dict(clean_git_env(), GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+    head = []
+
+    def git(*args, when=None):
+        dated = dict(env, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when) if when else env
+        r = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True, env=dated)
+        require(r.returncode == 0, f"git {args[0]} failed in the scratch repository: {r.stderr.strip()[:200]}")
+        return r.stdout.strip()
+
+    def commit(path, when):
+        (folder / path).parent.mkdir(parents=True, exist_ok=True)
+        (folder / path).write_text(when, encoding="utf-8")
+        git("add", path)
+        made = git("commit-tree", git("write-tree"), "-m", path, *(["-p", head[-1]] if head else []), when=when)
+        git("update-ref", "HEAD", made)
+        head.append(made)
+        return made
+
+    git("init", "-q")
+    return commit
+
+
+@check("stamp")
+def stamp_check():
+    from staple import report
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        repo, bare = Path(tmp) / "repo", Path(tmp) / "bare"
+        repo.mkdir()
+        bare.mkdir()
+        commit = scratch_history(repo)
+        commit("run.py", "2026-09-01T12:00:00-04:00")
+        code = commit("staple/x.py", "2026-10-02T23:30:00-04:00")    # already 3 Oct in UTC: the day is the change's own
+        expected = f"Build 2 · 2 Oct 2026 · {code[:7]}"
+        text, day, pattern, warned = report.stamp(repo)
+        print(f"  a scratch history of two changes is stamped \"{text}\", results last changed {day}")
+        require(text == expected and day == "2 Oct 2026" and not warned, f"expected \"{expected}\" and 2 Oct 2026 with no warning")
+        require(re.fullmatch(pattern, text), "the stamp does not fit its own pattern")
+
+        commit("docs/index.html", "2026-10-05T09:00:00-04:00")
+        require(report.stamp(repo)[0] == expected, "committing only the published copy moved the stamp")
+        print("  committing only the published copy leaves the stamp as it was")
+        third = commit("check.py", "2026-10-06T09:00:00-04:00")
+        moved = report.stamp(repo)
+        require(moved[0] == f"Build 4 · 6 Oct 2026 · {third[:7]}" and moved[1] == "2 Oct 2026",
+                f"control: a change outside the published copy should move the stamp and leave the results day, got {moved[:2]}")
+        print(f"  control: a change outside the published copy moves it to \"{moved[0]}\"; the results day stays {moved[1]}")
+
+        (repo / "docs" / "new.html").write_text("x", encoding="utf-8")
+        require(not report.stamp(repo)[0].endswith("+"), "an unsaved file in the published copy alone added a +")
+        (repo / "staple" / "y.py").write_text("x", encoding="utf-8")
+        unsaved = report.stamp(repo)
+        today = report.pretty_day(datetime.date.today().isoformat())
+        require(unsaved[0] == moved[0] + "+" and unsaved[1] == today, f"unsaved code should add a + and date the results today, got {unsaved[:2]}")
+        print(f"  unsaved code adds a +: \"{unsaved[0]}\"; an unsaved file in the published copy alone does not")
+
+        (repo / ".git" / "shallow").write_text(third + "\n", encoding="utf-8")
+        cut = report.stamp(repo)
+        require(cut[0] == f"6 Oct 2026 · {third[:7]}+" and cut[3] and re.fullmatch(pattern, cut[0]),
+                f"a copy holding part of its history should carry no build number and say why, got {cut[0]!r}")
+        print(f"  a copy holding part of its history is stamped \"{cut[0]}\" and warns")
+
+        none = report.stamp(bare)
+        require(none[0] == report.NO_HISTORY and none[2] is None and none[3], f"a folder with no history should say so, got {none[0]!r}")
+        require(not re.fullmatch(report.STAMP_RE, report.NO_HISTORY), "control: the no-history words fit the stamp pattern")
+        print(f"  a folder with no history says \"{none[0]}\" and warns; those words do not fit the stamp pattern")
+
+    here = report.stamp()
+    print(f"  this repository: \"{here[0]}\", results last changed {here[1]}" + "".join(f"; warning: {w}" for w in here[3]))
+    require(here[0] == report.NO_HISTORY or re.fullmatch(here[2], here[0]), "this repository's stamp fits no known shape")
+
+    one, _ = report.build_manuals("Build 1 · 1 Sep 2026 · abcdef1", "1 Sep 2026")
+    two, _ = report.build_manuals("Build 9 · 9 Oct 2026 · 1234567+", "9 Oct 2026")
+    require(one != two and without_stamp(one) == without_stamp(two),
+            "two builds that differ only in their stamps do not compare equal once the stamps are emptied")
+    said = one.replace("</main>", f"<p>{report.NO_HISTORY}</p><p>Build 1 · 1 Sep 2026 · abcdef1</p></main>", 1)
+    require(without_stamp(said) != without_stamp(one), "control: a stamp's words in a sentence elsewhere were emptied too")
+    print("  two builds differing only in their stamps compare equal once the stamps are emptied; "
+          "control: the same words in a sentence elsewhere are left alone, so that page still differs")
+
+
 @check("report")
 def report_check():
     from staple import metrics, report
@@ -1025,10 +1109,8 @@ def report_check():
         text, day, pattern, warnings = report.stamp()
         for w in warnings:
             print(f"  stamp warning: {w}")
-        if report.STAMP_MODULE.exists():
-            require(pattern, "the house build stamp is installed but did not answer, so the pages would go out unstamped")
-        else:
-            print(f"  build stamp: SKIPPED, the house stamp is not on this machine, so the pages must say '{report.UNSTAMPED}'")
+        if not pattern:
+            print(f"  build stamp: git holds no history here, so the pages must say '{report.NO_HISTORY}'")
         week, _ = shared_week()
         pages = report.build(results, week, text, day)
         for kind, page in pages.items():
@@ -1253,7 +1335,7 @@ def examples_check():
     nudged = dataclasses.replace(first, by_hand=first.by_hand + 0.001)
     require(example_faults([nudged]), f"control: {first.id} with its hand answer nudged by 0.001 passed")
     print(f"  control: {first.id} with its hand answer nudged from {first.by_hand} to {nudged.by_hand} is refused")
-    _, method = report.build_manuals(report.UNSTAMPED, None)
+    _, method = report.build_manuals(report.NO_HISTORY, None)
     shown = order_faults(method, examples.EXAMPLES)
     print(f"  methods page: {len(examples.EXAMPLES) - len(shown)} of {len(examples.EXAMPLES)} examples in their sections, "
           "as words, inputs, steps, Staple's answer, then the formula")
@@ -1282,7 +1364,7 @@ def dead_links(pages):
 @check("links")
 def links():
     from staple import report
-    manual, method = report.build_manuals(report.UNSTAMPED, None)
+    manual, method = report.build_manuals(report.NO_HISTORY, None)
     pages = {"manual": manual, "method": method}
     into = re.findall(rf'href="{report.FILES["method"]}#([^"]+)"', manual)
     dead = dead_links(pages)

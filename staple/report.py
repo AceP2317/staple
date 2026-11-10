@@ -2,7 +2,7 @@
 
 Every figure on the report comes from a query in sql/metrics/, and every constant the manuals quote is read
 from the code that uses it, so no page can state a number the code does not. The pages load nothing from the
-network, carry the house build stamp, label every chart as made-up data, and give nearly every element a
+network, carry a build stamp read from git, label every chart as made-up data, and give nearly every element a
 hover hint with the data behind it.
 """
 import datetime as dt
@@ -25,16 +25,16 @@ ROOT = Path(__file__).resolve().parent.parent
 PAGES = Path(__file__).resolve().parent / "pages"
 FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html", "languages": "languages.html"}
 PUBLISHED = ROOT / "docs"      # the copy the repository serves as its web page; `python run.py --pages` writes it
-UNSTAMPED = "unstamped build"
+NO_HISTORY = "a copy with no saved history"   # what the stamp says where git cannot answer, such as a downloaded zip
+STAMP_RE = (r"(?:Build [1-9]\d* · )?[1-9]\d? (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} "
+            r"· [0-9a-f]{7,12}\+?")
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 WEIGHT_LIMIT = 2_000_000    # bytes a published page may weigh: what a phone should load for one page
 PAGES_URL = "https://acep2317.github.io/staple/"   # where GitHub Pages serves docs/, read from its API when turned on
 LEDE = "Plans a repair fleet's next day: who takes each call, what each truck carries, and what people do before 08:00."
 CARD, CARD_VERSION, CARD_SIZE = "card.png", 1, (1200, 630)   # bump CARD_VERSION whenever the card's pixels change
 STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, as bars on a 32-unit square
-# The author's house build stamp, read in place from its one copy and never re-implemented here. On a
-# machine without it the page says "unstamped build" and the run prints why, rather than leaving it blank.
-STAMP_MODULE = Path.home() / "dev" / "login-starter" / "lib" / "house" / "build-stamp.cjs"
-SOURCES = ["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
+SOURCES =["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
 # Every file kind by extension, named as the house map in login-starter names it; `check.py languages` refuses any other.
 CODE_LANGUAGES = {"py": "Python", "sql": "SQL", "js": "JavaScript", "sh": "Bash", "html": "HTML", "css": "CSS"}
 FORMATS = {"json": "Data files (JSON)", "md": "Written notes (Markdown)", "png": "Pictures", "svg": "Pictures",
@@ -78,19 +78,12 @@ LANGUAGE_ABOUT = {   # what each language is, then what it does in this build
              "The guard runner starts the repository's guards before each commit, and each guard is one script."),
 }
 PROGRAMS = {   # every program the code starts, as `check.py languages` finds it in the code, and what it does here
-    "git": ("git", "Lists the repository's files for these counts and the names scan, and clones the public "
-                   "repository fresh for check.py fresh-clone."),
-    "node": ("Node.js (node)", "Runs the house build stamp from the author's toolkit to stamp each page. The "
-                               "hover-tip guard also runs the house tap check with it."),
+    "git": ("git", "Lists the repository's files for these counts and the names scan, reads each page's build stamp "
+                   "from the history, and clones the public repository fresh for check.py fresh-clone."),
     "chrome": ("Chrome", "Photographs the share card in python run.py --card, the one build step outside Python."),
     "claude": ("Claude Code (claude)", "Built the saved answers and follow-up questions with python -m staple.triage "
                                        "build, on a subscription rather than a key."),
 }
-_STAMP_JS = ("const s=require(process.argv[1]);const r=s.readBuildStamp({cwd:process.argv[2]});"
-             "const d=s.fileDays({cwd:process.argv[2],under:JSON.parse(process.argv[3])});"
-             "const last=d?Object.values(d).sort().pop():null;"
-             "process.stdout.write(JSON.stringify({text:r.text,warnings:r.warnings,re:s.STAMP_RE.source,"
-             "day:last?s.prettyDay(last):null}))")
 e = html.escape
 
 GLOSSARY = {
@@ -180,6 +173,7 @@ CHECK_ABOUT = {
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
     "plan": "The week's plan, coded by Claude and replayed. Every call carries Claude's code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay's; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run's on the same days. Each rule has a planted fault that must be caught.",
     "sql": "Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.",
+    "stamp": "The build stamp is read from git alone. On a scratch history it must give the count, day and code of the last change outside the published copy; committing only that copy must leave it alone; unsaved code must add a +; a partial history must drop the count and warn; and a folder with no history must say so. Two builds that differ only in their stamps must compare equal once the stamps are emptied.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
@@ -238,20 +232,48 @@ def about(name):
     return " ".join(head)
 
 
-def stamp(root=ROOT):
-    """(stamp, the day the pages' sources last changed, the stamp pattern, warnings)."""
-    if not STAMP_MODULE.exists():
-        return UNSTAMPED, None, None, [f"the house build stamp is not on this machine, so the pages say '{UNSTAMPED}'"]
+def git_answer(root, *args):
+    """What git prints for this folder, or None when git is missing, fails, or holds no history here. Inside a
+    commit hook git's own variables point at the repository being committed whatever -C says, so they are dropped."""
+    env = {k: v for k, v in os.environ.items()
+           if not re.fullmatch(r"GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|OBJECT_DIRECTORY|COMMON_DIR)", k)}
     try:
-        r = subprocess.run(["node", "-e", _STAMP_JS, str(STAMP_MODULE), str(root), json.dumps(SOURCES)],
-                           capture_output=True, text=True, encoding="utf-8", timeout=60)
-        j = json.loads(r.stdout or "{}")
-    except (OSError, ValueError, subprocess.SubprocessError) as err:
-        return UNSTAMPED, None, None, [f"the house build stamp could not be run: {err}"]
-    warnings = list(j.get("warnings") or [])
-    if r.returncode:
-        warnings.append(f"node exited {r.returncode}: {(r.stderr or '').strip()[:300]}")
-    return j.get("text") or UNSTAMPED, j.get("day"), j.get("re"), warnings
+        r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8",
+                           env=env, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def pretty_day(day):
+    """2026-11-06 written as 6 Nov 2026."""
+    year, month, date = day.split("-")
+    return f"{int(date)} {MONTHS[int(month) - 1]} {year}"
+
+
+def stamp(root=ROOT):
+    """(stamp, the day the pages' sources last changed, the stamp pattern, warnings), all read from git.
+
+    The stamp names the last change outside docs/, the published copy: how many changes the history held at
+    that change, the day it was made, and its short code. Committing the published copy therefore leaves the
+    stamp alone, so a fresh clone of the published repository builds the stamp its live pages carry. A + marks
+    work not yet committed. Where git holds no history, the stamp says so and the run prints why."""
+    outside = [".", f":(exclude){PUBLISHED.name}"]
+    last = git_answer(root, "log", "-1", "--format=%H %cs", "--", *outside)
+    if not last:
+        return NO_HISTORY, None, None, [f"git holds no history for this folder, so the pages say '{NO_HISTORY}'"]
+    commit, day = last.split()
+    found, number = [], None
+    if git_answer(root, "rev-parse", "--is-shallow-repository") == "false":
+        number = git_answer(root, "rev-list", "--count", commit)
+    else:
+        found.append("this copy holds only part of its history, so the stamp carries no build number; "
+                     "`git fetch --unshallow` fetches the rest")
+    unsaved = "+" if git_answer(root, "status", "--porcelain", "--", *outside) else ""
+    text = (f"Build {number} · " if number else "") + f"{pretty_day(day)} · {commit[:7]}{unsaved}"
+    saved = git_answer(root, "log", "-1", "--format=%cs", "--", *SOURCES)
+    changed = dt.date.today().isoformat() if git_answer(root, "status", "--porcelain", "--", *SOURCES) else saved
+    return text, pretty_day(changed) if changed else None, STAMP_RE, found
 
 
 def tile(label, term, value, sub, tip):
@@ -324,7 +346,7 @@ def curve(points, jobs):
 
 
 def stamp_line(stamp_text, day):
-    return (f'<p class="stamp"><span class="build-stamp"{tipattr(stamp_text + chr(10) + "The build that made this page: how many changes this repository has had, the day it was built (Eastern time) and the change it was built from. A + means it was built from changes not yet saved.")}>'
+    return (f'<p class="stamp"><span class="build-stamp"{tipattr(stamp_text + chr(10) + "The build that made this page: how many changes the repository held at the change it was built from, the day of that change, and its short code. A + means it was built from changes not yet saved. A fresh clone of the repository builds this same stamp.")}>'
             f'{e(stamp_text)}</span> · results last changed <span class="content-day"{tipattr((day or "unknown") + chr(10) + "The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it.")}>'
             f'{e(day or "unknown")}</span></p>')
 
