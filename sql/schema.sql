@@ -78,7 +78,7 @@ CREATE TABLE jobs (
   noise            TEXT NOT NULL,   -- none, misdescribed or random: known only because it is made up
   tech             TEXT NOT NULL REFERENCES techs(tech),
   parts_on_truck   INTEGER NOT NULL, -- 1 if every needed part was on that truck
-  first_time_fix  INTEGER NOT NULL,
+  first_time_fix   INTEGER NOT NULL,
   split            TEXT NOT NULL    -- train (first 33 months) or test (last 3)
 );
 
@@ -87,6 +87,17 @@ CREATE TABLE job_parts (
   part TEXT NOT NULL REFERENCES parts(part),
   PRIMARY KEY (job, part)
 );
+
+-- What history recorded about each repair that failed for a missing part: when the part was ordered, and
+-- when the technician came back with it. A repair that had its parts has no row here.
+CREATE TABLE waits (
+  job              INTEGER PRIMARY KEY REFERENCES jobs(job),
+  order_day        TEXT NOT NULL,   -- the day the missing part was ordered: the visit day or the next morning
+  repeat_visit_day TEXT NOT NULL    -- the day of the repeat visit, when the last ordered part arrived
+);
+
+-- Every made-up lead time: the share of part orders that arrive this many days after they are placed.
+CREATE TABLE lead_times (days INTEGER PRIMARY KEY, share REAL NOT NULL);
 
 CREATE INDEX jobs_split_type ON jobs(split, type);
 CREATE INDEX job_parts_job ON job_parts(job);

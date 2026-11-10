@@ -3,6 +3,7 @@
 Everything here is invented: no real company, brand, model or part number. A fixed seed means
 every run writes the same rows, so every number downstream can be reproduced.
 """
+from collections import defaultdict
 import datetime as dt
 import math
 import random
@@ -223,6 +224,9 @@ CAPACITY = 90                    # truck space units
 STOCK_FILL = 0.9                 # today's trucks are kept 90% full; the rest is room for special orders
 BACKORDER_STARTS = 0.01          # chance a day that a part the centers stock goes on back-order (made up)
 BACKORDER_DAYS = (3, 14)         # a back-order lasts between these many days (made up)
+ORDER_NEXT_DAY = 0.25            # share of missing parts ordered the morning after the visit, not on the day (made up)
+LEAD_TIMES = {1: 0.30, 2: 0.30, 3: 0.20, 5: 0.12, 8: 0.08}   # days an ordered part takes to arrive: share of orders (made up)
+WAITS_STREAM = 15                # added to the seed for the stream the order and repeat-visit days are drawn from
 
 
 def part_id(appliance, name):
@@ -251,7 +255,9 @@ def pick_parts(rng, weights, weak_part):
     return [first, rng.choices(rest, [weights[n] for n in rest])[0]]
 
 
-def build(conn, seed=SEED):
+def build(conn, seed=SEED, waits=True):
+    """waits=False leaves out the order and repeat-visit days. Only a check builds that way, to show that
+    adding the two days moved no other row."""
     rng = random.Random(seed)
     with open(_schema_path(), encoding="utf-8") as f:
         conn.executescript(f.read())
@@ -310,7 +316,38 @@ def build(conn, seed=SEED):
     conn.executemany("INSERT INTO job_parts VALUES (?,?)", job_parts)
 
     _build_centers(conn, rng)
+    if waits:
+        _build_waits(conn, random.Random(seed + WAITS_STREAM), jobs, job_parts, techs)
     conn.commit()
+
+
+def _build_waits(conn, rng, jobs, job_parts, techs):
+    """What history recorded about a repair that failed for a missing part: the day the part was ordered and the
+    day of the repeat visit. The order goes in on the visit day or the next morning. Each ordered part then takes
+    a lead time to arrive, counted from the day a center can ship it where the part is on back-order, and the
+    repeat visit falls on the day the last one arrives. The draws come from a stream of their own, so no other
+    row moves when these are added."""
+    conn.executemany("INSERT INTO lead_times VALUES (?,?)", LEAD_TIMES.items())
+    stuck = defaultdict(list)
+    for part, starts, ships in conn.execute("SELECT part, starts, ships FROM backorders"):
+        stuck[part].append((starts, ships))
+    needed = defaultdict(list)
+    for job, part in job_parts:
+        needed[job].append(part)
+    days, shares = zip(*LEAD_TIMES.items())
+    rows = []
+    for job, day, _, _, _, _, _, _, _, tech, on_truck, _, _ in jobs:
+        if on_truck:
+            continue
+        ordered = dt.date.fromisoformat(day) + dt.timedelta(days=int(rng.random() < ORDER_NEXT_DAY))
+        back = ordered
+        for part in needed[job]:
+            if part in techs[tech]["stock"]:
+                continue
+            ships = next((dt.date.fromisoformat(end) for start, end in stuck[part] if start <= str(ordered) < end), ordered)
+            back = max(back, ships + dt.timedelta(days=rng.choices(days, shares)[0]))
+        rows.append((job, str(ordered), str(back)))
+    conn.executemany("INSERT INTO waits VALUES (?,?,?)", rows)
 
 
 def _schema_path():

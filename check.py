@@ -349,7 +349,7 @@ def built_world(path):
 def digest(conn):
     import hashlib
     h = hashlib.sha256()
-    for table in ("jobs", "job_parts", "techs", "tech_skills", "truck_stock", "backorders"):
+    for table in ("jobs", "job_parts", "techs", "tech_skills", "truck_stock", "backorders", "waits"):
         for row in conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2"):
             h.update(repr(row).encode())
     return h.hexdigest()
@@ -2647,6 +2647,125 @@ def report_check():
             (drifted / name).write_text(changed, encoding="utf-8")
         require(stale_pages(pages, drifted) == ["index.html"], "control: a published copy with one figure changed passed as current")
         print("  control: a published copy with one figure changed is refused as stale")
+
+
+def columns_of(conn):
+    """Every table's values by column, as {table.column: [values in row order]}."""
+    out = {}
+    for (table,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").fetchall():
+        names = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+        rows = conn.execute(f"SELECT * FROM {table} ORDER BY {', '.join(str(i + 1) for i in range(len(names)))}").fetchall()
+        out.update({f"{table}.{name}": [r[i] for r in rows] for i, name in enumerate(names)})
+    return out
+
+
+def wait_faults(conn):
+    """Where the recorded waits break their own rules, as {rule: repairs that break it}."""
+    from staple import world
+    count = lambda sql: one(conn, sql)
+    faults = {
+        "lacked a part and has no dates": count(
+            "SELECT COUNT(*) FROM jobs j LEFT JOIN waits w USING (job) WHERE j.parts_on_truck = 0 AND w.job IS NULL"),
+        "had its parts and has dates": count(
+            "SELECT COUNT(*) FROM jobs j JOIN waits w USING (job) WHERE j.parts_on_truck = 1"),
+        "ordered before the visit or more than a day after": count(
+            "SELECT COUNT(*) FROM jobs j JOIN waits w USING (job) "
+            "WHERE julianday(w.order_day) - julianday(j.day) NOT IN (0, 1)"),
+        "came back on or before the order day": count("SELECT COUNT(*) FROM waits WHERE repeat_visit_day <= order_day")}
+    # Each waiting repair with the latest day a center could first ship one of its missing parts, where one was stuck.
+    rows = conn.execute("""SELECT julianday(w.repeat_visit_day) - julianday(w.order_day),
+                                  julianday(w.repeat_visit_day) - julianday(MAX(b.ships))
+                           FROM waits w JOIN jobs j USING (job) JOIN job_parts jp USING (job)
+                           JOIN trucks t ON t.tech = j.tech
+                           LEFT JOIN truck_stock s ON s.truck = t.truck AND s.part = jp.part
+                           LEFT JOIN backorders b ON b.part = jp.part AND b.starts <= w.order_day AND w.order_day < b.ships
+                           WHERE s.part IS NULL GROUP BY j.job""").fetchall()
+    faults["arrived after no made-up lead time"] = sum(1 for wait, after in rows if after is None and wait not in world.LEAD_TIMES)
+    faults["arrived before a center could ship it"] = sum(1 for _, after in rows if after is not None and after < min(world.LEAD_TIMES))
+    return {rule: n for rule, n in faults.items() if n}
+
+
+@check("history-dates")
+def history_dates():
+    """The order day and the repeat-visit day of each repair that failed for a missing part are in the history,
+    obey their rules, and moved no other row when they were added."""
+    from staple import db, world
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        conn, bare = built_world(Path(tmp) / "with.db"), db.fresh(Path(tmp) / "without.db")
+        world.build(bare, waits=False)
+        ours, theirs = columns_of(conn), columns_of(bare)
+        new = sorted(c for c in ours if c.split(".")[0] in ("waits", "lead_times"))
+        shared = [c for c in ours if c not in new]
+        moved = [c for c in shared if ours[c] != theirs.get(c)]
+        tables = len({c.split(".")[0] for c in shared})
+        print(f"  the world built with and without the two days: {len(shared)} other columns in {tables} tables, {len(moved)} "
+              f"hold different values; the new columns are {', '.join(new)}")
+        require(len(new) == 5 and not any(theirs[c] for c in new), f"the build without the days still wrote them: {new}")
+        require(shared and not moved, f"adding the days moved other rows: {moved[:5]}")
+        bare.execute("UPDATE jobs SET zone = zone + 1 WHERE job = 7")
+        bent = columns_of(bare)
+        require([c for c in shared if ours[c] != bent[c]] == ["jobs.zone"], "control: a build with one value changed compared equal")
+        bare.close()
+        print("  control: a build with one job's zone changed is refused, on that column alone")
+
+        waiting = one(conn, "SELECT COUNT(*) FROM waits")
+        lacked = one(conn, "SELECT COUNT(*) FROM jobs WHERE parts_on_truck = 0")
+        faults = wait_faults(conn)
+        print(f"  {lacked:,} repairs lacked a part and {waiting:,} carry an order day and a repeat-visit day; rules broken: {faults or 'none'}")
+        require(waiting == lacked and not faults, f"the recorded waits break their rules: {faults}")
+        held = conn.execute("""SELECT w.job, MAX(b.ships) FROM waits w JOIN jobs j USING (job) JOIN job_parts jp USING (job)
+                               JOIN trucks t ON t.tech = j.tech
+                               LEFT JOIN truck_stock s ON s.truck = t.truck AND s.part = jp.part
+                               JOIN backorders b ON b.part = jp.part AND b.starts <= w.order_day AND w.order_day < b.ships
+                               WHERE s.part IS NULL GROUP BY w.job ORDER BY w.job""").fetchall()
+        print(f"  {len(held):,} of them waited on a part no center could ship on the order day, and each came back after it shipped")
+        require(held, "no repair waited on a back-ordered part, so that rule was not exercised")
+
+        # Where one part was missing and no back-order held it, the wait is one draw from the made-up table.
+        single = conn.execute("""SELECT julianday(w.repeat_visit_day) - julianday(w.order_day), COUNT(*)
+                                 FROM waits w WHERE w.job IN (
+                                   SELECT j.job FROM jobs j JOIN job_parts jp USING (job) JOIN trucks t ON t.tech = j.tech
+                                   LEFT JOIN truck_stock s ON s.truck = t.truck AND s.part = jp.part
+                                   LEFT JOIN waits x ON x.job = j.job
+                                   LEFT JOIN backorders b ON b.part = jp.part AND b.starts <= x.order_day AND x.order_day < b.ships
+                                   WHERE s.part IS NULL GROUP BY j.job HAVING COUNT(*) = 1 AND COUNT(b.part) = 0)
+                                 GROUP BY 1""").fetchall()
+        total = sum(n for _, n in single)
+        off = {int(d): abs(n / total - world.LEAD_TIMES.get(int(d), 0)) for d, n in single}
+        late = one(conn, "SELECT AVG(w.order_day > j.day) FROM waits w JOIN jobs j USING (job)")
+        print(f"  {total:,} of them lacked one part that no back-order held: the share at each lead time is within "
+              f"{max(off.values()):.1%} of the made-up table; ordered the next morning {late:.1%} against {world.ORDER_NEXT_DAY:.0%}")
+        require(abs(sum(world.LEAD_TIMES.values()) - 1) < 1e-9, "the made-up lead-time shares do not add to one")
+        require(dict(conn.execute("SELECT days, share FROM lead_times")) == world.LEAD_TIMES, "the lead_times table is not the code's")
+        require(total > 10_000 and sorted(off) == sorted(world.LEAD_TIMES) and max(off.values()) < 0.01,
+                f"the recorded lead times do not follow the made-up table: {off}")
+        require(abs(late - world.ORDER_NEXT_DAY) < 0.01, "next-morning orders are off their made-up share")
+
+        job = one(conn, f"SELECT job FROM waits WHERE job NOT IN ({', '.join(str(j) for j, _ in held)}) ORDER BY job LIMIT 1")
+        aboard = one(conn, "SELECT job FROM jobs WHERE parts_on_truck = 1 ORDER BY job LIMIT 1")
+        # A wait of no days breaks two rules at once, so its second rule is named beside it.
+        for what, sql, rule, *also in (
+                ("a repeat visit moved onto its order day", f"UPDATE waits SET repeat_visit_day = order_day WHERE job = {job}",
+                 "came back on or before the order day", "arrived after no made-up lead time"),
+                ("a repair with its parts given a wait", f"INSERT INTO waits SELECT job, day, date(day, '+2 days') FROM jobs WHERE job = {aboard}",
+                 "had its parts and has dates"),
+                ("a wait taken away", f"DELETE FROM waits WHERE job = {job}", "lacked a part and has no dates"),
+                ("an order placed two days late", f"UPDATE waits SET order_day = date(order_day, '+2 days'), "
+                 f"repeat_visit_day = date(repeat_visit_day, '+2 days') WHERE job = {job}",
+                 "ordered before the visit or more than a day after"),
+                ("a wait of a length the made-up table does not hold",
+                 f"UPDATE waits SET repeat_visit_day = date(order_day, '+4 days') WHERE job = {job}", "arrived after no made-up lead time"),
+                ("a part that arrives the day its back-order ends",
+                 f"UPDATE waits SET repeat_visit_day = '{held[0][1]}' WHERE job = {held[0][0]}", "arrived before a center could ship it")):
+            conn.execute(sql)
+            caught = wait_faults(conn)
+            conn.rollback()
+            require(caught == {r: 1 for r in (rule, *also)}, f"control: {what} gave {caught}")
+        require(not wait_faults(conn), "control: the planted faults were not undone")
+        conn.close()
+        print("  control: a repeat visit moved onto its order day, a repair with its parts given a wait, a wait taken away, "
+              "an order placed two days late, a wait of four days and a part that arrives the day its back-order ends are "
+              "each refused, on the rules it breaks and no other")
 
 
 @check("data")

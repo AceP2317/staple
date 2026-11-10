@@ -27,6 +27,7 @@ def assumptions():
             ("breakdown", dispatch.BREAKDOWN, "chance a truck breaks down on a given day"),
             ("same_day_until", dispatch.SAME_DAY_UNTIL, "minutes after 08:00 within which an unplanned call comes in"),
             ("backorder_starts", world.BACKORDER_STARTS, "chance a day that a part goes on back-order"),
+            ("order_next_day", world.ORDER_NEXT_DAY, "share of missing parts ordered the morning after the visit"),
             ("day_minutes", dispatch.DAY, "minutes in a working day, 08:00 to 17:00"),
             ("truck_capacity", world.CAPACITY, "space units on one truck"),
             ("stock_fill", world.STOCK_FILL, "how full today's trucks are kept"),

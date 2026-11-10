@@ -80,6 +80,12 @@ between zone centers.</p>
 <p>The technician who took each historical job (<code>_history_tech</code>) covers its appliance, chosen with weight
 <code>1 / (1 + drive minutes from home)</code>. The job was fixed on the first visit only when every needed part was on that
 technician's truck and a uniform draw fell below the technician's rate.</p>
+<p>Where a needed part was not on the truck, history also records two days (<code>_build_waits</code>): the day the
+part was ordered and the day of the repeat visit. The order goes in on the visit day, or the next morning with
+probability {{order_next_day}}. Each ordered part then takes {{lead_times}} to arrive, and a part on back-order waits
+first for the day a center can ship it. The repeat visit falls on the day the last part arrives. Both days are drawn
+from a stream of their own, so adding them moved no other row: the check <code>history-dates</code> builds the world
+with and without them and compares every other column.</p>
 <h3>Distribution centers</h3>
 <p>The {{centers}} distribution centers restock trucks between workdays (<code>_build_centers</code>). Across the held-back days each part
 goes on back-order with probability {{backorder_starts}} a day, for {{backorder_days}} days. No center can ship it
