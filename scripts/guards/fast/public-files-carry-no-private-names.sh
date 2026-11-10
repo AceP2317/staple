@@ -15,4 +15,7 @@
 
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && { pwd -W 2>/dev/null || pwd; })"
+# check.py skips the names scan in a copy that has no list, which is right for a stranger and wrong here:
+# this gate is the author's, so a missing list refuses the commit.
+[ -f "$REPO_ROOT/.private/banned-names.txt" ] || { echo "FAILED: the private names list is missing, so the names scan cannot run before this commit"; exit 1; }
 python "$REPO_ROOT/check.py" guards examples links docs

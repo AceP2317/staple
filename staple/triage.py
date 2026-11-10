@@ -22,6 +22,15 @@ from staple.backtest import test_jobs
 from staple.predict import Predictor, national_top
 
 MODEL = "claude-haiku-5-5"
+
+
+def named(model):
+    """A model id as people write its name: claude-haiku-5-5 is Claude Haiku 5.5."""
+    maker, family, *version = model.split("-")
+    return f"{maker.capitalize()} {family.capitalize()} {'.'.join(version)}"
+
+
+MODEL_NAME = named(MODEL)
 EFFORT = "low"
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2026-10-21"

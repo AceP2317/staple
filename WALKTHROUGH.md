@@ -23,7 +23,11 @@ replay's own record of the most recent week, so every route and load on it is on
   sees nothing. It guards the ban on third-party packages, a private list of names that must never appear
   in a public file, and the weight of each published page. It recomputes the predictor by hand and holds each claimed gain
   against its control. It also checks the load and dispatch rules, the AI step's calibration, the week's plan,
-  the metric queries, the pages, this walkthrough and a fresh public copy of the repository.
+  the pages and this walkthrough. Every column of every metric query is recomputed in Python, and each query
+  must also lose to one wrong version of itself planted by the check. Two more checks run only when named,
+  because each runs the whole suite in another folder. `python check.py first-run` is a stranger's first run:
+  an empty folder with no home folder, no key and no web. `python check.py fresh-clone` holds a fresh public
+  copy of the repository to the live pages.
 
 ## The made-up world
 

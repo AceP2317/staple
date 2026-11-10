@@ -44,7 +44,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 ## How it is kept honest
 
 - **A held-back period.** The history holds 160,000 jobs over three years. Every method learns from the
-  days before the last 92 days and is scored on those 92 as if they had not happened yet.
+  days before the last 92 days and is scored on those days as if they had not happened yet.
 - **A control for every gain.** Each claimed gain has a deliberately broken twin: shuffled history,
   shuffled technician skills, shuffled AI answers, random replies to the follow-up question. A gain counts
   only when its control falls back.
@@ -56,11 +56,12 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
-Python 3 is the only requirement, and nothing is installed. It is built and tested on Python 3.14.
+Python 3.12 or newer is the only requirement, and nothing is installed. It is tested on Python 3.12 and 3.14.
 
 ```
 python run.py            # the made-up world, every result, the metric tables and the four pages, into out/
 python check.py          # every check, each with a control that proves it can fail
+python check.py first-run  # the same two commands in an empty folder, with no home folder, key or web
 python run.py --live     # the AI step asked afresh, with your own ANTHROPIC_API_KEY
 python run.py --pages    # also writes the published copy of the pages to docs/
 python run.py --card     # photographs the share card with headless Chrome, when its words or colors change

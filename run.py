@@ -34,6 +34,9 @@ def card():
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8")    # a piped run on Windows would otherwise garble the stamp's middle dot
+    report.notes_in_plain_words()
     if "--card" in sys.argv[1:]:
         return card()
     started = time.perf_counter()

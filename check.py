@@ -4,15 +4,20 @@ Each check prints what it measured and exits non-zero on failure. The controls e
 check can still fail: a check that never fails looks exactly like one that sees nothing.
 """
 import ast
+import atexit
 from collections import Counter, defaultdict
 import datetime
 from html.parser import HTMLParser
+import io
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
 import tempfile
+import tokenize
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -20,20 +25,24 @@ sys.path.insert(0, str(ROOT))
 
 CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
-PUBLIC_CLONE = os.environ.get("STAPLE_PUBLIC_CLONE") == "1"
 REPO_URL = "https://github.com/AceP2317/staple.git"
 HOUSE_MAP = Path.home() / "dev" / "login-starter" / "scripts" / "languages.mjs"
 
 CHECKS = {}
+BY_NAME = set()     # checks that run the whole suite in another folder, so they run only when named
+SKIPPED = []        # (check, the part it could not run here and why), filled as the checks run
+RUNNING = [None]    # the check running now, so a skip is filed under its name
 
 
 class CheckFailed(Exception):
     pass
 
 
-def check(name):
+def check(name, by_name=False):
     def register(fn):
         CHECKS[name] = fn
+        if by_name:
+            BY_NAME.add(name)
         return fn
     return register
 
@@ -43,10 +52,16 @@ def require(condition, message):
         raise CheckFailed(message)
 
 
+def skip(what):
+    """A part of a check that cannot run in this copy. It is printed and counted, never passed in silence."""
+    SKIPPED.append((RUNNING[0], what))
+    print(f"  SKIPPED: {what}")
+
+
 # ---- the pieces the guards are built from ---------------------------------------------------
 
 def public_files():
-    """Every file git would publish: tracked, plus new files not ignored."""
+    """Every file git would publish: the files git holds for the next commit."""
     from staple.report import repo_files
     return [ROOT / p for p in repo_files(ROOT)]
 
@@ -102,20 +117,58 @@ def guards():
     print(f"  packages beyond Python's own: {outside or 'none'}")
     require(not outside, f"third-party imports found: {outside}")
 
-    if PUBLIC_CLONE:
-        print("  names scan: SKIPPED on a public clone, which has no private names list (by design)")
-    else:
-        require(NAMES_FILE.exists(), f"names list missing at {NAMES_FILE}; the scan cannot run")
+    if NAMES_FILE.exists():
         names, pub = load_names(), public_files()
         hits = scan_for_names(pub, names)
         print(f"  names scan: {len(names)} names over {len(pub)} public files, {len(hits)} hits")
         require(not hits, "names found in public files: " + "; ".join(hits))
+    else:
+        skip("the private-names scan. Its list is kept out of the public repository, so only the author's copy "
+             "holds one, and the author's commit gate refuses to run without it")
 
     require(third_party_imports("import numpy\nfrom pandas import x\n") == {"numpy", "pandas"},
             "control: the import check missed numpy and pandas")
     require(not third_party_imports("import sqlite3, json\nfrom pathlib import Path\n"),
             "control: the import check flagged Python's own modules")
     print("  control: the import check fires on planted input and passes Python's own modules")
+
+    if not hasattr(tokenize, "FSTRING_START"):
+        skip(f"the scan for f-strings only Python 3.12 or newer reads. This is Python {sys.version_info[0]}."
+             f"{sys.version_info[1]}, which would already have refused to load such a line")
+    else:
+        newer = {p.name: found for p in files + [ROOT / "check.py"] if p.suffix == ".py"
+                 and (found := newer_fstrings(p.read_text(encoding="utf-8")))}
+        print(f"  f-strings only Python 3.12 or newer reads: {newer or 'none'}")
+        require(not newer, f"lines an older Python cannot read: {newer}")
+        own, slash, fine = 'f"{d["k"]}"\n', "f'{chr(10)}{\"\\n\"}'\n", "f'{d[\"k\"]} {x!r:>{w}}'\n"
+        require(newer_fstrings(own) and newer_fstrings(slash) and not newer_fstrings(fine),
+                "control: the f-string scan should refuse a string in the f-string's own quotes and a backslash "
+                "in a field, and pass the older form")
+        print("  control: the f-string scan refuses its own quotes and a backslash in a field, and passes the older form")
+
+
+def quote_of(start):
+    body = start.lstrip("rRbBfFuU")
+    return body[:3] if body[:3] in ('"""', "'''") else body[:1]
+
+
+def newer_fstrings(source):
+    """Lines whose f-strings need Python 3.12 or newer: inside a replacement field, a string in the f-string's
+    own quotes, or a backslash. Needs a Python whose tokenizer splits f-strings, which is 3.12 or newer."""
+    lines, open_quotes = set(), []
+    for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+        if tok.type == tokenize.FSTRING_START:
+            if open_quotes and open_quotes[-1] in quote_of(tok.string) * 3:
+                lines.add(tok.start[0])
+            open_quotes.append(quote_of(tok.string))
+        elif tok.type == tokenize.FSTRING_END:
+            open_quotes.pop()
+        elif open_quotes and tok.type != tokenize.FSTRING_MIDDLE:
+            same = tok.type == tokenize.STRING and open_quotes[-1] in quote_of(tok.string) * 3 and (
+                len(open_quotes[-1]) == 1 or quote_of(tok.string) == open_quotes[-1])
+            if same or "\\" in tok.string:
+                lines.add(tok.start[0])
+    return sorted(lines)
 
 
 def overweight(folder):
@@ -149,9 +202,8 @@ def banned_control():
     if NAMES_FILE.exists():
         names, scratch = load_names(), ROOT / ".private"
     else:
-        require(PUBLIC_CLONE, "names list missing; nothing to plant")
         names, scratch = ["Examplecorp"], None
-        print("  public clone: no private names list, so the scanner is tested on a stand-in name")
+        print("  no private names list in this copy, so the scanner is tested on a stand-in name")
     with tempfile.TemporaryDirectory(dir=scratch) as tmp:
         planted = Path(tmp) / "planted.txt"
         planted.write_text(f"a line that mentions {names[0].upper()} once\n", encoding="utf-8")
@@ -191,7 +243,17 @@ def shared_world():
     if "conn" not in _WORLD:
         tmp = tempfile.mkdtemp(prefix="staple-check-")
         _WORLD["conn"] = built_world(Path(tmp) / "world.db")
+        atexit.register(drop_shared_world, tmp)
     return _WORLD["conn"]
+
+
+def drop_shared_world(tmp):
+    """Close the shared world and remove its folder when the run ends; a folder that will not go is named."""
+    _WORLD.pop("conn").close()
+    try:
+        shutil.rmtree(tmp)
+    except OSError as err:
+        print(f"WARN: the scratch folder {tmp} could not be removed ({err}); delete it by hand")
 
 
 def shared_week():
@@ -737,61 +799,144 @@ def results_written(conn):
             fill()
 
 
-def by_hand(conn):
-    """The four history metrics recomputed in Python, apart from the SQL, keyed as the SQL keys them."""
+def to(value, places):
+    """A recomputed value beside the decimal places its query shows, so the comparison knows what rounding can do."""
+    return (value, places)
+
+
+def hand_tables(conn):
+    """Every column of every metric query recomputed in Python, apart from the SQL, as {query: {row: {column: value}}}.
+    The four history measures are counted again from the jobs, the parts they needed and the truck stock. The other
+    five report a results table, so its raw rows are read and the query's arithmetic is redone. The limit: for those
+    five this guards the query and not the replay that filled the table, which the engine's own checks hold."""
     from datetime import date, timedelta
-    from staple import load
+
+    def pct(share):
+        return None if share is None else to(100 * share, 1)
+
+    def of(part, whole):
+        return pct(part / whole) if whole else None    # SQL gives NULL for a share of nothing
+
     jobs = conn.execute("SELECT job, day, type, tech, parts_on_truck, first_visit_fix FROM jobs").fetchall()
     needed = defaultdict(set)
     for job, part in conn.execute("SELECT job, part FROM job_parts"):
         needed[job].add(part)
-    stock = load.Fleet(conn).stock
+    held = defaultdict(dict)
+    for truck, part, qty in conn.execute("SELECT truck, part, qty FROM truck_stock"):
+        held[truck][part] = qty
+    trucks = conn.execute("SELECT truck, tech FROM trucks").fetchall()
+    aboard = {tech: set(held.get(truck, ())) for truck, tech in trucks}
+    cost = dict(conn.execute("SELECT part, cost FROM parts"))
+
     month, kind = defaultdict(list), defaultdict(Counter)
     for job, day, kind_, tech, on_truck, fixed in jobs:
         month[day[:7]].append(fixed)
         c = kind[kind_]
         c["jobs"] += 1
+        c["repeats"] += not fixed
         c["parts_caused"] += not fixed and not on_truck
-        c["lines"] += len(needed[job])
-        c["on"] += len(needed[job] & stock[tech])
-        c["needing"] += bool(needed[job])
-        c["whole"] += bool(needed[job]) and needed[job] <= stock[tech]
-    test_from = date.fromisoformat(one(conn, "SELECT MIN(day) FROM jobs WHERE split = 'test'"))
-    used = {(tech, p) for job, day, _, tech, *_ in jobs
-            if test_from - timedelta(days=365) <= date.fromisoformat(day) < test_from for p in needed[job]}
-    cost = dict(conn.execute("SELECT part, cost FROM parts"))
-    unused = {truck: round(sum(cost[p] for p in stock[tech] if (tech, p) not in used))
-              for truck, tech in conn.execute("SELECT truck, tech FROM trucks")}
-    return {"first_time_fix": {m: round(100 * sum(v) / len(v), 1) for m, v in month.items()},
-            "parts_caused_reschedules": {t: round(100 * c["parts_caused"] / c["jobs"], 1) for t, c in kind.items()},
-            "line_fill": {t: round(100 * c["on"] / c["lines"], 1) for t, c in kind.items()},
-            "job_fill": {t: round(100 * c["whole"] / c["needing"], 1) for t, c in kind.items()},
-            "slow_truck_stock": unused}
+        if tech in aboard:    # the query reads a job's parts through its technician's truck
+            c["lines"] += len(needed[job])
+            c["on"] += len(needed[job] & aboard[tech])
+            c["needing"] += bool(needed[job])
+            c["whole"] += bool(needed[job]) and needed[job] <= aboard[tech]
+
+    test_from = one(conn, "SELECT MIN(day) FROM jobs WHERE split = 'test'")
+    year_before = (date.fromisoformat(test_from) - timedelta(days=365)).isoformat()
+    used = {(tech, p) for job, day, _, tech, *_ in jobs if year_before <= day < test_from for p in needed[job]}
+    slow = {}
+    for truck, tech in trucks:
+        value = {p: cost[p] * qty for p, qty in held.get(truck, {}).items()}
+        idle = [v for p, v in value.items() if (tech, p) not in used]
+        if value:
+            slow[truck] = {"tech": tech, "parts_on_board": len(value), "stock_value": to(sum(value.values()), 0),
+                           "parts_unused": len(idle), "unused_value": to(sum(idle), 0),
+                           "unused_value_pct": of(sum(idle), sum(value.values()))}
+
+    cover = {(method, k): c for method, k, c in conn.execute("SELECT method, k, coverage FROM backtest")}
+    return {
+        "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
+        "parts_caused_reschedules": {
+            t: {"jobs": c["jobs"], "repeat_visits": c["repeats"], "parts_caused": c["parts_caused"],
+                "parts_caused_per_100_jobs": of(c["parts_caused"], c["jobs"]),
+                "parts_share_of_repeats_pct": of(c["parts_caused"], c["repeats"])} for t, c in kind.items()},
+        "truck_fill_rate": {
+            t: {"part_lines": c["lines"], "line_fill_pct": of(c["on"], c["lines"]), "jobs_needing_parts": c["needing"],
+                "job_fill_pct": of(c["whole"], c["needing"])} for t, c in kind.items() if c["lines"]},
+        "slow_truck_stock": slow,
+        "carry_list_curve": {
+            k: {"predictor_pct": pct(cover.get(("predictor", k))),
+                "national_pct": pct(cover.get(("national top parts", k))),
+                "shuffled_pct": pct(cover.get(("shuffled-history control", k))),
+                "todays_trucks_pct": pct(cover.get(("today's trucks", 0)))} for k in {k for _, k in cover if k > 0}},
+        "ai_step": {
+            method: {"jobs": n, "agrees_booked_pct": pct(booked), "agrees_true_pct": pct(true), "coverage_pct": pct(covered)}
+            for method, n, booked, true, covered in
+            conn.execute("SELECT method, jobs, agree_booked, agree_true, coverage FROM triage")},
+        "dispatch_scorecard": {
+            policy: {"calls": calls, "rolled": rolled, "first_visit_fix_pct": pct(fixes), "parts_missing_pct": pct(missing),
+                     "drive_minutes": to(drive, 1), "moved": moved, "moved_fix_pct": pct(moved_fix),
+                     "cost_per_call": to(dollars, 2)}
+            for policy, calls, rolled, fixes, missing, drive, moved, moved_fix, dollars in
+            conn.execute("SELECT policy, calls, rolled, fixes_per_call, parts_missing, drive_per_call, moved, "
+                         "moved_fix_rate, cost_per_call FROM dispatch")},
+        "backorder_exposure": {
+            part: {"eta_days": eta, "trucks_holding": len(holders.split()), "open_zones": zones,
+                   "expected_calls": to(calls, 1), "expected_stuck": to(stuck, 1), "dollars_at_risk": to(risk, 0),
+                   "actual_calls": came, "actual_stuck": came_stuck}
+            for part, eta, holders, zones, calls, stuck, risk, came, came_stuck in
+            conn.execute("SELECT part, eta_days, holders, open_zones, expected_calls, expected_stuck, at_risk, "
+                         "actual_calls, actual_stuck FROM backorder_list")},
+        # The return on stock is held to the replay's own figure, which the load step works out by another route.
+        "inventory_roi": {
+            (policy, k): {"covered_pct": pct(covered), "parts_aboard": to(parts, 1), "permanent_parts": to(permanent, 1),
+                          "moves_a_night": to(moves, 1), "stock_value": to(value, 0), "repeat_cost": to(repeat, 2),
+                          "handling_cost": to(handling, 2), "holding_cost": to(holding, 2),
+                          "cost_a_truck_day": to(total, 2), "roi": to(roi, 2)}
+            for policy, k, covered, parts, permanent, moves, value, repeat, handling, holding, total, roi in
+            conn.execute("SELECT policy, k, coverage, parts, permanent, moves, value, repeat_cost, handling, holding, "
+                         "total, roi FROM load_policy") if "shuffled" not in policy},
+    }
 
 
-def keyed(result, key, value):
+ROW_KEYS = {"inventory_roi": 2}    # how many leading columns name a row, where one does not
+
+
+def rows_by_key(name, result):
     columns, rows = result
-    return {r[columns.index(key)]: r[columns.index(value)] for r in rows}
+    n = ROW_KEYS.get(name, 1)
+    return {(r[0] if n == 1 else tuple(r[:n])): dict(zip(columns[n:], r[n:])) for r in rows}
 
 
-def history_metrics(results):
-    return {"first_time_fix": keyed(results["first_time_fix"], "month", "first_time_fix_pct"),
-            "parts_caused_reschedules": keyed(results["parts_caused_reschedules"], "appliance", "parts_caused_per_100_jobs"),
-            "line_fill": keyed(results["truck_fill_rate"], "appliance", "line_fill_pct"),
-            "job_fill": keyed(results["truck_fill_rate"], "appliance", "job_fill_pct"),
-            "slow_truck_stock": keyed(results["slow_truck_stock"], "truck", "unused_value")}
+def query_gaps(name, result, hand):
+    """Where one metric query and its Python recomputation part ways, one line each. A decimal may differ by half a
+    unit of the last place its query shows, which is all rounding can do. A count or a name must be equal."""
+    found = rows_by_key(name, result)
+    gaps = [f"{name} returns one row twice"] if len(found) != len(result[1]) else []
+    for key in sorted(set(found) | set(hand), key=str):
+        if key not in found or key not in hand:
+            gaps.append(f"{name}, row {key}: only in the {'recomputation' if key in hand else 'query'}")
+            continue
+        for column in sorted(set(found[key]) | set(hand[key])):
+            if column not in found[key] or column not in hand[key]:
+                gaps.append(f"{name}, row {key}, {column}: only in the {'recomputation' if column in hand[key] else 'query'}")
+                continue
+            got, want = found[key][column], hand[key][column]
+            value, places = want if isinstance(want, tuple) else (want, None)
+            if places is None or got is None or value is None or isinstance(got, str):
+                same = got == value
+            else:
+                same = abs(got - value) <= 0.5 * 10 ** -places + 1e-9
+            if not same:
+                shown = round(value, 4) if isinstance(value, float) else value
+                gaps.append(f"{name}, row {key}, {column}: the query gives {got}, the recomputation {shown}")
+    return gaps
 
 
-def disagreements(sql, hand):
-    """The keys, per metric, where the SQL and the Python recomputation differ by more than rounding."""
-    out = {}
-    for name in sql:
-        slack = 0.51 if name == "slow_truck_stock" else 0.051   # whole dollars there, tenths of a percent elsewhere
-        bad = sorted(k for k in set(sql[name]) | set(hand[name])
-                     if k not in sql[name] or k not in hand[name] or abs(sql[name][k] - hand[name][k]) > slack)
-        if bad:
-            out[name] = bad
-    return out
+def metric_gaps(results, hand):
+    require(set(results) == set(hand),
+            f"a metric query and its Python recomputation do not pair up: {sorted(set(results) ^ set(hand))}")
+    return [gap for name in sorted(results) for gap in query_gaps(name, results[name], hand[name])]
 
 
 @check("sql")
@@ -809,19 +954,16 @@ def sql_metrics():
             require(all(v is not None for r in rows for v in r), f"{name} returns an empty value")
         require(len(files) == len(results) == len(list(metrics.SQL.glob("*.sql"))), "a metric did not write its CSV")
 
-        base = history_metrics(results)
-        off = disagreements(base, by_hand(conn))
-        print(f"  history metrics recomputed in Python apart from the SQL: {len(base) - len(off)} of {len(base)} agree")
-        require(not off, f"the SQL and the Python recomputation disagree: {off}")
-        sql_roi = {(r[0], r[1]): r[-1] for r in results["inventory_roi"][1]}
-        replay_roi = {(p, k): r for p, k, r in
-                      conn.execute("SELECT policy, k, roi FROM load_policy WHERE policy NOT LIKE '%shuffled%'")}
-        require(set(sql_roi) == set(replay_roi), "inventory ROI dropped or added a policy")
-        worst = max(abs(sql_roi[key] - replay_roi[key]) for key in replay_roi)
-        print(f"  inventory ROI from the SQL's own formula against the replay's: worst gap {worst:.3f} over {len(replay_roi)} policies")
-        require(worst < 0.006, "the SQL's inventory ROI is not the replay's")
+        hand = hand_tables(conn)
+        gaps = metric_gaps(results, hand)
+        values = sum(len(row) for table in hand.values() for row in table.values())
+        print(f"  every column of the {len(results)} queries recomputed in Python apart from the SQL: "
+              f"{values - len(gaps)} of {values} values agree")
+        require(not gaps, f"the SQL and the Python recomputation disagree on {len(gaps)} values, first: " + "; ".join(gaps[:3]))
 
-        # Control: plant changes in a copy and watch each history metric move, so agreement is not two blind checks.
+        # Control: plant changes in a copy's data and watch the history metrics move, so agreement is not two blind checks.
+        watched = ("first_time_fix", "truck_fill_rate", "slow_truck_stock")
+        base = {name: rows_by_key(name, results[name]) for name in watched}
         copy = sqlite3.connect(":memory:")
         conn.backup(copy)
         first = min(base["first_time_fix"])
@@ -834,15 +976,65 @@ def sql_metrics():
         # Every technician's jobs have needed every real part at some point, so the unused part is a new one.
         copy.execute("INSERT INTO parts VALUES ('washer/planted part', 'washer', 'planted part', 50, 1, 0)")
         copy.execute("INSERT INTO truck_stock VALUES (?, 'washer/planted part', 1)", (other,))
-        planted = history_metrics(metrics.run(copy, Path(tmp) / "planted"))
+        after = metrics.run(copy, Path(tmp) / "planted")
+        planted = {name: rows_by_key(name, after[name]) for name in watched}
         kind = one(copy, "SELECT type FROM parts WHERE part = ?", part)
-        moved = {"a month's fixes zeroed": planted["first_time_fix"][first] == 0 < base["first_time_fix"][first],
-                 "a needed part taken off a truck": planted["line_fill"][kind] < base["line_fill"][kind],
-                 "an unused part put on a truck": planted["slow_truck_stock"][other] == base["slow_truck_stock"][other] + 50}
-        print(f"  control: planted changes moved {sum(moved.values())} of {len(moved)} metrics")
+        moved = {"a month's fixes zeroed": planted["first_time_fix"][first]["first_time_fix_pct"] == 0
+                                           < base["first_time_fix"][first]["first_time_fix_pct"],
+                 "a needed part taken off a truck": planted["truck_fill_rate"][kind]["line_fill_pct"]
+                                                    < base["truck_fill_rate"][kind]["line_fill_pct"],
+                 "an unused part put on a truck": planted["slow_truck_stock"][other]["unused_value"]
+                                                  == base["slow_truck_stock"][other]["unused_value"] + 50}
+        print(f"  control: planted changes in the data moved {sum(moved.values())} of {len(moved)} metrics")
         require(all(moved.values()), f"a metric did not move under a planted change: {moved}")
-        require(not disagreements(planted, by_hand(copy)), "the recomputation and the SQL part ways on planted data")
+        apart = metric_gaps(after, hand_tables(copy))
+        require(not apart, "the recomputation and the SQL part ways on planted data: " + "; ".join(apart[:3]))
         copy.close()
+
+
+# One wrong version of every metric query: the text to find, what replaces it, and what the wrong query then does.
+WRONG_QUERIES = {
+    "ai_step": ("100.0 * agree_true", "100.0 * agree_booked",
+                "reports agreement with the booked code as agreement with the true problem"),
+    "backorder_exposure": ("ROUND(at_risk, 0)", "ROUND(expected_stuck, 0)", "reports stuck calls as dollars at risk"),
+    "carry_list_curve": ("WHERE k > 0", "WHERE k > 1", "drops the one-part carry list"),
+    "dispatch_scorecard": ("100.0 * fixes_per_call", "100.0 * moved_fix_rate",
+                           "reports the moved calls' fix rate as every call's"),
+    "first_time_fix": ("AVG(first_visit_fix)", "AVG(parts_on_truck)", "counts a visit with its parts aboard as a fix"),
+    "inventory_roi": ("a.value * 365", "a.value * 52", "counts a year as 52 days"),
+    "parts_caused_reschedules": ("AND parts_on_truck = 0) / COUNT(*)", "AND parts_on_truck = 1) / COUNT(*)",
+                                 "counts the repeats that had their parts as caused by parts"),
+    "slow_truck_stock": ("'-365 days'", "'-30 days'", "looks back one month for use, not twelve"),
+    "truck_fill_rate": ("MIN(on_truck)", "MAX(on_truck)", "passes a job when any one of its parts was aboard"),
+}
+
+
+@check("mutants")
+def mutants():
+    """Every metric query against one wrong version of itself. The recomputation that agrees with the real query
+    must refuse the wrong one, or it is not guarding that query."""
+    from staple import metrics
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    hand = hand_tables(conn)
+    gaps = metric_gaps(results, hand)
+    print(f"  the {len(results)} metric queries as written against their Python recomputation: {len(gaps)} values apart")
+    require(not gaps, "a query as written already disagrees with its recomputation, so a wrong version proves nothing: "
+                      + "; ".join(gaps[:3]))
+    require(set(WRONG_QUERIES) == set(results),
+            f"a metric query has no wrong version planted for it: {sorted(set(results) ^ set(WRONG_QUERIES))}")
+    passed = []
+    for name, (right, wrong, does) in WRONG_QUERIES.items():
+        text = (metrics.SQL / f"{name}.sql").read_text(encoding="utf-8")
+        require(text.count(right) == 1, f"the wrong version of {name} no longer finds `{right}` once, so it plants nothing")
+        cur = conn.execute(text.replace(right, wrong))
+        refused = query_gaps(name, ([d[0] for d in cur.description], cur.fetchall()), hand[name])
+        print(f"  control: {name}, changed so it {does}: {len(refused)} values refused")
+        if not refused:
+            passed.append(name)
+    require(not passed, f"a wrong version of a metric query passed its recomputation: {', '.join(passed)}")
 
 
 class Hints(HTMLParser):
@@ -1055,7 +1247,7 @@ def stamp_check():
         text, day, pattern, warned = report.stamp(repo)
         print(f"  a scratch history of two changes is stamped \"{text}\", results last changed {day}")
         require(text == expected and day == "2 Oct 2026" and not warned, f"expected \"{expected}\" and 2 Oct 2026 with no warning")
-        require(re.fullmatch(pattern, text), "the stamp does not fit its own pattern")
+        require(pattern == report.STAMP_RE and re.fullmatch(report.STAMP_RE, text), "the stamp does not fit its own pattern")
 
         commit("docs/index.html", "2026-10-05T09:00:00-04:00")
         require(report.stamp(repo)[0] == expected, "committing only the published copy moved the stamp")
@@ -1076,7 +1268,7 @@ def stamp_check():
 
         (repo / ".git" / "shallow").write_text(third + "\n", encoding="utf-8")
         cut = report.stamp(repo)
-        require(cut[0] == f"6 Oct 2026 · {third[:7]}+" and cut[3] and re.fullmatch(pattern, cut[0]),
+        require(cut[0] == f"6 Oct 2026 · {third[:7]}+" and cut[3] and re.fullmatch(report.STAMP_RE, cut[0]),
                 f"a copy holding part of its history should carry no build number and say why, got {cut[0]!r}")
         print(f"  a copy holding part of its history is stamped \"{cut[0]}\" and warns")
 
@@ -1087,7 +1279,7 @@ def stamp_check():
 
     here = report.stamp()
     print(f"  this repository: \"{here[0]}\", results last changed {here[1]}" + "".join(f"; warning: {w}" for w in here[3]))
-    require(here[0] == report.NO_HISTORY or re.fullmatch(here[2], here[0]), "this repository's stamp fits no known shape")
+    require(here[0] == report.NO_HISTORY or re.fullmatch(report.STAMP_RE, here[0]), "this repository's stamp fits no known shape")
 
     one, _ = report.build_manuals("Build 1 · 1 Sep 2026 · abcdef1", "1 Sep 2026")
     two, _ = report.build_manuals("Build 9 · 9 Oct 2026 · 1234567+", "9 Oct 2026")
@@ -1242,14 +1434,31 @@ def data():
 
 # ---- one command for everything ---------------------------------------------------------------
 
-def doc_faults(readme, walkthrough, tracked):
-    """What the README and walkthrough must hold: no computed figure, since results live on the generated
-    pages and a figure typed here goes stale; every published file named in the walkthrough; and every
-    relative link pointing at a file that exists."""
+SEVERAL = "two|three|four|five|six|seven|eight|nine|ten"    # "one points to" is a verb, so one is left to its own forms
+SPELLED_SHARE = re.compile(rf"\b(?:half|twice|thrice|doubl\w*|tripl\w*|one percent|(?:{SEVERAL})[ -](?:times|fold|percent|points)"
+                           rf"|(?:one|{SEVERAL}) in (?:{SEVERAL}))\b", re.IGNORECASE)
+
+
+def typed_figures(text, supplied):
+    """Every figure in a document's prose that the code did not supply. A number may stand only inside a phrase
+    the code itself writes, such as the job count, or as the version in a Python release's name. Code spans,
+    command blocks and link targets are left out, because they hold commands and file names. The limit: a count
+    spelled as a word passes, unless it is a share or a multiple, such as half or three times."""
+    prose = " ".join(re.sub(r"```.*?```|`[^`]*`|\]\([^)]*\)", " ", text, flags=re.S).split())
+    for phrase in supplied:
+        prose = prose.replace(" ".join(phrase.split()), " ")
+    prose = re.sub(r"\bPython \d+\.\d+(?:(?:,| and| or| to) \d+\.\d+)*", " ", prose)
+    return re.findall(r"\$?\d[\d,.:]*\d%?|\$?\d%?", prose) + [m.group(0) for m in SPELLED_SHARE.finditer(prose)]
+
+
+def doc_faults(readme, walkthrough, tracked, supplied):
+    """What the README and walkthrough must hold: no figure the code did not supply, since results live on the
+    generated pages and a figure typed here goes stale; every published file named in the walkthrough; and
+    every relative link pointing at a file that exists."""
     faults = []
-    figures = re.findall(r"\d+(?:\.\d+)?%|\$\d[\d,.]*", readme + walkthrough)
+    figures = typed_figures(readme, supplied) + typed_figures(walkthrough, supplied)
     if figures:
-        faults.append(f"a computed figure typed into the docs, first {figures[0]}")
+        faults.append(f"{len(figures)} figures typed into the docs that the code did not supply: {', '.join(figures[:5])}")
     unnamed = [p for p in tracked if f"`{p}`" not in walkthrough]
     if unnamed:
         faults.append(f"{len(unnamed)} published files the walkthrough never names, first {unnamed[0]}")
@@ -1262,13 +1471,13 @@ def doc_faults(readme, walkthrough, tracked):
 
 @check("docs")
 def docs():
-    from staple import triage, world
+    from staple import plan, triage, world
     from staple.report import PAGES_URL, written_in
     readme, walkthrough = ((ROOT / n).read_text(encoding="utf-8") for n in ("README.md", "WALKTHROUGH.md"))
     tracked = sorted(p.relative_to(ROOT).as_posix() for p in public_files())
     pins = {"the live report": PAGES_URL, "the job count": f"{world.JOBS:,} jobs", "the held-back days":
             f"last {world.TEST_DAYS} days", "the seed": f"Seed {world.SEED}", "the model": triage.MODEL,
-            "the file counts": written_in()}
+            "the model's name": triage.MODEL_NAME, "the day's start": plan.clock(0), "the file counts": written_in()}
     stale = [name for name, text in pins.items() if text not in readme]
     print(f"  README carries {len(pins) - len(stale)} of {len(pins)} values read from the code: {', '.join(pins)}")
     require(not stale, f"the README no longer matches the code on: {', '.join(stale)}")
@@ -1276,15 +1485,24 @@ def docs():
     require(miscounted != readme and "the file counts" in [n for n, t in pins.items() if t not in miscounted],
             "control: a README with a wrong Python file count passed")
     print("  control: a README naming the wrong number of Python files is refused")
-    faults = doc_faults(readme, walkthrough, tracked)
-    print(f"  walkthrough names {len(tracked)} published files; faults: {faults or 'none'}")
+    supplied = list(pins.values())
+    faults = doc_faults(readme, walkthrough, tracked, supplied)
+    print(f"  every number in the README and walkthrough sits in a phrase the code writes; the walkthrough names "
+          f"{len(tracked)} published files; faults: {faults or 'none'}")
     require(not faults, "; ".join(faults))
-    planted = {"a result typed into the README": doc_faults(readme + "\nFixes 86.4% of calls.", walkthrough, tracked),
-               "a new file the walkthrough never names": doc_faults(readme, walkthrough, tracked + ["staple/planted.py"]),
-               "a link to a missing file": doc_faults(readme + "\n[x](nowhere.md)", walkthrough, tracked)}
-    caught = sum(bool(f) for f in planted.values())
-    print(f"  control: {caught} of {len(planted)} planted faults refused")
-    require(caught == len(planted), f"the docs check passed a planted fault: {planted}")
+    # Each planted fault must be refused by its own rule, so the fault found has to name what was planted.
+    planted = {"a percent typed into the README": (readme + "\nFixes 86.4% of calls.", walkthrough, tracked, "86.4%"),
+               "a dollar figure typed into the README": (readme + "\nSaves $12 a call.", walkthrough, tracked, "$12"),
+               "a bare number, one the README holds in another place":
+                   (readme + f"\nCuts repeat visits by {world.TEST_DAYS} points.", walkthrough, tracked, f"{world.TEST_DAYS}"),
+               "a multiple spelled as words":
+                   (readme, walkthrough + "\nThe gain is three times the control's.", tracked, "three times"),
+               "a new file the walkthrough never names":
+                   (readme, walkthrough, tracked + ["staple/planted.py"], "staple/planted.py"),
+               "a link to a missing file": (readme + "\n[x](nowhere.md)", walkthrough, tracked, "nowhere.md")}
+    missed = [kind for kind, (*docs_, names) in planted.items() if names not in "; ".join(doc_faults(*docs_, supplied))]
+    print(f"  control: {len(planted) - len(missed)} of {len(planted)} planted faults refused, each by its own rule")
+    require(not missed, f"the docs check passed a planted fault: {missed}")
 
 
 def example_faults(found):
@@ -1459,10 +1677,16 @@ def languages_check():
         for name in ("keep.py", "out/skip.py", "skip.pyc", ".gitignore"):
             (Path(tmp) / name).parent.mkdir(exist_ok=True)
             (Path(tmp) / name).write_text("out/\n*.pyc\n" if name == ".gitignore" else "", encoding="utf-8")
-        walked = report.repo_files(Path(tmp))
+        walked = report.repo_files(Path(tmp), env=clean_git_env())
     require(walked == [".gitignore", "keep.py"] and any("walked" in str(w.message) for w in said),
             f"control: a folder with no git gave {walked} and {len(said)} warnings")
     print("  control: a folder with no git is walked past what .gitignore names, and the run warns that it was")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        scratch_history(Path(tmp))("kept.py", "2026-01-01T12:00:00")
+        (Path(tmp) / "scratch.py").write_text("", encoding="utf-8")
+        listed = report.repo_files(Path(tmp), env=clean_git_env())
+    require(listed == ["kept.py"], f"control: a folder holding one saved file and one scratch file gave {listed}")
+    print("  control: a scratch file not yet added to git is left out of the list, so it changes no count")
 
     sections = section_faults(counts)
     print(f"  code languages page: {len(counts) - len(sections)} of {len(counts)} languages described where they run")
@@ -1511,68 +1735,171 @@ def clean_git_env():
     return {k: v for k, v in os.environ.items() if k not in names}
 
 
-@check("fresh-clone")
-def fresh_clone():
-    """Clone the public repository as a stranger would, run the one command there, then every check there,
-    and hold the live published report to the clone's copy."""
-    import urllib.request
-    from staple.report import PAGES_URL
-    if PUBLIC_CLONE:
-        print("  SKIPPED inside a public clone, which would only clone itself")
-        return
-    env = dict(clean_git_env(), STAPLE_PUBLIC_CLONE="1", PYTHONUTF8="1")   # the stamp's "·" breaks Windows' default
-    env.pop("ANTHROPIC_API_KEY", None)
-    local = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+DEAD_ADDRESS = "http://127.0.0.1:9"    # nothing listens on the discard port, so a request sent there fails at once
+
+
+def stranger_env(home, network):
+    """The environment a stranger's machine would give a run: an empty home folder, no Claude key, no setting of
+    Staple's or Python's own, and none of git's variables for one repository. Without network, every request made
+    through Python's web library goes to a dead address; the local stand-in the AI check starts stays reachable.
+    The limit: a program that opened a socket by hand would not be stopped, and the import guard holds that no
+    module here does."""
+    drop = {"ANTHROPIC_API_KEY", "PYTHONUTF8", "PYTHONPATH", "PYTHONIOENCODING"}
+    env = {k: v for k, v in clean_git_env().items() if k.upper() not in drop and not k.upper().startswith("STAPLE_")}
+    env.update(HOME=str(home), USERPROFILE=str(home), APPDATA=str(Path(home) / "AppData" / "Roaming"),
+               GIT_CEILING_DIRECTORIES=str(Path(home).parent))
+    if not network:
+        cases = (str.upper,) if os.name == "nt" else (str.upper, str.lower)   # Windows reads one name whatever its case
+        for case in cases:
+            env.update({case(n): DEAD_ADDRESS for n in ("http_proxy", "https_proxy", "all_proxy")})
+            env[case("no_proxy")] = "127.0.0.1,localhost"
+    return env
+
+
+def run_there(folder, env, *args):
+    """One Python run in another folder, as (exit code, every line it printed)."""
+    r = subprocess.run([sys.executable, *args], cwd=folder, env=env, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    return r.returncode, (r.stdout + r.stderr).strip().splitlines()
+
+
+def said(out, pattern):
+    """The first printed line that matches, or a note that none did."""
+    return next((line.strip() for line in out if re.search(pattern, line)), "no such line")
+
+
+def whole_run(folder, env, where):
+    """The one command, then every check, in another folder. Returns the checks' printed lines."""
+    from staple import report
+    code, out = run_there(folder, env, "run.py")
+    print(f"  python run.py: exit {code}, \"{said(out, r'^done in ')}\"")
+    require(code == 0, f"the one command failed {where}: " + " | ".join(out[-5:]))
+    missing = [f for f in report.FILES.values() if not (folder / "out" / f).exists()]
+    require(not missing, f"the run {where} wrote no {', '.join(missing)}")
+    code, out = run_there(folder, env, "check.py")
+    print(f"  python check.py: exit {code}, \"{said(out, r'^[0-9]+ of [0-9]+ passed')}\"")
+    require(code == 0, f"a check failed {where}: " + " | ".join(line.strip() for line in out if "FAILED" in line))
+    return out
+
+
+def damaged_copy_refused(folder, env, where):
+    """The control both whole-run checks share: a published page with one label taken off must fail that folder's
+    own report check, or its checks may not be reading the copy at all."""
+    path = folder / "docs" / "index.html"
+    page = path.read_text(encoding="utf-8")
+    path.write_text(page.replace('class="madeup"', 'class="planted"', 1), encoding="utf-8")
+    code, _ = run_there(folder, env, "check.py", "report")
+    print(f"  control: the report check {where}, on a published copy with a label taken off, exits {code}")
+    require(code != 0, f"the checks {where} passed a damaged published copy, so they may not be reading it")
+
+
+ROOM_PROBE = """import os, urllib.request
+from pathlib import Path
+print(Path.home())
+print(os.environ.get("ANTHROPIC_API_KEY"))
+try:
+    urllib.request.urlopen("https://example.com", timeout=20)
+    print("reached the web")
+except OSError:
+    print("no web")
+"""
+
+
+@check("first-run", by_name=True)
+def first_run():
+    """A stranger's first run, offline: every file git would publish is copied to an empty folder, and the one
+    command and every check run there with an empty home folder, no key and no web."""
+    from staple import report
+    files = public_files()
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        clone = Path(tmp) / "staple"
-        subprocess.run(["git", "clone", "--quiet", REPO_URL, str(clone)], env=env, check=True)
-        head = subprocess.run(["git", "-C", str(clone), "rev-parse", "HEAD"], capture_output=True, text=True, env=env).stdout.strip()
+        room, home = Path(tmp) / "staple", Path(tmp) / "home"
+        home.mkdir()
+        for p in files:
+            dest = room / p.relative_to(ROOT)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(p, dest)
+        env = stranger_env(home, network=False)
+        print(f"  {len(files)} files git would publish, copied to an empty folder with no git history")
+        code, out = run_there(room, env, "-c", ROOM_PROBE)
+        print(f"  the room: home folder {out[0] if out else '?'}, Claude key {out[1] if len(out) > 1 else '?'}, "
+              f"a web request: {out[2] if len(out) > 2 else '?'}")
+        require(code == 0 and out == [str(home), "None", "no web"] and not any(home.iterdir()),
+                f"the room is not what a stranger's first run needs: {out}")
+        out = whole_run(room, env, "on a first run")
+        page = (room / "out" / "index.html").read_text(encoding="utf-8")
+        require(f">{report.NO_HISTORY}</span>" in page, "the page built with no git history does not say so in its stamp")
+        skipped = [line.strip() for line in out if line.startswith("skipped in ")]
+        print(f"  parts the first run could not do, each named: {len(skipped)}")
+        for line in skipped:
+            print(f"    {line[:150]}")
+        require(any("private-names scan" in line for line in skipped),
+                "the first run ran the private-names scan, so the author's own list reached the room")
+        damaged_copy_refused(room, env, "in the room")
+
+
+@check("fresh-clone", by_name=True)
+def fresh_clone():
+    """The publishing check: clone the public repository as a stranger would, run the one command and every
+    check there, and hold the clone's fresh build and the live report to the clone's published copy."""
+    import urllib.request
+    from staple import report
+    local = report.git_answer(ROOT, "rev-parse", "HEAD")
+    require(local, "this folder holds no git history, so there is no commit to hold the public repository to")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        clone, home = Path(tmp) / "staple", Path(tmp) / "home"
+        home.mkdir()
+        env = stranger_env(home, network=True)
+        cloned = subprocess.run(["git", "clone", "--quiet", REPO_URL, str(clone)], env=env, capture_output=True, text=True)
+        require(cloned.returncode == 0, f"the public repository could not be cloned: {cloned.stderr.strip()[:300]}")
+        head = report.git_answer(clone, "rev-parse", "HEAD")
         print(f"  cloned {REPO_URL} at {head[:7]}; this copy is at {local[:7]}")
         require(head == local, "the public repository is not at this commit: push first, then run this again")
-
-        def run(*args):
-            r = subprocess.run([sys.executable, *args], cwd=clone, env=env, capture_output=True, text=True, encoding="utf-8")
-            return r.returncode, (r.stdout + r.stderr).strip().splitlines()
-
-        code, out = run("run.py")
-        print(f"  python run.py: exit {code}, last line \"{out[-1] if out else ''}\"")
-        require(code == 0, "the one command failed on a fresh clone: " + " | ".join(out[-5:]))
-        from staple import report
-        missing = [f for f in report.FILES.values() if not (clone / "out" / f).exists()]
-        require(not missing, f"a fresh run wrote no {', '.join(missing)}")
-        code, out = run("check.py")
-        print(f"  python check.py: exit {code}, \"{out[-1] if out else ''}\"")
-        require(code == 0, "a check failed on a fresh clone: " + " | ".join(line for line in out if "FAILED" in line))
+        whole_run(clone, env, "on a fresh clone")
 
         page = (clone / "docs" / "index.html").read_text(encoding="utf-8")
-        live = urllib.request.urlopen(urllib.request.Request(PAGES_URL, headers={"Cache-Control": "no-cache"}),
+        built = (clone / "out" / "index.html").read_text(encoding="utf-8")
+        print(f"  the clone's fresh build {'equals' if built == page else 'differs from'} its published copy, stamp included")
+        require(built == page, "a fresh clone builds a report that differs from its published copy; rebuild the pages "
+                               "on the last commit with `python run.py --pages`, commit docs/ and push")
+        live = urllib.request.urlopen(urllib.request.Request(report.PAGES_URL, headers={"Cache-Control": "no-cache"}),
                                       timeout=30).read().decode("utf-8")
-        print(f"  live report at {PAGES_URL}: {'matches' if live == page else 'differs from'} the clone's published copy")
+        print(f"  live report at {report.PAGES_URL}: {'matches' if live == page else 'differs from'} the clone's published copy")
         require(live == page, "the live report is not the committed copy yet; GitHub Pages may still be rebuilding")
-
-        (clone / "docs" / "index.html").write_text(page.replace('class="madeup"', 'class="planted"', 1), encoding="utf-8")
-        code, out = run("check.py", "report")
-        print(f"  control: the clone's report check on a published copy with a label taken off exits {code}")
-        require(code != 0, "the clone's checks passed a damaged published copy, so they may not be reading it")
+        damaged_copy_refused(clone, env, "in the clone")
 
 
 def main(argv):
-    names = argv[1:] or list(CHECKS)
+    from staple import report
+    for stream in (sys.stdout, sys.stderr):
+        # A piped run on Windows would otherwise garble the stamp's middle dot, and would hold every line back
+        # until the end, so a long check looked stuck.
+        stream.reconfigure(encoding="utf-8", line_buffering=True)
+    report.notes_in_plain_words()
+    names = argv[1:] or [n for n in CHECKS if n not in BY_NAME]
     unknown = [n for n in names if n not in CHECKS]
     if unknown:
         print(f"unknown check(s): {', '.join(unknown)}. Known: {', '.join(CHECKS)}")
         return 2
     failed = []
     for name in names:
-        print(f"[{name}]")
+        RUNNING[0] = name
+        print(f"[{name}]", flush=True)
         try:
             CHECKS[name]()
             print("  ok")
         except CheckFailed as e:
             print(f"  FAILED: {e}")
             failed.append(name)
+        except Exception as e:    # a crash is one named failure, and the checks after it still run
+            at = traceback.extract_tb(e.__traceback__)[-1]
+            print(f"  FAILED: the check crashed with {type(e).__name__}: {e} (at {Path(at.filename).name}, line {at.lineno})")
+            failed.append(name)
     passed = len(names) - len(failed)
     print(f"\n{passed} of {len(names)} passed" + (f"; failed: {', '.join(failed)}" if failed else ""))
+    for name, what in SKIPPED:
+        print(f"skipped in {name}: {what}")
+    if not argv[1:]:
+        print(f"not run: {', '.join(sorted(BY_NAME))}. Each runs this whole suite in another folder, so it runs only when named.")
     return 1 if failed else 0
 
 

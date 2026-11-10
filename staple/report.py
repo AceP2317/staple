@@ -54,7 +54,7 @@ PLACES = (   # where code runs, each with the languages that run there; `check.p
      "are, and check.py fresh-clone proves it by comparing the live report with the committed copy. None of Staple's "
      "own code runs there."),
     ("anthropic", "On Anthropic's computers", (),
-     "Claude Haiku 5.5 read every customer description once and wrote each follow-up question. Staple sends it the "
+     f"{triage.MODEL_NAME} read every customer description once and wrote each follow-up question. Staple sends it the "
      "prompts the methods manual prints word for word, and none of Staple's code runs there. The answers are saved in "
      "the data folder, so the pages rebuild without a key; python run.py --live asks the Claude API again with your "
      "own key."))
@@ -160,7 +160,7 @@ MARK_HELP = {
     "back-ordered": ("No center can ship it in time and no truck nearby holds it.", "Expedite, source elsewhere, or move a spare."),
 }
 CHECK_ABOUT = {
-    "guards": "The code imports nothing outside Python's own library and names no private name in a public file. A planted import must trip the import check.",
+    "guards": "The code imports nothing outside Python's own library, names no private name in a public file, and writes no f-string that only Python 3.12 or newer can read. A planted import and two planted f-strings must be refused. The names scan needs a list kept out of the public repository, so a copy without it says the scan was skipped.",
     "weight": f"Each published page stays under {WEIGHT_LIMIT // 1_000_000} MB, the most a phone should load for one page. A page padded past the limit must be refused.",
     "banned-control": "A name planted in a scratch file must be caught by the names scan, and a longer word containing a name must not be.",
     "predictor": "One well-populated and one thin cell are recomputed by hand from the three levels' counts. The thin cell must sit near the wider odds with the pull, and far from them without it.",
@@ -172,14 +172,16 @@ CHECK_ABOUT = {
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
     "plan": "The week's plan, coded by Claude and replayed. Every call carries Claude's code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay's; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run's on the same days. Each rule has a planted fault that must be caught.",
-    "sql": "Every metric query returns rows. The history metrics are recomputed in Python apart from the SQL, the ROI must match the replay, and planted changes in a copy must move each metric.",
+    "sql": "Every metric query returns rows, and every column of every query is recomputed in Python apart from the SQL. A decimal may differ by half a unit of its last shown place, which is all rounding can do, and the return on stock must match the replay's own figure. Planted changes in a copy of the data must move the history metrics.",
+    "mutants": "Every metric query against one wrong version of itself, such as a fix rate that counts the wrong column or a year counted as 52 days. The Python recomputation that agrees with the real query must refuse each wrong one, and a query added without a wrong version fails the check.",
     "stamp": "The build stamp is read from git alone. On a scratch history it must give the count, day and code of the last change outside the published copy; committing only that copy must leave it alone; unsaved code must add a +; a partial history must drop the count and warn; and a folder with no history must say so. Two builds that differ only in their stamps must compare equal once the stamps are emptied.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
-    "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address), neither it nor the walkthrough types a computed figure, the walkthrough names every published file, and every relative link resolves. Three planted faults must be refused.",
+    "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
     "links": "Every link from the manual into the methods page, and every link within a page, lands on an id the page holds. A manual link turned to an anchor that does not exist must be refused.",
     "languages": "Every file git would publish is a code language or a format Staple's map names, and that map agrees with the house map where it is on the machine. Every language held has a section on the code languages page, every program the Python code starts has a purpose line, and the published languages.json matches a fresh count and the published page. A planted .rb file, a map calling Bash PowerShell, a language with no section, a planted start of another program and a JSON with one count off must all be refused, and a folder with no git must be walked with a warning.",
-    "fresh-clone": "The public repository is cloned as a stranger would clone it, at this commit. The one command and every check must pass there, and the live report must equal the clone's published copy. Damaging that copy must make the clone's own report check fail.",
+    "first-run": "A stranger's first run, offline. Every file git would publish is copied to an empty folder; the one command and every check must pass there with an empty home folder, no Claude key and every web request sent to a dead address. The run must say which parts it skipped, and damaging its published copy must make its own report check fail. It runs the whole suite, so it runs only when named.",
+    "fresh-clone": "The publishing check. The public repository is cloned as a stranger would clone it, at this commit, with an empty home folder. The one command and every check must pass there, the clone's fresh build must equal its published copy with the stamp included, and the live report must equal that copy too. Damaging the copy must make the clone's own report check fail. It needs the network and runs the whole suite, so it runs only when named.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 
@@ -360,7 +362,8 @@ NAV = {"report": ("Instruction Manual", "manual.html", "Opens the instruction ma
 def shell(kind, title, lede, body, stamp_text, day, chosen=None):
     buttons = {"report": ["report", "method", "languages"], "manual": ["back", "method", "languages"],
                "method": ["back", "report", "languages"], "languages": ["back", "report", "method"]}[kind]
-    nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else " target=\"_blank\" rel=\"noopener\""}'
+    new_tab = ' target="_blank" rel="noopener"'
+    nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else new_tab}'
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
     nav += (f'<button type="button" class="btn ghost" data-theme-toggle'
             f'{tipattr("Light or dark" + chr(10) + "The page opens light. This switches it, and this browser remembers the choice.")}>Dark mode</button>')
@@ -389,6 +392,11 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
             f'<script>{js}</script></body></html>\n')
 
 
+def notes_in_plain_words():
+    """Show a warning as one plain line. Python's own form adds a file path and the source line that raised it."""
+    warnings.showwarning = lambda message, *_, **__: print(f"note: {message}", flush=True)
+
+
 def walked(root=ROOT):
     """The folder's files where there is no git, skipping .git and what .gitignore names: a folder/, a name, *.ext."""
     root = Path(root)
@@ -408,13 +416,16 @@ def walked(root=ROOT):
     return sorted(out)
 
 
-def repo_files(root=ROOT):
-    """Every file git would publish, relative to the repository: tracked, plus new files not ignored."""
+def repo_files(root=ROOT, env=None):
+    """Every file git would publish, relative to the repository: the files git holds for the next commit. A scratch
+    file not yet added to git is left out, so it changes no count and fails no check. A check that lists another
+    folder passes its own environment, because inside a commit hook git's variables point at this repository."""
     try:
-        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "-co", "--exclude-standard"],
-                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"],
+                             capture_output=True, text=True, encoding="utf-8", check=True, env=env).stdout
     except (OSError, subprocess.CalledProcessError) as err:
-        warnings.warn(f"git could not list the files ({err}), so the folder was walked, skipping what .gitignore names")
+        why = "git is not installed" if isinstance(err, OSError) else "this folder holds no git history"
+        warnings.warn(f"git could not list the files ({why}), so the folder was walked, skipping what .gitignore names")
         return walked(root)
     return sorted(p for p in out.split("\0") if p and (Path(root) / p).is_file())
 
@@ -592,8 +603,10 @@ def board(d, ctx, view):
                               f'called out sick at 07:00 · {gave} calls moved</span>')
             if tech in m["broken"]:
                 kind, when = " broken", m["broken"][tech]
+                broke_tip = (f"Truck {info['truck']} broke down at {plan.clock(when)}\n"
+                             f"Its {m['stranded'][tech]} parts are stranded for the day. {gave} later calls moved to other trucks.")
                 blocks.append(f'<span class="dead" style="left:{at(when)}"></span><span class="brk" style="left:{at(when)}"'
-                              f'{tipattr(f"Truck {info["truck"]} broke down at {plan.clock(when)}" + chr(10) + f"Its {m["stranded"][tech]} parts are stranded for the day. {gave} later calls moved to other trucks.")}>'
+                              f'{tipattr(broke_tip)}>'
                               f'&#9888; broke down {plan.clock(when)} · {gave} moved</span>')
         rows.append(f'<div class="row{kind}" data-tech="{tech}"><span class="who"{tipattr(tip)}>{tech}</span>'
                     f'<span class="lane">{"".join(blocks)}</span></div>')
@@ -627,12 +640,16 @@ def route_map(d, ctx, centers):
             stops = []
             for i, ((x, y), c) in enumerate(zip(pts, calls), 1):
                 if view == "night":
+                    stop_tip = (f"Stop {i} · {tech} · {plan.clock(c['start'])}\n"
+                                f"Call {c['job']}, {c['type']}, {c['chance']:.0%}.")
                     stops.append(f'<circle class="stop{" ai" if c["ai"]["question"] else ""}" cx="{x:.0f}" cy="{y:.0f}" r="4.5"'
-                                 f'{tipattr(f"Stop {i} · {tech} · {plan.clock(c["start"])}" + chr(10) + f"Call {c["job"]}, {c["type"]}, {c["chance"]:.0%}.")}/>')
+                                 f'{tipattr(stop_tip)}/>')
                 elif c["job"] in moved:
+                    moved_tip = (f"Call {c['job']} moved from {moved[c['job']]['from']} to {tech}\n"
+                                 f"Reached at {plan.clock(c['start'])}, with only the parts on {tech}'s truck.")
                     stops.append(f'<line class="hand" x1="{hx:.0f}" y1="{hy:.0f}" x2="{x:.0f}" y2="{y:.0f}"/>'
                                  f'<circle class="stop moved" cx="{x:.0f}" cy="{y:.0f}" r="4.5"'
-                                 f'{tipattr(f"Call {c["job"]} moved from {moved[c["job"]]["from"]} to {tech}" + chr(10) + f"Reached at {plan.clock(c["start"])}, with only the parts on {tech}" + chr(39) + "s truck.")}/>')
+                                 f'{tipattr(moved_tip)}/>')
             if view == "ran" and tech in m["broken"]:
                 x, y = pts[-1] if pts else homes[tech]
                 stops.append(f'<text class="brk-map" x="{x + 5:.0f}" y="{y - 4:.0f}">&#9888;</text>')
@@ -702,7 +719,7 @@ def ai_panel(d, ctx):
                      f'<span class="conf"><i style="width:{100 * ai["first_confidence"]:.0f}%"></i></span> {ai["first_confidence"]:.0%}</p>'
                      f'<p class="asked">It asked: &ldquo;{e(ai["question"])}&rdquo;</p>'
                      f'<ul class="opts">{opts}</ul><p class="then">{e(then)} · {e(where)}</p>{parts}</div>')
-    tip = (f"AI at booking\nClaude Haiku 5.5 ({triage.MODEL}) read every booking's own words and picked the problem code "
+    tip = (f"AI at booking\n{triage.MODEL_NAME} ({triage.MODEL}) read every booking's own words and picked the problem code "
            f"this plan runs on. Below {triage.BLEND_BELOW:.0%} sure, it asked the customer one question. Its answers were "
            "made once by the model and saved with the code, so this page calls no model and holds no key.")
     return (f'<section class="panel ai-panel"><h3{tipattr(tip)}>AI at booking: Claude coded all {a["coded"]} bookings{q("follow-up question")}</h3>'
@@ -741,7 +758,10 @@ def morning_panel(d, ctx):
                      f'<strong>{tech} called out sick at 07:00</strong>: {n} calls moved<ul>{moves(tech, True)}</ul></li>')
     for tech, when in m["broken"].items():
         n = sum(x["from"] == tech for x in m["moved"])
-        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(f"Truck {ctx.techs[tech]["truck"]} broke down at {plan.clock(when)}" + chr(10) + f"{m["stranded"][tech]} parts stranded with it. The calls it had not reached moved to other trucks. Click to see it on the board.")}>'
+        broke_tip = (f"Truck {ctx.techs[tech]['truck']} broke down at {plan.clock(when)}\n"
+                     f"{m['stranded'][tech]} parts stranded with it. The calls it had not reached moved to other trucks. "
+                     "Click to see it on the board.")
+        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(broke_tip)}>'
                      f'<strong>Truck {ctx.techs[tech]["truck"]} ({tech}) broke down at {plan.clock(when)}</strong>: '
                      f'{m["stranded"][tech]} parts stranded, {n} calls moved<ul>{moves(tech, True)}</ul></li>')
     if not m["sick"] and not m["broken"]:
@@ -975,7 +995,7 @@ def build_report(results, week, stamp_text, day):
             "switch the overnight load from a fixed stock list to tomorrow's booked calls, so the parts room works from a load "
             "sheet per truck like the one on the left."),
         card("ai_step", "Claude coding the bookings", join(
-            f"Claude Haiku 5.5 ({triage.MODEL}) reads the customer's own words and picks a problem code with a confidence. "
+            f"{triage.MODEL_NAME} ({triage.MODEL}) reads the customer's own words and picks a problem code with a confidence. "
             "Asking one question when it is unsure, its 3-part list covers ",
             hv(pct(asked["coverage_pct"]), f"{pct(asked['coverage_pct'])} of jobs\nAgreeing with the booked code on {pct(asked['agrees_booked_pct'])}."),
             " of jobs, against ", hv(pct(booked["coverage_pct"]), f"{pct(booked['coverage_pct'])} with the booked code\nThe code a "
@@ -1055,7 +1075,7 @@ def build_report(results, week, stamp_text, day):
                     f'{e(day_name(d["day"]))}{"<i class=ev-s>&#10010;</i>" * sick}{"<i class=ev-b>&#9888;</i>" * broken}</button>')
     steps = "".join(f'<li{tipattr(t + chr(10) + h)}><strong>{e(t)}</strong>{e(s)}</li>' for t, s, h in (
         ("1. Claude codes every booking.", "It reads the customer's own words and picks the problem, asking one question when unsure.",
-         "Claude Haiku 5.5, on answers made once by the model and saved with the code. The AI at booking panel shows each unsure call."),
+         f"{triage.MODEL_NAME}, on answers made once by the model and saved with the code. The AI at booking panel shows each unsure call."),
         ("2. Staple plans the trucks.", "Which technician takes each call, in what order, and what each truck loads tonight.",
          "The dispatch rule and the balanced truck, replayed call by call. The board, the map and the load sheet show it."),
         ("3. People act before 08:00.", "The parts room loads, the call center and dispatch ring customers, the buyer chases back-orders.",
@@ -1159,7 +1179,7 @@ def ponytails():
 
 
 def checks():
-    names = re.findall(r'@check\("([^"]+)"\)', (ROOT / "check.py").read_text(encoding="utf-8"))
+    names = re.findall(r'@check\("([^"]+)"', (ROOT / "check.py").read_text(encoding="utf-8"))
     return Raw("<dl>" + "".join(f"<dt><code>{e(n)}</code></dt><dd>{e(CHECK_ABOUT[n])}</dd>" for n in names) + "</dl>")
 
 
