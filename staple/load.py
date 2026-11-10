@@ -7,6 +7,7 @@ for the day's appliance types; and a balanced truck that keeps a part only while
 A share of calls is unplanned: added or moved the same day, so no night-before list saw them.
 The dollar figures and that share are made up and stated once, here, so a real run swaps in real ones.
 """
+import datetime as dt
 import random
 from collections import Counter, defaultdict
 
@@ -32,7 +33,7 @@ MARKS = ("needs a certified technician", "on this truck", "from a center overnig
 
 
 class Fleet:
-    """The trucks as they stand today: what each holds, its space, who drives it, and the centers' stock."""
+    """The trucks as they stand today: what each holds, its space, who drives it, and the centers' back-orders."""
 
     def __init__(self, conn):
         self.cost = dict(conn.execute("SELECT part, cost FROM parts"))
@@ -44,13 +45,23 @@ class Fleet:
         self.stock = defaultdict(set)
         for tech, part in conn.execute("SELECT t.tech, s.part FROM truck_stock s JOIN trucks t USING (truck)"):
             self.stock[tech].add(part)
-        self.eta = dict(conn.execute("SELECT part, eta_days FROM centre_stock WHERE status = 'backorder'"))
+        self.backorders = conn.execute("SELECT part, starts, ships FROM backorders").fetchall()
+        self._stuck = {}
 
-    def may_carry(self, tech, part):
-        """A locked part rides only with a certified technician; a back-ordered one only where it already is."""
+    def stuck(self, day):
+        """The parts no center can ship on this day, each with the days until it ships."""
+        if day not in self._stuck:
+            today = dt.date.fromisoformat(day)
+            self._stuck[day] = {part: (dt.date.fromisoformat(ships) - today).days
+                                for part, starts, ships in self.backorders if starts <= day < ships}
+        return self._stuck[day]
+
+    def may_carry(self, tech, part, stuck=(), aboard=()):
+        """A locked part rides only with a certified technician. A back-ordered part cannot be loaded, so it rides
+        only where it was aboard the night before."""
         if part in self.locked and tech not in self.certified:
             return False
-        return part not in self.eta or part in self.stock[tech]
+        return part not in stuck or part in aboard
 
     def holding(self, part):
         return self.cost[part] * HOLDING_RATE / 365
@@ -83,17 +94,21 @@ def surprise_value(conn, predictor):
     return value
 
 
-def fill(fleet, tech, load, wanted):
-    """Add the wanted parts, best first, while the truck has space and may carry them."""
+def fill(fleet, tech, load, wanted, stuck=(), before=()):
+    """Add the wanted parts, best first, while the truck has space and may carry them. A back-ordered part that
+    was aboard the night before stays aboard first: the center has none to swap it for, and a part sent back
+    would be one the center could ship."""
+    load |= {p for p in before if p in stuck}
     space = sum(fleet.size[p] for p in load)
     for part in sorted(wanted, key=lambda q: (-wanted[q], q)):
-        if part not in load and fleet.may_carry(tech, part) and space + fleet.size[part] <= fleet.capacity[tech]:
+        if (part not in load and fleet.may_carry(tech, part, stuck, before)
+                and space + fleet.size[part] <= fleet.capacity[tech]):
             load.add(part)
             space += fleet.size[part]
     return load
 
 
-def list_load(fleet, tech, day_jobs, lists, k, keep_stock):
+def list_load(fleet, tech, day_jobs, lists, k, keep_stock, before=(), stuck=()):
     """Today's stock if kept, then the booked calls' carry-list parts, likeliest first, while space allows."""
     # ponytail: a truck that holds a part is taken to hold enough of it, as the made-up history assumes;
     # count units per truck-day once real usage shows how often two calls on one route need the same part.
@@ -102,7 +117,7 @@ def list_load(fleet, tech, day_jobs, lists, k, keep_stock):
         if not j["unplanned"]:
             for part, p in lists[j["job"]][:k]:
                 wanted[part] = max(wanted.get(part, 0.0), p)
-    return fill(fleet, tech, set(fleet.stock[tech]) if keep_stock else set(), wanted)
+    return fill(fleet, tech, set(fleet.stock[tech]) if keep_stock else set(), wanted, stuck, before)
 
 
 def worth(fleet, tech, day_jobs, lists, surprise, before):
@@ -118,22 +133,24 @@ def worth(fleet, tech, day_jobs, lists, surprise, before):
     return {p: w - fleet.holding(p) + (MOVE if p in before else -MOVE) for p, w in gross.items()}
 
 
-def balanced_load(fleet, tech, day_jobs, lists, surprise, before):
+def balanced_load(fleet, tech, day_jobs, lists, surprise, before, stuck=()):
     """The parts worth carrying, best worth per unit of space first, while the truck has room."""
     net = worth(fleet, tech, day_jobs, lists, surprise, before)
-    return fill(fleet, tech, set(), {p: v / fleet.size[p] for p, v in net.items() if v > 0})
+    return fill(fleet, tech, set(), {p: v / fleet.size[p] for p, v in net.items() if v > 0}, stuck, before)
 
 
+# Each policy builds one truck's load for a day from its booked calls, its load the night before, and the
+# parts no center can ship that day.
 def today(fleet):
-    return lambda tech, day_jobs, before: set(fleet.stock[tech])
+    return lambda tech, day_jobs, before, stuck: set(fleet.stock[tech])
 
 
 def top_up(fleet, lists, k, keep_stock=True):
-    return lambda tech, day_jobs, before: list_load(fleet, tech, day_jobs, lists, k, keep_stock)
+    return lambda tech, day_jobs, before, stuck: list_load(fleet, tech, day_jobs, lists, k, keep_stock, before, stuck)
 
 
 def balanced(fleet, lists, surprise):
-    return lambda tech, day_jobs, before: balanced_load(fleet, tech, day_jobs, lists, surprise, before)
+    return lambda tech, day_jobs, before, stuck: balanced_load(fleet, tech, day_jobs, lists, surprise, before, stuck)
 
 
 def policies(fleet, lists, shuffled, surprise, every):
@@ -167,7 +184,7 @@ def replay(fleet, jobs, chosen, record=False):
         t, last, nights, loads = defaultdict(float), {}, defaultdict(Counter), {}
         for day, tech in order:
             day_jobs, before = days[(day, tech)], last.get(tech, fleet.stock[tech])
-            load = build(tech, day_jobs, before)
+            load = build(tech, day_jobs, before, fleet.stuck(day))
             covered = sum(1 for j in day_jobs if j["needed"] <= load)
             repeat, handling, holding = day_cost(fleet, load, before, len(day_jobs) - covered)
             for key, v in (("jobs", len(day_jobs)), ("covered", covered), ("parts", len(load)),
@@ -194,11 +211,12 @@ def replay(fleet, jobs, chosen, record=False):
     return rows
 
 
-def mark(fleet, tech, zone, part):
-    """Where one carry-list part would come from for this job's technician: the first of MARKS that holds."""
+def mark(fleet, tech, zone, part, stuck=()):
+    """Where one carry-list part would come from for this job's technician: the first of MARKS that holds. stuck
+    is the parts no center can ship on the job's day."""
     holds = {"needs a certified technician": lambda: part in fleet.locked and tech not in fleet.certified,
              "on this truck": lambda: part in fleet.stock[tech],
-             "from a center overnight": lambda: part not in fleet.eta,
+             "from a center overnight": lambda: part not in stuck,
              "on another truck nearby": lambda: any(o != tech and part in s and travel_minutes(fleet.home[o], zone)
                                                     <= NEARBY_MINUTES for o, s in fleet.stock.items()),
              "back-ordered": lambda: True}
@@ -219,10 +237,12 @@ def availability(fleet, jobs, lists, k=SHOWN_K):
     flagged = blocked = caught = 0
     expected = 0.0
     for j in jobs:
+        unshippable = fleet.stuck(j["day"])
+
         def where(p):
-            key = (j["tech"], j["zone"], p)
+            key = (j["tech"], j["zone"], p, p in unshippable)
             if key not in cache:
-                cache[key] = mark(fleet, j["tech"], j["zone"], p)
+                cache[key] = mark(fleet, j["tech"], j["zone"], p, unshippable)
             return cache[key]
         ranked = lists[j["job"]]
         for p, _ in ranked[:k]:

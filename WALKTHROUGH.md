@@ -60,15 +60,17 @@ replay's own record of the most recent week, so every route and load on it is on
   carrying cost. The module also marks where each carry-list part would come from, and flags a booking
   likely to need a part nobody nearby holds.
 - `staple/backorders.py` ranks every part the centers cannot ship by the second visits it puts at risk before
-  it arrives: an expedite list ordered by exposure. Which booking will need a stuck part cannot be known in
-  advance, but how many will can, so the action is fleet-wide. The list is held to what the held-back days
-  then brought.
+  it ships: an expedite list ordered by exposure. Which booking will need a stuck part cannot be known in
+  advance, but how many will can, so the action is fleet-wide. A back-order starts on one day and ships on
+  another, so the list is made again for every held-back day and a part drops off the day it ships. Each
+  forecast is held to what the held-back days then brought.
 - `staple/dispatch.py` replays every held-back day under each way of handing out calls, with the same
   invented sick calls, breakdowns and priority changes. Staple's rule sends each call to the technician
   with the lowest expected cost. It learns each technician's success rate from the training history, and the
   rates the invented world was written from only score the result. Within each priority, the call with most
-  to lose if its best technician fills up is placed first. A call no route has room for rolls to tomorrow and
-  counts as not fixed.
+  to lose if its best technician fills up is placed first. The day then runs in clock order: no technician
+  sets out for a call before the minute it came in or was moved to them. A call no route has room for rolls
+  to tomorrow and counts as not fixed.
 
 ## The AI step
 
@@ -108,8 +110,9 @@ replay's own record of the most recent week, so every route and load on it is on
   costs a truck-day and the repeat-visit dollars a year its stock avoids per dollar held.
 - `sql/metrics/carry_list_curve.sql`: coverage against carry-list length, for the predictor, the national
   top-parts list and the shuffled-history control.
-- `sql/metrics/backorder_exposure.sql`: each back-ordered part, its forecast calls and stuck calls before it
-  ships, and what the held-back days then brought.
+- `sql/metrics/backorder_exposure.sql`: the buyer's list for every held-back day. Each row is a part no center
+  can ship that day, with its forecast calls and stuck calls before it ships and what the held-back days then
+  brought. The plan's buyer items quote these rows.
 - `sql/metrics/ai_step.sql`: each reading of the customer's words, its agreement with the booked code and the
   true problem, and the coverage of the list it leads to.
 - `sql/metrics/dispatch_scorecard.sql`: each way of handing out calls, with fixes, drive time, rolled calls,

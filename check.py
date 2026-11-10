@@ -225,7 +225,7 @@ def built_world(path):
 def digest(conn):
     import hashlib
     h = hashlib.sha256()
-    for table in ("jobs", "job_parts", "techs", "tech_skills", "truck_stock", "centre_stock"):
+    for table in ("jobs", "job_parts", "techs", "tech_skills", "truck_stock", "backorders"):
         for row in conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2"):
             h.update(repr(row).encode())
     return h.hexdigest()
@@ -261,6 +261,7 @@ def shared_week():
     if "week" not in _WORLD:
         from staple import plan, triage
         conn = shared_world()
+        results_written(conn)    # the plan's buyer list reads the back-order query
         _WORLD["followups"] = triage.load(conn)[1]
         _WORLD["week"] = plan.build(conn)
     return _WORLD["week"], _WORLD["followups"]
@@ -342,16 +343,29 @@ def control():
           f"baseline's {cov['national top parts'][3]:.1%}: the gain comes from the history's links, not the method")
 
 
-def load_faults(fleet, tech, parts):
-    """What is wrong with one truck's load: over its space, a locked part without certification, an unshippable part."""
+def load_faults(fleet, tech, parts, stuck, before):
+    """What is wrong with one truck's load: over its space, a locked part without certification, a part loaded
+    while no center could ship it, or a stuck part sent back. stuck is the parts no center can ship that day,
+    before the truck's load the night before."""
     faults = []
     if sum(fleet.size[p] for p in parts) > fleet.capacity[tech]:
         faults.append("over its space")
     if tech not in fleet.certified and parts & fleet.locked:
         faults.append("a locked part on an uncertified truck")
-    if any(p in fleet.eta and p not in fleet.stock[tech] for p in parts):
+    if any(p in stuck and p not in before for p in parts):
         faults.append("a back-ordered part the truck did not already hold")
+    if any(p in stuck and p not in parts for p in before):
+        faults.append("a back-ordered part taken off before it shipped")
     return faults
+
+
+def faulty_loads(fleet, loads):
+    """How many of one policy's recorded truck-days break a load rule, each truck followed in date order."""
+    last, bad = {}, 0
+    for (day, tech), parts in sorted(loads.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        bad += bool(load_faults(fleet, tech, parts, fleet.stuck(day), last.get(tech, fleet.stock[tech])))
+        last[tech] = parts
+    return bad
 
 
 def extra_parts_at(rows, policy, target, base):
@@ -397,9 +411,9 @@ def dollars():
     recorded = load.replay(fleet, jobs, [("balanced", 0, load.balanced(fleet, lists, r["surprise"])),
                                          ("every part", every["k"], load.top_up(fleet, lists, every["k"])),
                                          ("lists only", 8, load.top_up(fleet, lists, 8, keep_stock=False))], record=True)
-    faults = sum(bool(load_faults(fleet, tech, parts)) for row in recorded for (_, tech), parts in row["loads"].items())
+    faults = sum(faulty_loads(fleet, row["loads"]) for row in recorded)
     uncertified = next(t for t in fleet.capacity if t not in fleet.certified)
-    planted = load_faults(fleet, uncertified, set(fleet.size))
+    planted = load_faults(fleet, uncertified, set(fleet.size), fleet.stuck(jobs[0]["day"]), fleet.stock[uncertified])
     print(f"  {faults} faulty loads in {sum(len(x['loads']) for x in recorded):,}; "
           f"a planted bad load shows {len(planted)} of 3 faults")
     require(faults == 0, f"{faults} loads break the space, lock or back-order rules")
@@ -453,21 +467,61 @@ def calibrated(actual, predicted):
     return abs(actual - predicted) <= 3 * predicted ** 0.5
 
 
+def calendar_faults(rows, fleet, days):
+    """The parts whose listing does not follow the calendar. A part must be listed on every held-back day from a
+    back-order's start to the day before it ships, with the days left falling by one a day, and on no other day."""
+    listed, want = defaultdict(dict), defaultdict(dict)
+    for r in rows:
+        listed[r["part"]][r["day"]] = r["days_left"]
+    for part, starts, ships in fleet.backorders:
+        last = datetime.date.fromisoformat(ships)
+        want[part].update({d: (last - datetime.date.fromisoformat(d)).days for d in days if starts <= d < ships})
+    return sorted(part for part in set(listed) | set(want) if listed[part] != want[part])
+
+
 @check("backorders")
 def backorders_check():
     from staple import backorders, load
     conn = shared_world()
     fleet = load.Fleet(conn)
     rows = backorders.run(conn)
-    for r in rows[:5]:
-        print(f"  {r['part']}: arrives in {r['eta']} days; {len(r['holders'])} trucks hold one; "
-              f"{r['expected']:.1f} calls expected, {r['stuck']:.1f} stuck (${r['at_risk']:,.0f} at risk); "
-              f"{r['actual']} came, {r['actual_stuck']} stuck")
-    require(sorted(r["part"] for r in rows) == sorted(fleet.eta), "the list does not hold every back-ordered part once")
-    require(all(a["at_risk"] >= b["at_risk"] for a, b in zip(rows, rows[1:])), "the list is not ranked by dollars at risk")
-    for name, actual, predicted in (("calls", sum(r["actual"] for r in rows), sum(r["expected"] for r in rows)),
-                                    ("stuck calls", sum(r["actual_stuck"] for r in rows), sum(r["stuck"] for r in rows))):
-        print(f"  {name} before arrival: forecast {predicted:.1f}, actual {actual}; "
+    days = sorted({r["day"] for r in rows})
+    by_day = defaultdict(list)
+    for r in rows:
+        by_day[r["day"]].append(r)
+    sizes = [len(by_day[d]) for d in days]
+    print(f"  {len(fleet.backorders)} back-orders across {len(days)} held-back days: {min(sizes)} to {max(sizes)} parts stuck "
+          f"on a day, {len(rows):,} part-days listed")
+    for r in by_day[days[-1]][:3]:
+        print(f"  {r['day']}, {r['part']}: ships in {r['days_left']} days; {len(r['holders'])} trucks stock one; "
+              f"{r['expected']:.1f} calls expected, {r['stuck']:.1f} stuck (${r['at_risk']:,.0f} at risk)")
+    require(all(sorted(r["part"] for r in by_day[d]) == sorted(fleet.stuck(d)) for d in days),
+            "a day's list does not hold every back-ordered part once")
+    require(all(a["at_risk"] >= b["at_risk"] for d in days for a, b in zip(by_day[d], by_day[d][1:])),
+            "a day's list is not ranked by dollars at risk")
+
+    parts = {part for part, _, _ in fleet.backorders}
+    off = calendar_faults(rows, fleet, days)
+    print(f"  parts listed on every day from a back-order's start to the day before it ships, the days left falling by "
+          f"one a day, and on no other day: {len(parts) - len(off)} of {len(parts)}")
+    require(not off, f"the list does not follow the calendar for {off[:3]}")
+    middle = next(r for r in rows if r["days_left"] > 1 and not r["first"])
+    ship_day = str(datetime.date.fromisoformat(middle["day"]) + datetime.timedelta(days=middle["days_left"]))
+    planted = {"a count that does not fall": [dict(r, days_left=r["days_left"] + 1) if r is middle else r for r in rows],
+               "a day left out": [r for r in rows if r is not middle],
+               "a part still listed the day it ships": rows + [dict(middle, day=ship_day, days_left=0)]}
+    missed = [kind for kind, changed in planted.items() if calendar_faults(changed, fleet, days) != [middle["part"]]]
+    print(f"  control: {', '.join(planted)}: {len(planted) - len(missed)} of {len(planted)} refused")
+    require(not missed, f"the calendar check passed a planted fault: {missed}")
+
+    scored = [r for r in rows if r["first"] and r["whole"]]
+    after = str(datetime.date.fromisoformat(days[-1]) + datetime.timedelta(days=1))
+    inside = [b for b in fleet.backorders if days[0] < b[2] <= after]
+    print(f"  the forecast is scored once on each of the {len(scored)} back-orders that shipped inside the held-back days")
+    require(len(scored) == len(inside), "a back-order that shipped inside the held-back days is scored twice or not at all")
+    for name, actual, predicted in (("calls", sum(r["actual"] for r in scored), sum(r["expected"] for r in scored)),
+                                    ("stuck calls", sum(r["actual_stuck"] for r in scored), sum(r["stuck"] for r in scored))):
+        print(f"  {name} before the part shipped: forecast {predicted:.1f}, actual {actual}; "
               f"a forecast three times too high {'passes' if calibrated(actual, 3 * predicted) else 'fails'}")
         require(calibrated(actual, predicted), f"the forecast of {name} misses by more than three spreads")
         require(not calibrated(actual, 3 * predicted), f"the {name} test cannot tell a forecast three times too high")
@@ -584,17 +638,21 @@ def triage_check():
 
 def visit_faults(result, jobs):
     """What breaks the day's rules: a call served twice or lost, a visit by a sick technician, a broken truck
-    working after its breakdown, a route running past 17:00."""
+    working after its breakdown, a route running past 17:00, and a call started before the minute it came in or
+    the breakdown that moved it. The last is read from the day's own events, not from the replay's notes."""
     from staple import dispatch
     faults = Counter()
     served = Counter(job for _, _, job, _, _, _ in result["visits"])
     rolled = Counter(result["rolled_jobs"])
     faults["served or rolled other than once"] = sum(1 for j in jobs if served[j["job"]] + rolled[j["job"]] != 1)
-    for day, tech, _, start, end, _ in result["visits"]:
+    for day, tech, job, start, end, _ in result["visits"]:
         sick, broken = result["events"][day]
+        rec = result["days"][day]
         faults["visit by a sick technician"] += tech in sick
         faults["visit on a broken truck after it broke"] += tech in broken and start >= broken[tech]
         faults["visit past 17:00"] += end > dispatch.DAY + 1e-9
+        came = max([rec["arrive"].get(job, 0.0)] + [rec["broken"][t] for t, why in rec["moved"].get(job, ()) if why == "breakdown"])
+        faults["a call started before it came in or was moved"] += start < came - 1e-9
     return +faults
 
 
@@ -741,12 +799,136 @@ def dispatch_blind():
     require(misled.belief[best][0] < 0.1 and apart, "a rewritten history moved no visit, so the comparison sees nothing")
 
 
+def calendar_load_faults(recorded, fleet):
+    """Where a recorded replay's nightly loads break the back-order calendar: a day replayed on the wrong stuck
+    parts, a stuck part loaded while no center could ship it, or one sent back before it shipped."""
+    faults = Counter()
+    for day, rec in recorded["days"].items():
+        faults["a day replayed on the wrong back-orders"] += rec["stuck"] != fleet.stuck(day)
+        for tech, cargo in rec["load"].items():
+            found = load_faults(fleet, tech, cargo, fleet.stuck(day), rec["before"][tech])
+            faults.update(f for f in found if "back-ordered" in f)
+    return +faults
+
+
+@check("replay-clock")
+def replay_clock():
+    """The replay obeys the clock and the calendar. No call starts before the minute it came in or the breakdown
+    that moved it; a back-ordered part is never loaded until it ships and is loadable again after; and the lists
+    people read before 08:00 hold only what is known by then."""
+    import copy
+    from staple import backtest, dispatch, load, metrics, plan
+    conn = shared_world()
+    results_written(conn)
+    fleet = load.Fleet(conn)
+    jobs = backtest.test_jobs(conn)
+    load.mark_unplanned(jobs)
+    recorded = dispatch.replay(conn, jobs, "skills and parts", "balanced", record=True)
+
+    # The clock: read from the day's own events, never from what the replay noted for itself.
+    late = "a call started before it came in or was moved"
+    faults = visit_faults(recorded, jobs)
+    start_of = {(day, job): start for day, _, job, start, _, _ in recorded["visits"]}
+    came_in = [(day, job, at) for day, rec in recorded["days"].items() for job, at in rec["arrive"].items()
+               if (day, job) in start_of]
+    broke = [(day, job, max(rec["broken"][t] for t, why in origins if why == "breakdown"))
+             for day, rec in recorded["days"].items() for job, origins in rec["moved"].items()
+             if (day, job) in start_of and any(why == "breakdown" for _, why in origins)]
+    tight = min(start_of[(day, job)] - at for day, job, at in came_in + broke)
+    print(f"  {len(came_in):,} calls that came in during the day and {len(broke)} moved by a breakdown: "
+          f"{faults.get(late, 0)} started before that minute; the closest started {tight:.1f} minutes after it")
+    require(not faults, f"the replay breaks the day's rules: {dict(faults)}")
+    require(came_in and broke, "control: the replay holds no same-day call or no breakdown move to test")
+    for what, (day, job, at) in (("a same-day call", came_in[0]), ("a call moved by a breakdown", broke[0])):
+        early = dict(recorded, visits=[(d, t, j, at - 1.0, e, c) if (d, j) == (day, job) else (d, t, j, s, e, c)
+                                       for d, t, j, s, e, c in recorded["visits"]])
+        require(late in visit_faults(early, jobs), f"control: {what} started a minute early was not refused")
+    print("  control: a same-day call and a breakdown-moved call, each started one minute early, are both refused")
+
+    # The calendar.
+    broken = calendar_load_faults(recorded, fleet)
+    nights = sum(len(rec["load"]) for rec in recorded["days"].values())
+    stuck_days = sum(len(rec["stuck"]) for rec in recorded["days"].values())
+    print(f"  {nights:,} truck loads over {stuck_days:,} stuck part-days: {sum(broken.values())} loads take on a part no "
+          f"center could ship, or send one back before it ships")
+    require(not broken, f"a load breaks the back-order calendar: {dict(broken)}")
+    days = sorted(recorded["days"])
+    again = 0
+    shipped = [(part, ships) for part, _, ships in fleet.backorders if days[0] < ships <= days[-1]]
+    for part, ships in shipped:
+        week_after = [d for d in days if ships <= d][:7]
+        again += any(part in recorded["days"][d]["load"][t] - recorded["days"][d]["before"][t]
+                     for d in week_after for t in recorded["days"][d]["load"])
+    print(f"  of the {len(shipped)} back-orders that shipped inside the held-back days, {again} had the part put on a "
+          f"truck within a week of shipping")
+    require(again, "no part was loaded after its back-order ended, so the calendar never clears one")
+    day = next(d for d in days if recorded["days"][d]["stuck"])
+    rec = recorded["days"][day]
+    tech, part = next((t, p) for t in sorted(rec["load"]) for p in sorted(rec["stuck"])
+                      if p not in rec["before"][t] and p not in fleet.locked)
+    planted = dict(recorded, days=dict(recorded["days"], **{day: dict(rec, load=dict(rec["load"], **{tech: rec["load"][tech] | {part}}))}))
+    require("a back-ordered part the truck did not already hold" in calendar_load_faults(planted, fleet),
+            "control: a stuck part planted on a truck that did not hold it was not refused")
+    print(f"  control: {part}, stuck on {day}, planted on {tech}'s truck, is refused")
+
+    # The lists people read before 08:00, and the buyer's list.
+    week, followups = shared_week()
+    kinds = ("a list read before 08:00 naming a call that has not come in",
+             "a buyer's list that is not the back-order query's rows", "technicians with no booked calls not named")
+    found = plan_faults(week, followups)
+    by_day = defaultdict(list)
+    for row in metrics.read(conn, "backorder_exposure"):
+        by_day[row["day"]].append(row)
+    all_days = sorted(by_day)
+    changed = sum({(r["part"], r["ships_in_days"]) for r in by_day[a]} != {(r["part"], r["ships_in_days"]) for r in by_day[b]}
+                  for a, b in zip(all_days, all_days[1:]))
+    steps = [(r["ships_in_days"], n["ships_in_days"]) for a, b in zip(all_days, all_days[1:])
+             for r in by_day[a] for n in by_day[b] if n["part"] == r["part"] and r["ships_in_days"] > 1]
+    buyer = sum(i["owner"] == "Buyer" for d in week["days"] for i in d["todo"])
+    idle = [len(i["idle"]) for d in week["days"] for i in d["todo"] if "idle" in i]
+    unplanned = sum(j["unplanned"] for j in week["jobs"])
+    print(f"  the week's lists: {buyer} buyer's items, each the back-order query's own row for its day; "
+          f"{unplanned} same-day calls, none on a list read before 08:00; "
+          f"{min(idle)} to {max(idle)} technicians a day with no booked calls, all named" if idle else
+          f"  the week's lists: {buyer} buyer's items; {unplanned} same-day calls; every technician has a booked call")
+    print(f"  the back-order list differs from the day before on {changed} of {len(all_days) - 1} days, and a part "
+          f"listed two days running has one day fewer left on {sum(a - 1 == b for a, b in steps)} of {len(steps)}")
+    require(not any(k in found for k in kinds), f"the week's lists break their rules: {dict(found)}")
+    require(changed and steps and all(a - 1 == b for a, b in steps), "the buyer's list does not count down day by day")
+
+    d = week["days"][0]
+    late_job = next(j["job"] for j in week["jobs"] if j["unplanned"] and j["day"] == d["day"])
+    item = next(i for i in d["todo"] if i["owner"] == "Buyer")
+    named = next(i for i in d["todo"] if "idle" in i)
+
+    def with_todo(todo):
+        out = copy.copy(week)
+        out["days"] = [dict(d, todo=todo)] + week["days"][1:]
+        return out
+
+    planted = {
+        kinds[0]: with_todo(d["todo"] + [{"owner": "Call center", "when": "before 08:00", "tech": None, "job": late_job,
+                                          "text": "", "detail": ""}]),
+        kinds[1]: with_todo([dict(i, row=dict(i["row"], dollars_at_risk=i["row"]["dollars_at_risk"] + 1)) if i is item else i
+                             for i in d["todo"]]),
+        kinds[2]: with_todo([dict(i, idle=i["idle"][1:]) if i is named else i for i in d["todo"]]),
+    }
+    missed = [kind for kind, changed_week in planted.items() if kind not in plan_faults(changed_week, followups)]
+    print(f"  control: a same-day call on a morning list, a buyer's figure off by a dollar, and an idle technician left "
+          f"out: {len(planted) - len(missed)} of {len(planted)} refused")
+    require(not missed, f"the list rules passed a planted fault: {missed}")
+
+
 def plan_faults(week, followups):
     """What breaks the week's plan: the day's rules, the load rules, a load its parts' worth does not
     reproduce, a call off Claude's code, an unsure call without its question, a morning that drops a sick call,
     a breakdown or a moved call's from and to, and day totals that disagree with the replay's own."""
-    from staple import load, triage
+    from staple import load, metrics, plan, triage
     ctx, faults = week["ctx"], Counter()
+    by_id = {j["job"]: j for j in week["jobs"]}
+    listed = defaultdict(list)
+    for row in metrics.read(ctx.conn, "backorder_exposure"):
+        listed[row["day"]].append(row)
     for result in (week["ours"], week["base"]):
         faults.update(visit_faults(result, week["jobs"]))
     for j in week["jobs"]:
@@ -758,10 +940,23 @@ def plan_faults(week, followups):
     for d in week["days"]:
         rec, m = week["ours"]["days"][d["day"]], d["morning"]
         for tech, cargo in rec["load"].items():
-            faults.update(load_faults(ctx.fleet, tech, cargo))
+            faults.update(load_faults(ctx.fleet, tech, cargo, rec["stuck"], rec["before"][tech]))
             worth = d["trucks"][tech]["sheet"]["worth"]
-            again = load.fill(ctx.fleet, tech, set(), {p: v / ctx.fleet.size[p] for p, v in worth.items() if v > 0})
+            again = load.fill(ctx.fleet, tech, set(), {p: v / ctx.fleet.size[p] for p, v in worth.items() if v > 0},
+                              rec["stuck"], rec["before"][tech])
             faults["a load its parts' worth does not reproduce"] += again != cargo
+        faults["a list read before 08:00 naming a call that has not come in"] += sum(
+            1 for i in d["todo"] if i["when"] == "before 08:00" and i["job"] is not None and by_id[i["job"]]["unplanned"])
+        costliest = sorted(listed[d["day"]], key=lambda r: (-r["dollars_at_risk"], r["part"]))[:plan.BUYER_ITEMS]
+        buyer = [i for i in d["todo"] if i["owner"] == "Buyer"]
+        faults["a buyer's list that is not the back-order query's rows"] += (
+            [i.get("row") for i in buyer] != costliest
+            or any(f"{r['expected_calls']:.1f} calls" not in i["text"] or f"${r['dollars_at_risk']:,.0f} " not in i["detail"]
+                   or f"Ships in {r['ships_in_days']} day" not in i["detail"] for i, r in zip(buyer, costliest)))
+        free = sorted(t for t, truck in d["trucks"].items() if not truck["calls"])
+        named = [i["idle"] for i in d["todo"] if "idle" in i]
+        faults["technicians with no booked calls not named"] += (
+            named != ([free] if free else []) or any(t not in i["text"] for i in d["todo"] if "idle" in i for t in free))
         faults["a sick call or breakdown missing from the morning"] += (
             set(m["sick"]) != rec["sick"] or m["broken"] != {t: at for t, at in rec["broken"].items() if t not in rec["sick"]})
         ran = {i: t for _, t, i, _, _, _ in rec["visits"]}
@@ -781,7 +976,7 @@ def plan_faults(week, followups):
 @check("plan")
 def plan_check():
     import copy
-    from staple import backtest, dispatch, plan, triage
+    from staple import backtest, dispatch, load, plan
     conn = shared_world()
     week, followups = shared_week()
     for d in week["days"]:
@@ -805,6 +1000,7 @@ def plan_check():
     print(f"  control: the opening rule refuses {moot[0]['day']}, whose breakdown moved no call, and {quiet[0]['day']}, which had no event")
 
     all_jobs = backtest.test_jobs(conn)
+    load.mark_unplanned(all_jobs)    # the day's events include the minute each unplanned call comes in
     days = sorted({j["day"] for j in all_jobs})
     by_day = defaultdict(list)
     for j in all_jobs:
@@ -821,7 +1017,7 @@ def plan_check():
     day, d = week["days"][0]["day"], week["days"][0]
     rec = week["ours"]["days"][day]
     fleet = week["ctx"].fleet
-    plain = sorted(p for p in fleet.size if p not in fleet.locked and p not in fleet.eta)
+    plain = sorted(p for p in fleet.size if p not in fleet.locked and p not in rec["stuck"])
     tech = next(t for t in techs if t not in fleet.certified and rec["load"][t])
     asked = next(i for i, j in enumerate(week["jobs"]) if j["ai"]["question"])
     off_code = next(i for i, j in enumerate(week["jobs"]) if j["booked"] != j["problem"])
@@ -848,7 +1044,7 @@ def plan_check():
         "over its space": with_load(rec["load"][tech] | set(plain)),
         "a locked part on an uncertified truck": with_load(rec["load"][tech] | {min(fleet.locked)}),
         "a back-ordered part the truck did not already hold":
-            with_load(rec["load"][tech] | {next(p for p in sorted(fleet.eta) if p not in fleet.stock[tech])}),
+            with_load(rec["load"][tech] | {next(p for p in sorted(rec["stuck"]) if p not in rec["before"][tech])}),
         "a load its parts' worth does not reproduce": with_load(rec["load"][tech] - {min(rec["load"][tech])}),
         "a call not on Claude's code": with_job(off_code, problem=week["jobs"][off_code]["booked"]),
         "an unsure call without its question": with_job(asked, ai=dict(week["jobs"][asked]["ai"], question=None)),
@@ -955,12 +1151,12 @@ def hand_tables(conn):
             conn.execute("SELECT policy, calls, rolled, fixes_per_call, parts_missing, drive_per_call, moved, "
                          "moved_fix_rate, cost_per_call FROM dispatch")},
         "backorder_exposure": {
-            part: {"eta_days": eta, "trucks_holding": len(holders.split()), "open_zones": zones,
-                   "expected_calls": to(calls, 1), "expected_stuck": to(stuck, 1), "dollars_at_risk": to(risk, 0),
-                   "actual_calls": came, "actual_stuck": came_stuck}
-            for part, eta, holders, zones, calls, stuck, risk, came, came_stuck in
-            conn.execute("SELECT part, eta_days, holders, open_zones, expected_calls, expected_stuck, at_risk, "
-                         "actual_calls, actual_stuck FROM backorder_list")},
+            (day, part): {"ships_in_days": left, "trucks_holding": len(holders.split()), "open_zones": zones,
+                          "expected_calls": to(calls, 1), "expected_stuck": to(stuck, 1), "dollars_at_risk": to(risk, 0),
+                          "actual_calls": came, "actual_stuck": came_stuck, "back_test": int(first and whole)}
+            for day, part, left, holders, zones, calls, stuck, risk, came, came_stuck, first, whole in
+            conn.execute("SELECT day, part, days_left, holders, open_zones, expected_calls, expected_stuck, at_risk, "
+                         "actual_calls, actual_stuck, first_listed, whole_wait FROM backorder_list")},
         # The return on stock is held to the replay's own figure, which the load step works out by another route.
         "inventory_roi": {
             (policy, k): {"covered_pct": pct(covered), "parts_aboard": to(parts, 1), "permanent_parts": to(permanent, 1),
@@ -973,7 +1169,7 @@ def hand_tables(conn):
     }
 
 
-ROW_KEYS = {"inventory_roi": 2}    # how many leading columns name a row, where one does not
+ROW_KEYS = {"inventory_roi": 2, "backorder_exposure": 2}    # how many leading columns name a row, where one does not
 
 
 def rows_by_key(name, result):

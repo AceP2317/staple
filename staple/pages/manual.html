@@ -73,7 +73,8 @@ what this does and does not show.</p></section>
 <tr><td>Call center, before 08:00</td><td>Call back about call 123</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
 <tr><td>Dispatch, before 08:00</td><td>Warn the customer on call 123</td><td>A part the call has at least a {{likely}} chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
 <tr><td>Dispatch, before 08:00</td><td>Rebook call 123</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
-<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The three back-ordered parts with the most second-visit dollars at risk before they ship. Where calls likely to need one sit in a zone with no holder nearby, the item names a truck to move a spare from.</td><td>Expedite, source elsewhere, or move the spare.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Technicians with no booked calls</td><td>The booked calls fit on fewer routes than there are technicians, because each call goes to the technician with the lowest expected cost.</td><td>Keep them for the calls that come in during the day and the calls a sick call or breakdown moves.</td></tr>
+<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The back-ordered parts with the most second-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
 </tbody></table></div></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
@@ -132,7 +133,8 @@ need it before it arrives, how many of those have no truck nearby holding one, a
 <tr><td>expected_calls</td><td>For a back-ordered part: its share of its appliance's past calls, times that appliance's calls a day in the same month of past years, times the days until it ships.</td></tr>
 <tr><td>expected_stuck</td><td>Expected calls in zones with no holding truck based within {{nearby}} minutes, less the calls the holders themselves usually take there.</td></tr>
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>
-<tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought, for comparison with the forecast.</td></tr>
+<tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought before the part shipped, for comparison with the forecast.</td></tr>
+<tr><td>back_test</td><td>1 on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
 <tr><td>line_fill_pct, job_fill_pct</td><td>Of the part lines jobs needed, the share already on the technician's truck; and the share of jobs with every line there.</td></tr>
 <tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the 12 months before the held-back days.</td></tr>
 </tbody></table></section>

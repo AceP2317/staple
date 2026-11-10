@@ -70,8 +70,9 @@ and between zones 10 minutes plus 1.2 minutes per kilometer between zone centers
 1 / (1 + drive minutes from home). The job was fixed on the first visit only when every needed part was on that
 technician's truck and a uniform draw fell below the technician's rate.</p>
 <h3>Distribution centers</h3>
-<p>Two centers restock trucks between workdays (<code>_build_centres</code>). Each part is on back-order with
-probability 0.08, with a ship date 3 to 14 days out.</p></section>
+<p>Two centers restock trucks between workdays (<code>_build_centers</code>). Across the held-back days each part
+goes on back-order with probability {{backorder_starts}} a day, for {{backorder_days}} days. No center can ship it
+until the day it ships, and from that day any truck can load it again.</p></section>
 
 <section id="predictor"><h2>The predictor</h2>
 <p>Source: <code>staple/predict.py</code>. For a booking with appliance <var>a</var>, model family <var>f</var> and
@@ -118,8 +119,9 @@ total    = repeat + handling + holding</code>
 only its holding cost enters the total.</p>
 <h3>Filling a truck</h3>
 <p>Parts are taken in descending score. A part goes on when it is not already aboard, the truck may carry it, and it
-fits the space left. A truck may carry a locked part only if its technician is certified. It may carry a
-back-ordered part only if the part is already on that truck.</p>
+fits the space left. A truck may carry a locked part only if its technician is certified. A back-ordered part
+cannot be loaded, so a truck carries one only if it was aboard the night before, and it stays aboard until the part
+ships.</p>
 <h3>Policies</h3>
 <ul>
 <li><strong>Today's trucks</strong>: the fixed stock, every day.</li>
@@ -162,11 +164,14 @@ quarter of the count.</p></section>
 
 <section id="backorders"><h2>The fleet back-order list</h2>
 <p>Source: <code>staple/backorders.py</code>. Which booking will need a stuck part cannot be known in advance, but how
-many will can, so the action is fleet-wide. Today's back-orders are taken to start on the first held-back day.</p>
+many will can, so the action is fleet-wide. A back-order starts on one day and ships on another, so the list is
+made again for every held-back day: the days left count down, and a part drops off the day it ships.</p>
 {{EX_backorders}}
-<p>Demand is seasonal, so the month matters: a furnace part on back-order in winter carries three times the
-exposure it would in spring. The list is ranked by dollars at risk. Its back-test counts the held-back calls that
-needed each part before it shipped, and how many of them were marked back-ordered. The check accepts the forecast
+<p>Demand is seasonal, so the month matters: a furnace part on back-order in winter carries far more exposure
+than the same part in spring. Each day's list is ranked by dollars at risk. The back-test scores each back-order
+once, on the first day it is listed, and only when it ships inside the held-back days, so every call that came is
+counted. It counts the held-back calls that needed the part before it shipped, and how many of them were marked
+back-ordered. The check accepts the forecast
 when it sits within three Poisson spreads of what came. It also requires that a forecast three times too high
 fails.</p></section>
 
@@ -244,8 +249,11 @@ instead fill the best technicians' days with whichever calls came first.</p>
 <ol>
 <li>Each route's truck is loaded overnight by the balanced rule from its planned calls, or keeps today's stock under the baseline.</li>
 <li>At 07:00 sick technicians drop out, and their calls are placed one by one with the daytime rule.</li>
-<li>Unplanned calls arrive in priority order and are placed one by one.</li>
+<li>The day then runs in clock order. Each unplanned call comes in at its own minute, drawn uniformly between
+08:00 and {{same_day_until}}, and is placed with the daytime rule.</li>
 <li>A breakdown at minute τ takes the truck out, and every call on it starting at or after τ is placed again.</li>
+<li>No technician sets out for a call before the minute it came in or was moved to them, so a technician may wait
+between calls. A wait is not counted as driving.</li>
 <li>At day's end, while a route runs past {{day}} minutes, its lowest-priority call, the latest first, rolls to tomorrow.</li>
 </ol>
 <h3>Scoring</h3>
@@ -305,11 +313,14 @@ the three likeliest named.</p>
 <h3>The to-do rules</h3>
 <ul>
 <li><strong>Parts room</strong>: one item per truck whose load changes, ordered by the worth of what goes on.</li>
-<li><strong>Call center</strong>: every call whose follow-up answer did not settle the code.</li>
+<li><strong>Call center</strong>: every booked call whose follow-up answer did not settle the code. A call that
+comes in during the day is on no list read before 08:00.</li>
 <li><strong>Dispatch</strong>: every planned call with a part at least {{likely}} likely that is back-ordered with no
-truck nearby holding one, and every call the night plan rolled.</li>
-<li><strong>Buyer</strong>: the top three parts on that day's back-order forecast. Where calls likely to need one sit in
-a zone with no holder nearby, the item names the zone with most of them and a truck to move a spare from.</li>
+truck nearby holding one, every call the night plan rolled, and one item naming the technicians with no booked
+calls.</li>
+<li><strong>Buyer</strong>: the top {{buyer_items}} parts on that day's back-order list, costliest first. Each item
+quotes the row <code>backorder_exposure.sql</code> returns for that day, so the plan and the evidence table show one
+figure.</li>
 </ul>
 <h3>The day the page opens on</h3>
 <p>The most recent of the {{week}} days on which a sick call and a breakdown both moved at least one call to another

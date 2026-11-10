@@ -3,9 +3,11 @@
 Every held-back day is replayed under each policy with the same made-up events. The night before, booked
 calls are assigned in priority order and each truck is loaded for its route. Within one priority, the call
 with most to lose if its best technician fills up is placed first. Then, before 08:00, some
-technicians call out sick; during the day unplanned calls arrive, a truck may break down and strand its
-stock, and some calls escalate or ease. Calls moved during the day can use only what the other trucks
-already carry. At day's end a route that runs past 17:00 drops its lowest-priority calls to tomorrow.
+technicians call out sick. During the day the events run in clock order: an unplanned call comes in at its
+own minute, a truck may break down and strand its stock, and some calls escalate or ease. A call that comes
+in or is moved during the day can use only what the other trucks already carry, and no technician sets out
+for it before the minute it reached them. At day's end a route that runs past 17:00 drops its
+lowest-priority calls to tomorrow.
 
 Staple's rule sends each call to the technician whose expected cost is lowest: drive and repair minutes,
 plus a second visit times the chance this technician fails, from their success rate on the appliance and
@@ -26,6 +28,7 @@ DAY = 540                # minutes from 08:00 to 17:00
 REPAIR = {"refrigerator": 75, "washer": 60, "dryer": 50, "dishwasher": 55, "range": 50, "furnace": 70}  # made up
 MINUTE = 1.0             # dollars for one minute of a technician and truck (made up)
 SICK, BREAKDOWN, ESCALATE, EASE = 0.03, 0.02, 0.05, 0.05   # daily chances, made up
+SAME_DAY_UNTIL = 240     # an unplanned call comes in within this many minutes of 08:00; later ones book for tomorrow (made up)
 URGENT = {"refrigerator.NOT_COOLING", "refrigerator.FF_WARM", "furnace.NO_HEAT", "furnace.NO_START"}
 SEED = 2026              # seeds the day's surprises: day d of the replayed days draws from SEED + d
 SKILL_PULL = 20          # jobs at the appliance's average rate mixed into each technician's own (design choice)
@@ -83,7 +86,8 @@ def priority(job, changed):
 
 
 def events(day_jobs, techs, seed):
-    """The day's surprises, drawn once and shared by every policy."""
+    """The day's surprises, drawn once and shared by every policy: who is sick, which truck breaks down and when,
+    which calls change priority, and the minute each unplanned call comes in."""
     rng = random.Random(seed)
     sick = {t for t in techs if rng.random() < SICK}
     broken = {t: rng.uniform(120, 360) for t in techs if rng.random() < BREAKDOWN}
@@ -94,22 +98,24 @@ def events(day_jobs, techs, seed):
             changed[j["job"]] = 1
         elif roll < ESCALATE + EASE:
             changed[j["job"]] = 3
-    return sick, broken, changed
+    arrive = {j["job"]: rng.uniform(0, SAME_DAY_UNTIL) for j in day_jobs if j["unplanned"]}
+    return sick, broken, changed, arrive
 
 
-def timeline(crew, tech, route, skills):
-    """Each call on a route with its start and end, in minutes after 08:00."""
+def timeline(crew, tech, route, skills, known=None):
+    """Each call on a route with its start and end, in minutes after 08:00. known holds the minute a call reached
+    this technician during the day; they set out for it no earlier, so they may wait between calls."""
     zone, clock, out = crew.home[tech], 0.0, []
     for j in route:
-        start = clock + travel_minutes(zone, j["zone"])
+        start = max(clock, known.get(j["job"], 0.0) if known else 0.0) + travel_minutes(zone, j["zone"])
         clock = start + REPAIR[j["type"]] * skills[(tech, j["type"])][1]
         out.append((j, start, clock))
         zone = j["zone"]
     return out
 
 
-def end_of(crew, tech, route, skills):
-    line = timeline(crew, tech, route, skills)
+def end_of(crew, tech, route, skills, known=None):
+    line = timeline(crew, tech, route, skills, known)
     return (line[-1][2], line[-1][0]["zone"]) if line else (0.0, crew.home[tech])
 
 
@@ -133,39 +139,43 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
     kept, rolled_ids, happened, days = [], [], {}, {}
     for d, day in enumerate(sorted(by_day)):
         day_jobs = by_day[day]
-        sick, broken, changed = events(day_jobs, crew.techs, seed + d)
+        sick, broken, changed, arrive = events(day_jobs, crew.techs, seed + d)
+        stuck = fleet.stuck(day)
         routes, out, truck = {tech: [] for tech in crew.techs}, set(), {}
         ends = {tech: (0.0, crew.home[tech]) for tech in crew.techs}
-        rolled, placed, moved_from = [], {}, defaultdict(list)
+        rolled, placed, moved_from, known = [], {}, defaultdict(list), {}
 
         def able(job):
             return [tech for tech in crew.techs if (tech, job["type"]) in crew.skill and tech not in out]
 
-        def cost_of(job, tech, night):
+        def cost_of(job, tech, night, at=0.0):
             # The calendar runs on real durations; only the choice between technicians uses the beliefs.
             clock, zone = ends[tech]
             drive = travel_minutes(zone, job["zone"])
-            if clock + drive + REPAIR[job["type"]] * crew.skill[(tech, job["type"])][1] > DAY:
+            if max(clock, at) + drive + REPAIR[job["type"]] * crew.skill[(tech, job["type"])][1] > DAY:
                 return None
             if rule == "nearest":
                 return drive
             minutes = drive + REPAIR[job["type"]] * crew.belief[(tech, job["type"])][1]
-            has = (lambda p: fleet.may_carry(tech, p)) if night else (lambda p: p in truck[tech])
+            has = (lambda p: fleet.may_carry(tech, p, stuck, before[tech])) if night else (lambda p: p in truck[tech])
             cover = 1.0 if rule == "skills" else 1.0 - miss_odds(judged, job, has)
             return minutes * MINUTE + (1 - cover * crew.belief[(tech, job["type"])][0]) * load.REPEAT_VISIT
 
         def put(job, tech):
             routes[tech].append(job)
-            ends[tech] = end_of(crew, tech, routes[tech], crew.skill)
+            ends[tech] = end_of(crew, tech, routes[tech], crew.skill, known)
 
         def note(job, options):
             # The choice and the runner-up at the moment of placing, for the plan view; it decides nothing.
             if record:
                 placed[job["job"]] = options[0][::-1] + (options[1][::-1] if len(options) > 1 else (None, None))
 
-        def place(job, night):
-            options = sorted((c, tech) for tech in able(job) if (c := cost_of(job, tech, night)) is not None)
+        def place(job, night, at=0.0):
+            # at is the minute a call came in or was moved; nobody sets out for it before then.
+            options = sorted((c, tech) for tech in able(job) if (c := cost_of(job, tech, night, at)) is not None)
             if options:
+                if at:
+                    known[job["job"]] = at
                 note(job, options)
                 put(job, options[0][1])
             else:
@@ -205,7 +215,7 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
             plan_night([j for j in night if priority(j, {}) == band])
         night_routes, night_rolled, prev = {t: [j["job"] for j in r] for t, r in routes.items()}, list(rolled), before
         if loads == "balanced":
-            truck = {tech: load.balanced_load(fleet, tech, routes[tech], lists, surprise, before[tech])
+            truck = {tech: load.balanced_load(fleet, tech, routes[tech], lists, surprise, before[tech], stuck)
                      for tech in crew.techs}
             before = truck
         else:
@@ -218,38 +228,40 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
                 moved[j["job"]] += 1
                 moved_from[j["job"]].append((tech, "sick"))
                 place(j, night=False)
-        for j in sorted((j for j in day_jobs if j["unplanned"]), key=lambda j: (priority(j, changed), j["job"])):
-            place(j, night=False)
-        for tech, at in sorted(broken.items()):
-            if tech in out:
-                continue
-            out.add(tech)
-            line = timeline(crew, tech, routes[tech], crew.skill)
-            routes[tech] = [j for j, start, _ in line if start < at]
-            for j, start, _ in line:
-                if start >= at:
-                    moved[j["job"]] += 1
-                    moved_from[j["job"]].append((tech, "breakdown"))
-                    place(j, night=False)
+        # The day runs in clock order: each unplanned call at the minute it comes in, each breakdown at its own.
+        unplanned = {j["job"]: j for j in day_jobs if j["unplanned"]}
+        during = sorted([(at, 0, jid) for jid, at in arrive.items()] + [(at, 1, tech) for tech, at in broken.items()])
+        for at, is_breakdown, who in during:
+            if not is_breakdown:
+                place(unplanned[who], night=False, at=at)
+            elif who not in out:
+                out.add(who)
+                line = timeline(crew, who, routes[who], crew.skill, known)
+                routes[who] = [j for j, start, _ in line if start < at]
+                for j, start, _ in line:
+                    if start >= at:
+                        moved[j["job"]] += 1
+                        moved_from[j["job"]].append((who, "breakdown"))
+                        place(j, night=False, at=at)
         for tech in crew.techs:
             # ponytail: the day's end drops the lowest-priority call, last first, until the route fits; a real
             # scheduler would re-sequence the route instead. Drive time is zone to zone, not road routing.
-            while routes[tech] and end_of(crew, tech, routes[tech], crew.skill)[0] > DAY:
+            while routes[tech] and end_of(crew, tech, routes[tech], crew.skill, known)[0] > DAY:
                 drop = max(range(len(routes[tech])), key=lambda i: (priority(routes[tech][i], changed), i))
                 rolled.append(routes[tech].pop(drop))
         for tech, route in routes.items():
-            previous = 0.0
-            for j, start, end in timeline(crew, tech, route, crew.skill):
+            zone = crew.home[tech]
+            for j, start, end in timeline(crew, tech, route, crew.skill, known):
                 covered = j["needed"] <= truck[tech]
                 fix = covered * crew.skill[(tech, j["type"])][0]
                 t["served"] += 1
                 t["fixes"] += fix
                 t["parts_missing"] += not covered
-                t["drive"] += start - previous
+                t["drive"] += travel_minutes(zone, j["zone"])    # the drive alone: a wait for a call to come in is not driving
                 t["repair"] += end - start
                 t["moved"] += bool(moved[j["job"]])
                 t["moved_fixes"] += fix if moved[j["job"]] else 0
-                previous = end
+                zone = j["zone"]
                 if record:
                     kept.append((day, tech, j["job"], start, end, covered))
         if record:
@@ -257,7 +269,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
             happened[day] = (sick, broken)
             days[day] = {"night": night_routes, "night_rolled": [j["job"] for j in night_rolled], "load": truck,
                          "before": prev, "placed": placed, "moved": dict(moved_from), "sick": sick, "broken": broken,
-                         "changed": changed, "rolled": [j["job"] for j in rolled],
+                         "changed": changed, "rolled": [j["job"] for j in rolled], "arrive": arrive,
+                         "known": known, "stuck": stuck,
                          "visits": [v for v in kept if v[0] == day]}
         t["rolled"] += len(rolled)
         t["urgent_rolled"] += sum(1 for j in rolled if priority(j, changed) == 1)

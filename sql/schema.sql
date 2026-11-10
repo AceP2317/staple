@@ -55,12 +55,15 @@ CREATE TABLE truck_stock (
   PRIMARY KEY (truck, part)
 );
 
-CREATE TABLE centres (center TEXT PRIMARY KEY, zone INTEGER NOT NULL REFERENCES zones(zone));
+CREATE TABLE centers (center TEXT PRIMARY KEY, zone INTEGER NOT NULL REFERENCES zones(zone));
 
-CREATE TABLE centre_stock (
-  part     TEXT PRIMARY KEY REFERENCES parts(part),
-  status   TEXT NOT NULL,           -- in_stock or backorder
-  eta_days INTEGER                  -- for a back-order, days until it can ship
+-- The calendar of back-orders across the held-back days. No center can ship the part from the day a
+-- back-order starts until the day it ships; on every other day a center has it.
+CREATE TABLE backorders (
+  part   TEXT NOT NULL REFERENCES parts(part),
+  starts TEXT NOT NULL,             -- the first day no center can ship it
+  ships  TEXT NOT NULL,             -- the day a center can ship it again
+  PRIMARY KEY (part, starts)
 );
 
 CREATE TABLE jobs (
@@ -125,11 +128,16 @@ CREATE TABLE dispatch (
   moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL  -- minutes at $1 plus expected second visits, made up
 );
 
--- The fleet back-order list, back-tested from the first held-back day. Forecasts use training only.
+-- The buyer's back-order list for every held-back day: each part no center can ship that day. Forecasts use
+-- training only. The actual columns count what the held-back days then brought before the part shipped.
 CREATE TABLE backorder_list (
-  part TEXT PRIMARY KEY REFERENCES parts(part), eta_days INTEGER NOT NULL,
-  holders TEXT NOT NULL,                          -- technicians whose trucks hold one today
+  day TEXT NOT NULL, part TEXT NOT NULL REFERENCES parts(part),
+  days_left INTEGER NOT NULL,                     -- days until a center can ship it
+  holders TEXT NOT NULL,                          -- technicians whose trucks stock one today
   open_zones INTEGER NOT NULL,                    -- zones with no holder based within 30 minutes
   expected_calls REAL NOT NULL, expected_stuck REAL NOT NULL, at_risk REAL NOT NULL,
-  actual_calls INTEGER NOT NULL, actual_stuck INTEGER NOT NULL
+  actual_calls INTEGER NOT NULL, actual_stuck INTEGER NOT NULL,
+  first_listed INTEGER NOT NULL,                  -- 1 on the first held-back day this back-order is listed
+  whole_wait INTEGER NOT NULL,                    -- 1 when it ships inside the held-back days, so the actual columns are complete
+  PRIMARY KEY (day, part)
 );

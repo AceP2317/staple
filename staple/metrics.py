@@ -21,12 +21,21 @@ def assumptions():
             ("unplanned", load.UNPLANNED, "share of calls added or moved the same day"),
             ("sick", dispatch.SICK, "chance a technician calls out sick on a given day"),
             ("breakdown", dispatch.BREAKDOWN, "chance a truck breaks down on a given day"),
+            ("same_day_until", dispatch.SAME_DAY_UNTIL, "minutes after 08:00 within which an unplanned call comes in"),
+            ("backorder_starts", world.BACKORDER_STARTS, "chance a day that a part goes on back-order"),
             ("day_minutes", dispatch.DAY, "minutes in a working day, 08:00 to 17:00"),
             ("truck_capacity", world.CAPACITY, "space units on one truck"),
             ("stock_fill", world.STOCK_FILL, "how full today's trucks are kept"),
             ("backorder_flag", load.BACKORDER_FLAG, "odds of needing a stuck part at which a booking is flagged")]
     return rows + [(f"repair_minutes.{t}", m, f"minutes an average technician takes on a {t}")
                    for t, m in dispatch.REPAIR.items()]
+
+
+def read(conn, name):
+    """One metric query's rows as dictionaries, for a step that acts on the same rows the pages show."""
+    cur = conn.execute((SQL / f"{name}.sql").read_text(encoding="utf-8"))
+    columns = [d[0] for d in cur.description]
+    return [dict(zip(columns, row)) for row in cur]
 
 
 def run(conn, out=db.OUT / "metrics"):

@@ -191,6 +191,8 @@ ZONES = [(x, y) for y in range(3) for x in range(4)]   # 12 zones, 15 km apart
 TECHS = 30
 CAPACITY = 90                    # truck space units
 STOCK_FILL = 0.9                 # today's trucks are kept 90% full; the rest is room for special orders
+BACKORDER_STARTS = 0.01          # chance a day that a part the centers stock goes on back-order (made up)
+BACKORDER_DAYS = (3, 14)         # a back-order lasts between these many days (made up)
 
 
 def part_id(appliance, name):
@@ -277,7 +279,7 @@ def build(conn, seed=SEED):
     conn.executemany("INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", jobs)
     conn.executemany("INSERT INTO job_parts VALUES (?,?)", job_parts)
 
-    _build_centres(conn, rng)
+    _build_centers(conn, rng)
     conn.commit()
 
 
@@ -364,14 +366,20 @@ def travel_minutes(zone_a, zone_b):
     return 10.0 + 1.2 * 15.0 * math.hypot(xa - xb, ya - yb)
 
 
-def _build_centres(conn, rng):
-    """Two distribution centers restock trucks between workdays; a few parts are on back-order today."""
-    conn.executemany("INSERT INTO centres VALUES (?,?)", [("North center", 1), ("South center", 10)])
+def _build_centers(conn, rng):
+    """Two distribution centers restock trucks between workdays. Across the held-back days a part now and then
+    goes on back-order: no center can ship it from the day that starts until the day it ships."""
+    conn.executemany("INSERT INTO centers VALUES (?,?)", [("North center", 1), ("South center", 10)])
     rows = []
     for appliance, (_, parts, _) in CATALOGUE.items():
         for n, *_ in parts:
-            if rng.random() < 0.08:
-                rows.append((part_id(appliance, n), "backorder", rng.randint(3, 14)))
-            else:
-                rows.append((part_id(appliance, n), "in_stock", None))
-    conn.executemany("INSERT INTO centre_stock VALUES (?,?,?)", rows)
+            day = DAYS - TEST_DAYS - BACKORDER_DAYS[1]    # early enough that some are under way on the first held-back day
+            while day < DAYS:
+                if rng.random() < BACKORDER_STARTS:
+                    length = rng.randint(*BACKORDER_DAYS)
+                    rows.append((part_id(appliance, n), str(START + dt.timedelta(days=day)),
+                                 str(START + dt.timedelta(days=day + length))))
+                    day += length
+                else:
+                    day += 1
+    conn.executemany("INSERT INTO backorders VALUES (?,?,?)", rows)

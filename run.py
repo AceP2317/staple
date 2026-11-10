@@ -62,9 +62,14 @@ def main():
     print(f"  {av['blocked']:,} jobs needed a part no truck nearby holds; the odds predicted {av['expected']:.0f}; "
           f"the flag caught {av['caught']:,} of them in {av['flagged']:,} flags")
     stuck = backorders.run(conn)
-    print(f"fleet back-order list, {len(stuck)} parts, top three by repeat-visit dollars at risk before arrival:")
+    scored = [r for r in stuck if r["first"] and r["whole"]]
+    print(f"fleet back-order list, made again for each held-back day: {len(stuck):,} part-days; the "
+          f"{len(scored)} back-orders that shipped inside those days, forecast against what came:")
+    print(f"  calls before the part shipped: forecast {sum(r['expected'] for r in scored):.0f}, came "
+          f"{sum(r['actual'] for r in scored)}; with no truck nearby holding one: forecast "
+          f"{sum(r['stuck'] for r in scored):.0f}, came {sum(r['actual_stuck'] for r in scored)}")
     for r in stuck[:3]:
-        print(f"  {r['part']}: arrives in {r['eta']} days, {r['expected']:.1f} calls expected, "
+        print(f"  {r['day']}, {r['part']}: ships in {plan.days(r['days_left'])}, {r['expected']:.1f} calls expected, "
               f"{r['stuck']:.1f} with no truck nearby holding one (${r['at_risk']:,.0f})")
     tr = triage.run(conn, *triage.load(conn, live="--live" in sys.argv[1:]))
     print(f"AI step ({triage.MODEL}) reading the customer's own words, on the same held-back jobs:")

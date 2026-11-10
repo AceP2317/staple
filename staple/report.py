@@ -144,8 +144,10 @@ COLUMNS = {
     "method": "How the customer's words were read.", "agrees_booked_pct": "Readings that match the booked code.",
     "agrees_true_pct": "Readings that match the true problem, known only because the data is invented.",
     "coverage_pct": "Jobs whose every needed part is on the 3-part list built from the reading.",
-    "part": "The back-ordered part.", "eta_days": "Days until the centers can ship it.",
-    "trucks_holding": "Trucks that hold one today.",
+    "day": "The held-back day this list is for.", "part": "The back-ordered part.",
+    "ships_in_days": "Days from that day until a center can ship it.",
+    "back_test": "1 on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows.",
+    "trucks_holding": "Trucks that stock one today.",
     "open_zones": f"Zones with no holding truck based within {load.NEARBY_MINUTES} minutes.",
     "expected_calls": "Calls forecast to need it before it ships, from training history.",
     "expected_stuck": "Of those, calls forecast to have no truck nearby holding one.",
@@ -167,7 +169,8 @@ CHECK_ABOUT = {
     "backtest": "Coverage on the held-back jobs. The predictor must beat the national list, and the lean must help the newest families.",
     "control": "The predictor trained on shuffled history must score no better than the national baseline.",
     "dollars": "Every load policy's costs, with planted loads recomputed by hand. No load may break the space, lock or back-order rules, and a planted bad load must show all three faults. The balanced truck must be the cheapest load, and the back-order flag must be calibrated.",
-    "backorders": "The fleet back-order forecast against what the held-back days brought, within three Poisson spreads. A forecast three times too high must fail.",
+    "backorders": "The back-order list for every held-back day, held to the calendar. Each part must be listed on every day from a back-order's start to the day before it ships, with the days left falling by one a day, and on no other day. The forecast is scored once for each back-order that shipped inside the held-back days, and must sit within three Poisson spreads of what came. A count that does not fall, a day left out, a part still listed the day it ships, and a forecast three times too high must all fail.",
+    "replay-clock": "The replay obeys the clock and the calendar. No call that came in during the day, and none moved by a breakdown, may start before that minute, read from the day's own events. No truck may take on a part no center can ship or send one back before it ships, and a part must be loaded again once it ships. A list read before 08:00 may name no call that has not come in, the buyer's list must be the back-order query's own rows for its day and count down a day at a time, and every technician with no booked calls must be named. Six planted faults must be refused.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
@@ -293,17 +296,22 @@ def bars(items):
         f'<span class="bar-value">{e(shown)}</span></span></div>' for label, value, shown, tip, kind in items) + "</div>"
 
 
-def figure(name, title, chart, result, row_tip=None):
-    columns, data = result
+def figure(name, title, chart, result, row_tip=None, shown=None):
+    """A chart and the table under it. shown, when given, is the part of the query's rows the table prints."""
+    columns, every = result
+    data = every if shown is None else shown
+    scope = (f"{len(data)} rows from sql/metrics/{name}.sql." if shown is None else
+             f"{len(data)} of the {len(every):,} rows sql/metrics/{name}.sql returns: this week's days.")
+    exact = ("exactly as" if shown is None else "this week's days, as")
     head = "".join(f'<th{tipattr(c + chr(10) + COLUMNS[c])}>{e(c).replace("_", "_<wbr>")}</th>' for c in columns)
     body = "".join("<tr>" + "".join(
         f'<td{tipattr(row_tip(dict(zip(columns, r))))}><span class="hv">{e(str(v))}</span></td>' if i == 0 and row_tip
         else f"<td>{e(str(v))}</td>" for i, v in enumerate(r)) + "</tr>" for r in data)
     madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}. No real company, customer, part or "
               "technician. The method is real; this figure is not.")
-    return (f'<figure><figcaption><span class="fig-title"{tipattr(title + chr(10) + about(name) + chr(10) + f"{len(data)} rows from sql/metrics/{name}.sql.")}>'
+    return (f'<figure><figcaption><span class="fig-title"{tipattr(title + chr(10) + about(name) + chr(10) + scope)}>'
             f'{e(title)}</span> <span class="madeup"{tipattr(madeup)}>made-up data</span></figcaption>{chart}'
-            f'<details{"" if chart else " open"}><summary{tipattr(f"Show the numbers{chr(10)}The {len(data)} rows this chart is drawn from, exactly as sql/metrics/{name}.sql returns them.")}>'
+            f'<details{"" if chart else " open"}><summary{tipattr(f"Show the numbers{chr(10)}The {len(data)} rows this chart is drawn from, {exact} sql/metrics/{name}.sql returns them.")}>'
             f'Show the numbers</summary><div class="scroll"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody>'
             f'</table></div></details></figure>')
 
@@ -453,8 +461,7 @@ def languages(files=None):
             "unknown": [p for p in files if kind_of(p) not in CODE_LANGUAGES and kind_of(p) not in FORMATS]}
 
 
-def counted(n, word):
-    return f"{n} {word}{'' if n == 1 else 's'}"
+counted = plan.counted
 
 
 def written_in(where="the pages"):
@@ -946,13 +953,18 @@ def build_report(results, week, stamp_text, day):
                     for r in (claude, asked, booked, keywords, shuffled_ai)])
 
     def stuck_tip(r):
-        return (f"{r['part']}: ships in {r['eta_days']} days\n{r['trucks_holding']} trucks hold one; {r['open_zones']} zones have "
+        return (f"{pretty_day(r['day'])}, {r['part']}: ships in {plan.days(r['ships_in_days'])}\n"
+                f"{counted(r['trucks_holding'], 'truck')} {'stocks' if r['trucks_holding'] == 1 else 'stock'} one; "
+                f"{counted(r['open_zones'], 'zone')} with "
                 f"no holder within {load.NEARBY_MINUTES} minutes.\nForecast {r['expected_calls']} calls, {r['expected_stuck']} with no "
-                f"truck nearby: ${r['dollars_at_risk']:,.0f} at risk.\nThe held-back days brought {r['actual_calls']} calls, "
+                f"truck nearby: ${r['dollars_at_risk']:,.0f} at risk.\nBefore it shipped, the held-back days brought {r['actual_calls']} calls, "
                 f"{r['actual_stuck']} stuck.")
 
-    exp_calls, exp_stuck = sum(r["expected_calls"] for r in stuck), sum(r["expected_stuck"] for r in stuck)
-    act_calls, act_stuck = sum(r["actual_calls"] for r in stuck), sum(r["actual_stuck"] for r in stuck)
+    scored = [r for r in stuck if r["back_test"]]    # each back-order once, where every call that came is counted
+    exp_calls, exp_stuck = sum(r["expected_calls"] for r in scored), sum(r["expected_stuck"] for r in scored)
+    act_calls, act_stuck = sum(r["actual_calls"] for r in scored), sum(r["actual_stuck"] for r in scored)
+    this_week = {d["day"] for d in week["days"]}
+    stuck_week = [r for r in results["backorder_exposure"][1] if r[0] in this_week]
 
     def card(name, heading, text, fig, do):
         tip = f"{heading}\nSource: sql/metrics/{name}.sql. {about(name)}"
@@ -1014,14 +1026,17 @@ def build_report(results, week, stamp_text, day):
             "let Claude code the bookings and ask its one question at the moment of booking, and keep a person on the few calls "
             "its question cannot settle."),
         card("backorder_exposure", "Back-orders to chase first", join(
-            "For each back-ordered part", q("back-order"), ", the list forecasts the calls that will need it before it arrives, "
-            "from training history only, and how many have no truck nearby holding one. Over the held-back months it expected ",
+            "A back-order", q("back-order"), " starts on one day and ships on another, so the list is made again every day: "
+            "the days left count down, and a part drops off the day it ships. For each stuck part the list forecasts the "
+            "calls that will need it before it ships, from training history only, and how many have no truck nearby "
+            f"holding one. Across the {len(scored)} back-orders that shipped inside the held-back days it expected ",
             hv(f"{exp_calls:.0f} calls and {exp_stuck:.0f} stuck", f"{exp_calls:.1f} calls, {exp_stuck:.1f} stuck\n"
-               f"${sum(r['dollars_at_risk'] for r in stuck):,.0f} at risk across {len(stuck)} parts."),
+               f"${sum(r['dollars_at_risk'] for r in scored):,.0f} at risk across {len(scored)} back-orders, each scored "
+               "on the first day it was listed."),
             "; the days then brought ", hv(f"{act_calls} and {act_stuck}", f"{act_calls} calls, {act_stuck} stuck\nCounted on the "
                                          "held-back days, which the forecast never saw."), "."),
-            figure("backorder_exposure", "Back-ordered parts, by repeat-visit dollars at risk before arrival", "",
-                   results["backorder_exposure"], row_tip=stuck_tip),
+            figure("backorder_exposure", "Back-ordered parts on each day of this week, by repeat-visit dollars at risk", "",
+                   results["backorder_exposure"], row_tip=stuck_tip, shown=stuck_week),
             "expedite from the top of this list, and move spares toward the zones where no truck holds one."),
         card("carry_list_curve", "Which parts to carry", join(
             "The predictor ranks parts by how often they fixed the same model family and problem, and leans", q("lean"),
@@ -1126,7 +1141,9 @@ def facts():
          "URGENT": ", ".join(sorted(dispatch.URGENT)), "LOW": ", ".join(sorted(dispatch.LOW)),
          "SYSTEM": triage.SYSTEM, "TEMPLATE": as_sent(triage.TEMPLATE), "FOLLOWUP_SYSTEM": triage.FOLLOWUP_SYSTEM,
          "FOLLOWUP_TEMPLATE": as_sent(triage.FOLLOWUP_TEMPLATE), "week": plan.WEEK, "likely": f"{plan.LIKELY:.0%}",
-         "behind": f"{plan.BEHIND:.0%}"}
+         "behind": f"{plan.BEHIND:.0%}", "backorder_starts": f"{world.BACKORDER_STARTS:.0%}",
+         "backorder_days": f"{world.BACKORDER_DAYS[0]} to {world.BACKORDER_DAYS[1]}",
+         "same_day_until": plan.clock(dispatch.SAME_DAY_UNTIL), "buyer_items": plan.BUYER_ITEMS}
     return {k: Raw(e(str(x))) for k, x in v.items()}
 
 
@@ -1145,12 +1162,16 @@ def thresholds():
              ("Back-order flag", f"{load.BACKORDER_FLAG:.0%} odds", "A booking at this chance of needing a stuck part is flagged.", made, "availability", "ex-availability"),
              ("Truck space", f"{world.CAPACITY} units", "Space on one truck.", made, "world", None),
              ("Today's fill", f"{world.STOCK_FILL:.0%}", "How full today's trucks are kept.", made, "world", None),
+             ("Back-order starts", f"{world.BACKORDER_STARTS:.0%} a day", "Chance a part the centers stock goes on back-order.", made, "world", None),
+             ("Back-order length", f"{world.BACKORDER_DAYS[0]} to {world.BACKORDER_DAYS[1]} days", "How long a back-order lasts before the part ships.", made, "world", None),
+             ("Buyer's list", f"{plan.BUYER_ITEMS} parts", "Back-orders shown to the buyer each day, costliest first.", design, "plan", None),
              ("AI confidence", f"{triage.BLEND_BELOW}", "Below it, a reading leans on the appliance's overall odds and a follow-up question is asked.", design, "ai", "ex-ai"),
              ("Pull toward the appliance's average", f"{dispatch.SKILL_PULL} jobs", "How far a technician with few visits leans on the appliance's average success rate.", design, "dispatch", None),
              ("Working day", f"{dispatch.DAY} minutes", "08:00 to 17:00.", design, "dispatch", None),
              ("Minute", f"${dispatch.MINUTE:.0f}", "One minute of a technician and truck.", made, "dispatch", "ex-dispatch"),
              ("Sick day", f"{dispatch.SICK:.0%} a day", "Chance a technician calls out.", made, "dispatch", None),
              ("Breakdown", f"{dispatch.BREAKDOWN:.0%} a day", "Chance a truck breaks down.", made, "dispatch", None),
+             ("Same-day calls", f"until {plan.clock(dispatch.SAME_DAY_UNTIL)}", "An unplanned call comes in between 08:00 and this time.", made, "dispatch", None),
              ("Priority change", f"{dispatch.ESCALATE:.0%} up, {dispatch.EASE:.0%} down", "Chance a call escalates or eases on the day.", made, "dispatch", None)]
     items += [(f"Repair time, {t}", f"{m} minutes", "An average technician's time on this appliance.", made, "dispatch", None) for t, m in dispatch.REPAIR.items()]
     def rule(name, section, example):

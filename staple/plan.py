@@ -6,16 +6,16 @@ decided it. The 92-day scorecard runs on the booked codes; this week runs on Cla
 saved follow-up question where it was unsure. Both of the week's replays are seeded so its sick calls and
 breakdowns are the ones the 92-day run met on the same days.
 """
-import datetime as dt
 from collections import defaultdict
 
-from staple import backorders, dispatch, load, triage
+from staple import dispatch, load, metrics, triage
 from staple.backtest import test_jobs
 from staple.predict import Predictor
 from staple.world import ZONES, travel_minutes
 
 WEEK = 7
 LIKELY = load.BACKORDER_FLAG     # a part a call has at least this chance of needing counts as a likely part
+BUYER_ITEMS = 3                  # the buyer's list shows this many back-orders a day, costliest first
 BEHIND = 0.05                    # a call this likely to need a part is named as a reason the part rides
 WHERE = ("needs a certified technician", "aboard", "on a truck nearby", "at a center, not loaded", "back-ordered")
 
@@ -69,9 +69,16 @@ class Context:
         self.truck = dict(conn.execute("SELECT tech, truck FROM trucks"))
         self.techs = {t: {"level": lv, "profile": pr, "home": z, "certified": bool(c), "truck": self.truck[t]}
                       for t, lv, pr, z, c in conn.execute("SELECT tech, level, profile, home_zone, certified FROM techs")}
+        # The buyer's list is the back-order query's own rows, so the plan and the evidence quote one figure.
+        self.backorders = defaultdict(list)
+        for row in metrics.read(conn, "backorder_exposure"):
+            self.backorders[row["day"]].append(row)
+        if not self.backorders:
+            raise RuntimeError("the back-order list is empty: backorders.run(conn) writes it before the week's plan is built")
 
-    def where(self, loads, tech, zone, part):
-        """Where one carry-list part stands once tonight's trucks are loaded: the first of WHERE that holds."""
+    def where(self, loads, tech, zone, part, stuck):
+        """Where one carry-list part stands once tonight's trucks are loaded: the first of WHERE that holds. stuck
+        is the parts no center can ship that day."""
         f = self.fleet
         if part in f.locked and tech not in f.certified:
             return WHERE[0]
@@ -79,7 +86,7 @@ class Context:
             return WHERE[1]
         if any(o != tech and part in s and travel_minutes(f.home[o], zone) <= load.NEARBY_MINUTES for o, s in loads.items()):
             return WHERE[2]
-        return WHERE[3] if part not in f.eta else WHERE[4]
+        return WHERE[3] if part not in stuck else WHERE[4]
 
     def chance(self, job, tech, cargo):
         return first_visit_chance(self.lists, job, cargo, self.crew.belief[(tech, job["type"])][0])
@@ -93,14 +100,14 @@ def first_visit_chance(lists, job, cargo, rate):
 
 def tally(rec, jobs, crew):
     """A day's figures from its recorded visits, counted the way the replay counts them."""
-    t, last = defaultdict(float), {}
+    t, zone = defaultdict(float), {}
     for _, tech, job, start, end, covered in rec["visits"]:
         t["served"] += 1
         t["fixes"] += covered * crew.skill[(tech, jobs[job]["type"])][0]
         t["missing"] += not covered
-        t["drive"] += start - last.get(tech, 0.0)
+        t["drive"] += travel_minutes(zone.get(tech, crew.home[tech]), jobs[job]["zone"])
         t["repair"] += end - start
-        last[tech] = end
+        zone[tech] = jobs[job]["zone"]
     t["calls"], t["rolled"] = len(jobs), len(rec["rolled"])
     t["cost"] = (t["drive"] + t["repair"]) * dispatch.MINUTE + (t["served"] - t["fixes"]) * load.REPEAT_VISIT
     return dict(t)
@@ -115,7 +122,8 @@ def call(ctx, rec, job, tech, start, end):
             "family": job["family"], "words": job["words"], "problem": ctx.labels[job["problem"]],
             "booked": ctx.labels[job["booked"]], "ai": job["ai"], "priority": dispatch.priority(job, {}),
             "chance": ctx.chance(job, tech, cargo),
-            "parts": [{"part": p, "name": ctx.names[p], "odds": o, "where": ctx.where(rec["load"], tech, job["zone"], p)}
+            "parts": [{"part": p, "name": ctx.names[p], "odds": o,
+                       "where": ctx.where(rec["load"], tech, job["zone"], p, rec["stuck"])}
                       for p, o in ranked[:load.SHOWN_K]],
             "first_parts": [ctx.names[p] for p, _ in ctx.first_lists.get(job["job"], [])[:load.SHOWN_K]],
             "runner": placed and placed[2], "gap": placed and placed[3] is not None and placed[3] - placed[1]}
@@ -141,7 +149,8 @@ def sheet(ctx, rec, tech, route):
 
 
 def todo(ctx, day, rec, trucks, jobs):
-    """What people do before 08:00, by owner, each item naming the truck or call it concerns."""
+    """What people do before 08:00, by owner, each item naming the truck or call it concerns. Only booked calls
+    appear: an unplanned call has not come in yet when these lists are read."""
     items = []
     for tech in sorted(trucks, key=lambda t: -sum(r["worth"] for r in trucks[t]["sheet"]["rows"] if r["status"] == "put on")):
         rows = trucks[tech]["sheet"]["rows"]
@@ -151,7 +160,8 @@ def todo(ctx, day, rec, trucks, jobs):
                           "text": f"Truck {ctx.truck[tech]} ({tech}): put on {len(on)}, take off {len(off)}",
                           "detail": "Put on: " + (", ".join(r["name"] for r in on) or "nothing") + ". Take off: "
                                     + (", ".join(r["name"] for r in off) or "nothing") + "."})
-    for j in sorted(jobs.values(), key=lambda j: j["job"]):
+    booked = [j for j in sorted(jobs.values(), key=lambda j: j["job"]) if not j["unplanned"]]
+    for j in booked:
         a = j["ai"]
         if a["question"] and not a["reply"]:
             items.append({"owner": "Call center", "when": "before 08:00", "tech": None, "job": j["job"],
@@ -166,31 +176,48 @@ def todo(ctx, day, rec, trucks, jobs):
                 p = stuck[0]
                 items.append({"owner": "Dispatch", "when": "before 08:00", "tech": tech, "job": c["job"],
                               "text": f"Warn the customer on call {c['job']}: a likely part is back-ordered",
-                              "detail": f"{p['name']} ({p['odds']:.0%} likely) ships in {ctx.fleet.eta[p['part']]} days and no "
+                              "detail": f"{p['name']} ({p['odds']:.0%} likely) ships in {days(rec['stuck'][p['part']])} and no "
                                         f"truck nearby holds one. Offer a later slot, or keep the visit to diagnose."})
     for jid in rec["night_rolled"]:
         j = jobs[jid]
         items.append({"owner": "Dispatch", "when": "before 08:00", "tech": None, "job": jid,
                       "text": f"Rebook call {jid}: no technician has room tomorrow",
                       "detail": f"{j['type'].capitalize()}, {ctx.labels[j['problem']]}, priority {dispatch.priority(j, {})}."})
-    likely = defaultdict(list)
-    for j in jobs.values():
+    idle = [tech for tech in sorted(trucks) if not trucks[tech]["calls"]]
+    if idle:
+        busy = len(trucks) - len(idle)
+        items.append({"owner": "Dispatch", "when": "before 08:00", "tech": None, "job": None, "idle": idle,
+                      "text": f"{counted(len(idle), 'technician')} {'has' if len(idle) == 1 else 'have'} no booked "
+                              f"calls: {', '.join(idle)}",
+                      "detail": f"The booked calls fit on {counted(busy, 'route')}. Each call goes to the technician "
+                                f"with the lowest expected cost, so the fleet's spare hours gather on a few people "
+                                f"and are not spread thin. They are free for the calls that come in during the day and the "
+                                f"calls a sick call or a breakdown moves."})
+    likely = defaultdict(int)
+    for j in booked:
         for part, p in ctx.lists[j["job"]]:
-            if p >= LIKELY and part in ctx.fleet.eta:
-                likely[part].append(j)
-    for r in backorders.forecast(ctx.conn, ctx.fleet, dt.date.fromisoformat(day))[:3]:
-        need = likely.get(r["part"], [])
-        text = f"Expedite {ctx.names[r['part']]}: {r['expected']:.1f} calls expected before it ships"
-        detail = (f"Ships in {r['eta']} days; {len(r['holders'])} trucks hold one; {r['open_zones']} zones have none within "
-                  f"{load.NEARBY_MINUTES} minutes. ${r['at_risk']:,.0f} of second visits at risk. {len(need)} of tomorrow's "
-                  f"calls are likely to need it.")
-        open_need = [j for j in need if not any(travel_minutes(ctx.fleet.home[h], j["zone"]) <= load.NEARBY_MINUTES
-                                                 for h in r["holders"])]
-        if open_need and r["holders"]:
-            zone = max({j["zone"] for j in open_need}, key=lambda z: (sum(j["zone"] == z for j in open_need), -z))
-            detail += f" Move a spare from {r['holders'][0]}'s truck toward zone {zone + 1}, which has none nearby."
-        items.append({"owner": "Buyer", "when": "this week", "tech": None, "job": None, "text": text, "detail": detail})
+            if p >= LIKELY:
+                likely[part] += 1
+    # The day's rows of the back-order query, costliest first: the figures here are the evidence table's own.
+    for r in sorted(ctx.backorders[day], key=lambda r: (-r["dollars_at_risk"], r["part"]))[:BUYER_ITEMS]:
+        need = likely[r["part"]]
+        items.append({"owner": "Buyer", "when": "this week", "tech": None, "job": None, "row": r,
+                      "text": f"Expedite {ctx.names[r['part']]}: {r['expected_calls']:.1f} calls expected before it ships",
+                      "detail": f"Ships in {days(r['ships_in_days'])}; {counted(r['trucks_holding'], 'truck')} "
+                                f"{'stocks' if r['trucks_holding'] == 1 else 'stock'} one; "
+                                f"{counted(r['open_zones'], 'zone')} with none within {load.NEARBY_MINUTES} minutes. "
+                                f"${r['dollars_at_risk']:,.0f} of second visits at risk. {need} of tomorrow's booked "
+                                f"calls {'is' if need == 1 else 'are'} likely to need it."})
     return items
+
+
+def counted(n, noun):
+    """A count with its noun, plural where it should be."""
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
+def days(n):
+    return counted(n, "day")
 
 
 def morning(ctx, rec, night_calls, ran_tech, jobs):
@@ -267,4 +294,4 @@ def build(conn, answers=None, followups=None):
     eventful = [d["day"] for d in days if opens_on(d)]
     return {"days": days, "open": eventful[-1] if eventful else days[-1]["day"], "first": first, "jobs": jobs,
             "ours": ours, "base": base, "ctx": ctx, "zones": ZONES,
-            "centers": list(conn.execute("SELECT center, zone FROM centres ORDER BY center"))}
+            "centers": list(conn.execute("SELECT center, zone FROM centers ORDER BY center"))}

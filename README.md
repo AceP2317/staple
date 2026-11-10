@@ -30,7 +30,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
   truck nearby, back-ordered, or locked to a certified technician. A booking likely to need a part nobody
   nearby holds gets flagged before the visit.
 - **Ranks the back-orders.** Each part the centers cannot ship, by the second visits it puts at risk before
-  it arrives.
+  it ships. The list is made again each day: the days left count down, and a part drops off the day it ships.
 - **Reads the customer's words.** Claude Haiku 5.5 (`claude-haiku-5-5`) turns what the customer said into a
   problem code with a confidence, and asks one short follow-up question when it is unsure. The week's plan
   runs on its codes. Its answers ship cached in the repository, so a run needs no key.
