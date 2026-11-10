@@ -2355,7 +2355,7 @@ def page_faults(page, pattern, kind="report"):
     if not shown or not (re.fullmatch(pattern, shown) if pattern else shown == report.NO_HISTORY):
         faults.append("no build stamp")
     day = re.search(r'<span class="content-day"[^>]*>([^<]*)</span>', page)
-    if not day or not (re.fullmatch(r"[1-9]\d? [A-Z][a-z]{2} \d{4}", day.group(1))
+    if not day or not (re.fullmatch(rf"(?:{MONTHS}) [1-9]\d?, \d{{4}}", day.group(1))
                        or (not pattern and day.group(1) == "unknown")):
         faults.append("no day the results last changed")
     if kind == "report":
@@ -2582,6 +2582,14 @@ def report_check():
             faults = page_faults(page, pattern, kind)
             require(not faults, f"{report.FILES[kind]} is missing: " + "; ".join(faults))
         page = pages["report"]
+        if pattern:
+            shown = re.search(r'(<span class="content-day"[^>]*>)([^<]*)</span>', page)
+            month, date, year = shown.group(2).replace(",", "").split()
+            for what, words in (("written day first", f"{date} {month} {year}"), ("left out", "")):
+                planted = page.replace(shown.group(0), f"{shown.group(1)}{words}</span>", 1)
+                require(page_faults(planted, pattern) == ["no day the results last changed"],
+                        f"control: a page with its results day {what} passed")
+            print(f"  control: a page whose results day is written day first, or left out, is refused; \"{shown.group(2)}\" passes")
         ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
         figure = f"{ours[3]:.1f}%"
         require(figure in page, "the page does not show the dispatch scorecard's own first-time fix figure")
