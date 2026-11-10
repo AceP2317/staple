@@ -103,6 +103,8 @@ replay's own record of the most recent week, so every route and load on it is on
   `out/metrics/`, so a reader can open any table without running SQL.
 - `sql/metrics/first_time_fix.sql`: the share of jobs fixed on the first visit, by month.
 - `sql/metrics/parts_caused_reschedules.sql`: repeat visits caused by a missing part, by appliance.
+- `sql/metrics/parts_cycle_time.sql`: the days a repair waits for its parts, as the history recorded them and as
+  each way of handing out calls would leave them, with the share of waits that are on a back-ordered part.
 - `sql/metrics/truck_fill_rate.sql`: of the part lines jobs needed, the share already on the truck, and the
   share of jobs with every line there.
 - `sql/metrics/slow_truck_stock.sql`: what each truck holds that its own technician's jobs did not need in

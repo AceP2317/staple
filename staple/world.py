@@ -5,6 +5,7 @@ every run writes the same rows, so every number downstream can be reproduced.
 """
 from collections import defaultdict
 import datetime as dt
+import itertools
 import math
 import random
 
@@ -344,10 +345,30 @@ def _build_waits(conn, rng, jobs, job_parts, techs):
         for part in needed[job]:
             if part in techs[tech]["stock"]:
                 continue
-            ships = next((dt.date.fromisoformat(end) for start, end in stuck[part] if start <= str(ordered) < end), ordered)
-            back = max(back, ships + dt.timedelta(days=rng.choices(days, shares)[0]))
+            back = max(back, ship_day(stuck, part, ordered) + dt.timedelta(days=rng.choices(days, shares)[0]))
         rows.append((job, str(ordered), str(back)))
     conn.executemany("INSERT INTO waits VALUES (?,?,?)", rows)
+
+
+def ship_day(stuck, part, ordered):
+    """The day a center can ship a part ordered on this day: the day its back-order ends, or the order day itself.
+    stuck is {part: [(first day stuck, day it ships), ...]}."""
+    return next((dt.date.fromisoformat(end) for start, end in stuck.get(part, ()) if start <= str(ordered) < end), ordered)
+
+
+def expected_wait(visit, missing, stuck, lead_times=LEAD_TIMES, next_day=ORDER_NEXT_DAY):
+    """The mean days from a visit that lacked these parts to its repeat visit, over every way the order day and the
+    lead times can fall. It follows the rule _build_waits draws from, so the recorded waits average to it."""
+    if not missing:
+        return 0.0
+    visit = dt.date.fromisoformat(visit)
+    mean = 0.0
+    for lag, chance in ((0, 1 - next_day), (1, next_day)):
+        ordered = visit + dt.timedelta(days=lag)
+        ready = [(ship_day(stuck, part, ordered) - visit).days for part in sorted(missing)]
+        for leads in itertools.product(lead_times.items(), repeat=len(ready)):
+            mean += chance * math.prod(share for _, share in leads) * max(r + days for r, (days, _) in zip(ready, leads))
+    return mean
 
 
 def _schema_path():

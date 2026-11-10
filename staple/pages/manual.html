@@ -97,6 +97,11 @@ the tile's hint gives the count.</p>
 <p><strong>Where repeat visits come from</strong> counts, per 100 jobs of each appliance, the repeat visits
 caused by a part missing from the truck. Its table adds the share of each appliance's repeat visits that a missing
 part caused. The rest failed on the technician's success rate.</p>
+<p><strong>How long a repair waits for its parts</strong> gives the parts cycle time: the days from a visit that
+lacked a part to the repeat visit that brings it. The first row is the held-back history as recorded. Each other
+row replays one way of handing out calls, where a repair that lacks a part waits the made-up lead times. The bar
+spreads the wait over every repair, so it falls when fewer repairs wait. The table adds the share of repairs that
+wait, the days one of them waits, and the share of those waits that are on a back-ordered part.</p>
 <p><strong>Which parts to carry</strong> plots, for carry lists of {{ks}} parts, the share of held-back jobs whose
 every needed part was on the list. The horizontal line is today's trucks, which carry far more than the longest list's {{max_k}} parts.
 The list's job is to top the truck up for the day, not to replace it. The table's leaked column scores the
@@ -156,6 +161,9 @@ bar is a gain that came from something plainer, and the card that owns the gain 
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>
 <tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought before the part shipped, for comparison with the forecast.</td></tr>
 <tr><td>back_test</td><td><code>1</code> on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
+<tr><td>repairs_waiting_pct</td><td>Repairs whose truck lacked a needed part, over every repair counted.</td></tr>
+<tr><td>days_when_waiting, days_a_repair</td><td>Days from the visit that lacked a part to the repeat visit. In the history row they are the recorded days. In a replayed row each waiting repair counts the average over every order day and lead time the made-up table allows, and a part on back-order waits first for the day a center can ship it. The first figure divides by the repairs that wait, the second by every repair.</td></tr>
+<tr><td>waits_on_backorder_pct</td><td>Of the repairs that wait, the share lacking a part no center could ship on the day of the visit.</td></tr>
 <tr><td>line_fill_pct, job_fill_pct</td><td>Of the part lines jobs needed, the share already on the technician's truck; and the share of jobs with every line there.</td></tr>
 <tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the year before the held-back days.</td></tr>
 </tbody></table></section>

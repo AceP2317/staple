@@ -119,6 +119,8 @@ GLOSSARY = {
              "it when it is not aboard, and for it when it is.",
     "current rules": "What the invented fleet does now, and what every gain is measured against: each call goes to the "
                      "nearest qualified technician, driving today's fixed truck stock.",
+    "parts cycle time": "The days a repair waits for its parts: from the visit that lacked one to the repeat visit that "
+                        "brings it.",
     "call": "One repair visit to make. It starts as a booking, the customer's request in their own words, and once "
             "made it is a job in the history.",
 }
@@ -133,7 +135,8 @@ COLUMNS = {
     "leaked_pct": "The same, for the predictor with the held-back jobs already in its history. Its gap to the "
                   "predictor is what holding those days back is worth.",
     "todays_trucks_pct": "Held-back jobs whose every needed part was on today's truck.",
-    "policy": "How the truck is loaded, or how calls are handed out.",
+    "policy": "How the truck is loaded, or how calls are handed out. A row named for the history is what was "
+              "recorded, under no policy.",
     "parts_per_job": "Carry-list parts per booked call; 0 where the policy uses no list.",
     "covered_pct": "Jobs whose every needed part was aboard.", "parts_aboard": "Parts on the truck, per truck-day.",
     "part_jobs_covered": "Jobs a truck-day that needed a part and had every one aboard. A job that needed none is left out.",
@@ -180,6 +183,11 @@ COLUMNS = {
     "flagged": f"Bookings whose odds of needing such a part reach {load.BACKORDER_FLAG:.0%}, the flag's level.",
     "flagged_and_stuck": "Flagged bookings that did need such a part.",
     "flags_right_pct": "The share of flagged bookings that did need such a part.",
+    "repairs": "Repairs counted: every held-back repair in the history row, the calls served in a replayed row.",
+    "repairs_waiting_pct": "Repairs whose truck lacked a needed part, so they wait for it.",
+    "waits_on_backorder_pct": "Of the repairs that wait, those lacking a part no center could ship on the day of the visit.",
+    "days_when_waiting": "Days from the visit to the repeat visit, for a repair that waits.",
+    "days_a_repair": "The same days spread over every repair, waiting or not.",
 }
 MARK_HELP = {
     "needs a certified technician": ("The part is locked and this technician is not certified.", "Send a certified technician."),
@@ -221,6 +229,7 @@ CHECK_ABOUT = {
     "first-run": "A stranger's first run, offline. Every file git would publish is copied to an empty folder; the one command and every check must pass there with an empty home folder, no Claude key and every web request sent to a dead address. The run must say which parts it skipped, and damaging its published copy must make its own report check fail. It runs the whole suite, so it runs only when named.",
     "fresh-clone": "The publishing check. The public repository is cloned as a stranger would clone it, at this commit, with an empty home folder. The one command and every check must pass there, the clone's fresh build must equal its published copy with the stamp included, and the live report must equal that copy too. Damaging the copy must make the clone's own report check fail. It needs the network and runs the whole suite, so it runs only when named.",
     "history-dates": "The history records the order day and the repeat-visit day of each repair that failed for a missing part, and adding them moved nothing else. The world is built with and without the two days, and every other column of every table must hold the same values; a build with one value changed must be refused. Every repair that lacked a part has both days and no other repair has them. The order falls on the visit day or the next, the repeat visit comes after it by one of the made-up lead times, and a part on back-order arrives only after a center can ship it. The shares of each lead time and of next-morning orders must match the made-up table within a point. A repeat visit moved onto its order day, a repair with its parts given a wait, a wait taken away, an order placed two days late, a wait of a length the table does not hold and a part that arrives the day its back-order ends must each be refused, on the rules it breaks and no other.",
+    "cycle-time": "Parts cycle time, the days a repair waits for its parts. The replay gives each repair that lacks a part the mean wait under the rule the history was written by. Over every recorded wait that mean must sit within four standard errors of the recorded days, and an engine that orders every part on the day of the visit must be refused. The same mean is worked a second way, day by day, and must agree on every repair; a repair that lacks two parts must wait at least as long as for either part and less than for both in turn. Two replays are counted again from their recorded visits and loads and must give the replay's own figures, and emptying the back-order calendar must shorten the wait. The report says a waiting repair waits longer under Staple because of back-orders, so back-orders must make up most of that gap. Three planted changes must move the query's rows, a changed figure must reach the card, two builds whose query contradicts the card's words must stop, and the worked example must match its hand answer.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 
@@ -1018,6 +1027,25 @@ def build_report(results, week, stamp_text, day):
     fill = {r["appliance"]: r for r in rows(results, "truck_fill_rate")}
     repeats, caused, all_jobs = (sum(r[c] for r in causes) for c in ("repeat_visits", "parts_caused", "jobs"))
     worst = causes[0]
+    cycle = rows(results, "parts_cycle_time")    # the history as recorded first, then each way of handing out calls
+    past, wait_now, wait_ours = cycle[0], *(next(r for r in cycle if r["policy"] == n) for n in (names[0], names[-1]))
+    if not (wait_ours["repairs_waiting_pct"] < wait_now["repairs_waiting_pct"]
+            and wait_ours["days_a_repair"] < wait_now["days_a_repair"]
+            and wait_ours["days_when_waiting"] > wait_now["days_when_waiting"]
+            and wait_ours["waits_on_backorder_pct"] > wait_now["waits_on_backorder_pct"]):
+        raise ValueError("the cycle-time card says Staple leaves fewer repairs waiting, each for longer, with more of "
+                         "them on a back-ordered part, and the query no longer says so: rewrite the card before publishing")
+    # The rows that wait less than Staple. The card explains them one way, so a row it cannot explain stops the build.
+    less = [r for r in cycle[1:] if r["days_a_repair"] < wait_ours["days_a_repair"]]
+    if any(r["policy"] not in (parts_only["policy"], shuffled_skills["policy"])
+           or disp[r["policy"]]["first_time_fix_pct"] >= ours["first_time_fix_pct"] for r in less):
+        raise ValueError("the cycle-time card says a row waits less than Staple only where it does not know who is good "
+                         "at what, and fixes fewer calls for it, and the query now shows another: rewrite the card")
+    fixes = [f"{r['policy']} {'fixes ' * (i == 0)}{pct(disp[r['policy']]['first_time_fix_pct'])}{' of calls on the first visit' * (i == 0)}"
+             for i, r in enumerate(less)]
+    wait_less = ("" if not less else
+                 f" Of the other rows, {len(less)} {'waits' if len(less) == 1 else 'wait'} less than Staple without knowing "
+                 f"who is good at what: {' and '.join(fixes)}, against Staple's {pct(ours['first_time_fix_pct'])}.")
     points = rows(results, "carry_list_curve")
     three = next(p for p in points if p["k"] == load.SHOWN_K)
     stuck = rows(results, "backorder_exposure")
@@ -1062,6 +1090,11 @@ def build_report(results, week, stamp_text, day):
                         f"{r['repeat_visits']:,} repeat visits.\nTruck fill: {pct(fill[r['appliance']]['line_fill_pct'])} of needed "
                         f"part lines aboard, {pct(fill[r['appliance']]['job_fill_pct'])} of jobs with every line aboard "
                         "(truck_fill_rate.sql).", "lead" if r is worst else "") for r in causes])
+    cycle_bars = bars([(r["policy"], r["days_a_repair"], f"{r['days_a_repair']:.2f} days · {pct(r['repairs_waiting_pct'])} wait",
+                        f"{r['policy']}: {r['days_a_repair']:.2f} days a repair\n{pct(r['repairs_waiting_pct'])} of "
+                        f"{r['repairs']:,} repairs wait, {r['days_when_waiting']:.2f} days each.\n"
+                        f"{pct(r['waits_on_backorder_pct'])} of those waits are on a part no center could ship.",
+                        "lead" if r is wait_ours else "control" if "control" in r["policy"] else "") for r in cycle])
     load_bars = bars([(r["policy"] + (f", {r['parts_per_job']} per job" if r["policy"] in (load.TOP_UP, load.LISTS_ONLY) else ""),
                        r["cost_a_truck_day"], f"{cents(r['cost_a_truck_day'])} · covers {pct(r['covered_pct'])}",
                        f"{cents(r['cost_a_truck_day'])} a truck-day, covering {pct(r['covered_pct'])} of jobs\n"
@@ -1283,6 +1316,38 @@ def build_report(results, week, stamp_text, day):
             figure("parts_caused_reschedules", "Repeat visits caused by a missing part, per 100 jobs", cause_bars,
                    results["parts_caused_reschedules"]),
             f"start the pilot on {worst['appliance']}s, where a missing part costs the most repeat visits."),
+        card("parts_cycle_time", "How long a repair waits for its parts", join(
+            "A repair whose truck lacked a part waits for it: the part is ordered, the supplier takes its lead time, and "
+            "the technician comes back. Those days are the parts cycle time", q("parts cycle time"), ". In the held-back history ",
+            hv(pct(past["repairs_waiting_pct"]), f"{pct(past['repairs_waiting_pct'])} of {past['repairs']:,} held-back repairs waited\n"
+               f"Counted from the order day and the repeat-visit day the history records. Each waited "
+               f"{past['days_when_waiting']:.2f} days, which is {past['days_a_repair']:.2f} days spread over every repair."),
+            f" of repairs waited, {past['days_when_waiting']:.2f} days each. Replayed over the same days, the current rules",
+            q("current rules"), " leave ",
+            hv(pct(wait_now["repairs_waiting_pct"]), f"{pct(wait_now['repairs_waiting_pct'])} of {wait_now['repairs']:,} repairs wait\n"
+               f"The nearest technician on today's stock. Each waits {wait_now['days_when_waiting']:.2f} days, which is "
+               f"{wait_now['days_a_repair']:.2f} days spread over every repair."),
+            " waiting and Staple ",
+            hv(pct(wait_ours["repairs_waiting_pct"]), f"{pct(wait_ours['repairs_waiting_pct'])} of {wait_ours['repairs']:,} repairs wait\n"
+               f"Skills and parts, on balanced loads. Each waits {wait_ours['days_when_waiting']:.2f} days."),
+            f". Spread over every repair, the wait falls from {wait_now['days_a_repair']:.2f} days to ",
+            hv(f"{wait_ours['days_a_repair']:.2f}", f"{wait_ours['days_a_repair']:.2f} days a repair under Staple\n"
+               f"Against {wait_now['days_a_repair']:.2f} under the current rules and {past['days_a_repair']:.2f} in the history as recorded."),
+            ". Staple changes how many repairs wait, not the supplier's days: every row draws on the same made-up lead "
+            "times, and no way of handing out calls shortens them. A repair that still waits under Staple waits ",
+            hv(f"{wait_ours['days_when_waiting']:.2f} days", f"{wait_ours['days_when_waiting']:.2f} days for a repair that waits under Staple\n"
+               f"Against {wait_now['days_when_waiting']:.2f} under the current rules. A part on back-order waits first for the "
+               "day a center can ship it, then its lead time."),
+            f" against {wait_now['days_when_waiting']:.2f}. That is longer because ",
+            hv(pct(wait_ours["waits_on_backorder_pct"]), f"{pct(wait_ours['waits_on_backorder_pct'])} of Staple's waits are on a back-ordered part\n"
+               f"Against {pct(wait_now['waits_on_backorder_pct'])} under the current rules. Staple removes most of the other "
+               "waits, so the ones on back-order are a larger share of what is left."),
+            f" of its waits are on a part no center can ship, against {pct(wait_now['waits_on_backorder_pct'])}. A truck "
+            "cannot load a part on back-order", q("back-order"), ", so those are the waits a better load does not remove.", wait_less),
+            figure("parts_cycle_time", "Days a repair waits for its parts, spread over every repair", cycle_bars,
+                   results["parts_cycle_time"]),
+            "measure it from two days the history already holds, the order day and the repeat-visit day, and send the "
+            "back-ordered waits to the buyer's list, because loading cannot remove them."),
         card("controls", "Each gain against its control", join(
             "A control", q("control"), " is a method run again with one link in its data broken. Where the gain goes "
             f"with the link, it came from the link. {len(controls) - len(held)} of these {len(controls)} controls fall back, "

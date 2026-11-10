@@ -142,7 +142,9 @@ CREATE TABLE dispatch (
   fix_rate REAL NOT NULL,                         -- expected first-time fixes per call served
   fixes_per_call REAL NOT NULL, parts_missing REAL NOT NULL, drive_per_call REAL NOT NULL,
   moved INTEGER NOT NULL,                         -- calls moved to another truck by a sick call or breakdown
-  moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL  -- minutes at $1 plus expected repeat visits, made up
+  moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL, -- minutes at $1 plus expected repeat visits, made up
+  backorder_missing REAL NOT NULL,                -- share of calls served that lacked a part no center could ship that day
+  wait_per_call REAL NOT NULL                     -- expected days a call served waits for a part its truck lacked
 );
 
 -- The buyer's back-order list for every held-back day: each part no center can ship that day. Forecasts use

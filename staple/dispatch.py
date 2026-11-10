@@ -22,7 +22,7 @@ from collections import Counter, defaultdict
 from staple import load
 from staple.backtest import test_jobs
 from staple.predict import Predictor
-from staple.world import travel_minutes
+from staple.world import expected_wait, travel_minutes
 
 DAY = 540                # minutes from 08:00 to 17:00
 REPAIR = {"refrigerator": 75, "washer": 60, "dryer": 50, "dishwasher": 55, "range": 50, "furnace": 70}  # made up
@@ -138,6 +138,9 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
     for j in jobs:
         by_day[j["day"]].append(j)
     before = {t: set(fleet.stock[t]) for t in crew.techs}
+    calendar = defaultdict(list)     # each part's back-orders, for the wait of a repair that lacks it
+    for part, starts, ships in fleet.backorders:
+        calendar[part].append((starts, ships))
     t = Counter()
     kept, rolled_ids, happened, days = [], [], {}, {}
     for d, day in enumerate(sorted(by_day)):
@@ -260,6 +263,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
                 t["served"] += 1
                 t["fixes"] += fix
                 t["parts_missing"] += not covered
+                t["backorder_missing"] += any(part in stuck for part in j["needed"] - truck[tech])
+                t["wait_days"] += expected_wait(day, j["needed"] - truck[tech], calendar)
                 t["drive"] += travel_minutes(zone, j["zone"])    # the drive alone: a wait for a call to come in is not driving
                 t["repair"] += end - start
                 t["moved"] += bool(moved[j["job"]])
@@ -284,7 +289,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
               "fix_rate": t["fixes"] / t["served"], "fixes_per_call": t["fixes"] / calls,
               "parts_missing": t["parts_missing"] / t["served"], "drive_per_call": t["drive"] / t["served"],
               "moved": t["moved"], "moved_fix_rate": t["moved_fixes"] / t["moved"] if t["moved"] else 0.0,
-              "sick": t["sick"], "broken": t["broken"],
+              "sick": t["sick"], "broken": t["broken"], "wait_per_call": t["wait_days"] / t["served"],
+              "backorder_missing": t["backorder_missing"] / t["served"],
               "cost_per_call": (t["drive"] + t["repair"]) * MINUTE / t["served"]
                                + (1 - t["fixes"] / t["served"]) * load.REPEAT_VISIT}
     if record:
@@ -311,9 +317,10 @@ def run(conn, control_seed=SKILLS_SEED):
     out[SHUFFLED_ODDS] = replay(conn, jobs, "skills and parts", "balanced",
                                 part_odds=load.ranked_lists(Predictor(conn, shuffled=True), jobs))
     conn.execute("DELETE FROM dispatch")
-    conn.executemany("INSERT INTO dispatch VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    conn.executemany("INSERT INTO dispatch VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                      [(name, r["calls"], r["served"], r["rolled"], r["fix_rate"], r["fixes_per_call"],
-                       r["parts_missing"], r["drive_per_call"], r["moved"], r["moved_fix_rate"], r["cost_per_call"])
+                       r["parts_missing"], r["drive_per_call"], r["moved"], r["moved_fix_rate"], r["cost_per_call"],
+                       r["backorder_missing"], r["wait_per_call"])
                       for name, r in out.items()])
     conn.commit()
     return out

@@ -8,6 +8,7 @@
 <li><a href="#backorders">The fleet back-order list</a></li>
 <li><a href="#ai">The AI step</a></li>
 <li><a href="#dispatch">The dispatch replay</a></li>
+<li><a href="#cycle">Parts cycle time</a></li>
 <li><a href="#plan">The week's plan</a></li>
 <li><a href="#sql">The metric queries</a></li>
 <li><a href="#checks">The checks and their controls</a></li>
@@ -319,6 +320,19 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
 broken truck working after its breakdown, no route past {{day_end}}. A control may roll at most one percent more calls
 than Staple, so no control can win by overbooking.</p></section>
+
+<section id="cycle"><h2>Parts cycle time</h2>
+<p>Source: <code>world.expected_wait</code>, called by the dispatch replay, and
+<code>sql/metrics/parts_cycle_time.sql</code>. Parts cycle time is the days a repair waits for its parts: from the
+visit that lacked one to the repeat visit that brings it. The history records both days, so its row of the query is
+a count. A replay has no recorded days. So each replayed visit that lacks a part is given the mean wait under the
+rule the history was written by: the order goes in on the visit day or the next morning, each missing part takes a
+lead time from the day a center can ship it, and the repeat visit waits for the last part to arrive.</p>
+{{EX_cycle}}
+<p>The check <code>cycle-time</code> holds that mean to the history: over every recorded wait, the mean and the
+recorded days must agree within the spread chance allows. Every row of the query draws on the same lead times. So
+a way of handing out calls can change how many repairs wait and which parts they wait for, never how long a
+supplier takes.</p></section>
 
 <section id="plan"><h2>The week's plan</h2>
 <p>Source: <code>staple/plan.py</code>. Nothing in it plans anything. Every route, load and move on the plan screen is

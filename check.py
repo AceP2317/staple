@@ -1233,7 +1233,8 @@ def to(value, places):
 
 def hand_tables(conn, stock_as_replayed=True):
     """Every column of every metric query recomputed in Python, apart from the SQL, as {query: {row: {column: value}}}.
-    The four history measures are counted again from the jobs, the parts they needed and the truck stock. The others
+    The four history measures and the history row of the cycle-time query are counted again from the jobs, the parts
+    they needed, the truck stock, the back-orders and the recorded days. The others
     report a results table, so its raw rows are read and the query's arithmetic is redone. The limit: for those
     this guards the query and not the replay that filled the table, which the engine's own checks hold. One row
     goes further: the return on today's trucks is counted again from the jobs and the stock. Pass
@@ -1346,6 +1347,26 @@ def hand_tables(conn, stock_as_replayed=True):
     said = len(set(conn.execute("SELECT type, words FROM jobs WHERE split = 'test'").fetchall()))
     flag = dict(conn.execute("SELECT measure, value FROM availability WHERE kind = 'jobs'"))
     sure_from = one(conn, "SELECT value FROM assumptions WHERE name = 'ai_confidence'")
+    # Parts cycle time. The history row is counted again from the held-back jobs, their parts, the truck stock, the
+    # back-orders and the recorded days. A policy's row redoes the query's arithmetic on the replay's raw figures.
+    came_back = dict(conn.execute("SELECT job, repeat_visit_day FROM waits"))
+    calendar = defaultdict(list)
+    for part, starts, ships in conn.execute("SELECT part, starts, ships FROM backorders"):
+        calendar[part].append((starts, ships))
+    late = [(job, day, tech) for job, day, _, tech, *_ in jobs if day >= test_from]
+    waited = [(date.fromisoformat(came_back[job]) - date.fromisoformat(day)).days for job, day, _ in late if job in came_back]
+    on_backorder = sum(1 for job, day, tech in late if job in came_back
+                       and any(a <= day < b for part in needed[job] - aboard[tech] for a, b in calendar[part]))
+    cycle = {"history as recorded": {
+        "repairs": len(late), "repairs_waiting_pct": of(len(waited), len(late)),
+        "waits_on_backorder_pct": of(on_backorder, len(waited)),
+        "days_when_waiting": to(sum(waited) / len(waited), 2) if waited else None,
+        "days_a_repair": to(sum(waited) / len(late), 2)}}
+    cycle.update({policy: {"repairs": served, "repairs_waiting_pct": pct(lacking),
+                           "waits_on_backorder_pct": of(stuck_share, lacking),
+                           "days_when_waiting": to(wait / lacking, 2) if lacking else None, "days_a_repair": to(wait, 2)}
+                  for policy, served, lacking, stuck_share, wait in
+                  conn.execute("SELECT policy, served, parts_missing, backorder_missing, wait_per_call FROM dispatch")})
     return {
         "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
         "parts_caused_reschedules": {
@@ -1395,6 +1416,7 @@ def hand_tables(conn, stock_as_replayed=True):
         # today's trucks to the count made above from the jobs and the stock.
         "inventory_roi": loads,
         "controls": controls,
+        "parts_cycle_time": cycle,
     }
 
 
@@ -1513,6 +1535,8 @@ WRONG_QUERIES = {
                       "counts a job that needed no part as a repeat visit the stock avoided"),
     "parts_caused_reschedules": ("AND parts_on_truck = 0) / COUNT(*)", "AND parts_on_truck = 1) / COUNT(*)",
                                  "counts the repeats that had their parts as caused by parts"),
+    "parts_cycle_time": ("julianday(j.day)", "julianday(w.order_day)",
+                         "counts a wait from the day the part was ordered, not from the visit that lacked it"),
     "slow_truck_stock": ("'-365 days'", "'-30 days'", "looks back one month for use, not twelve"),
     "truck_fill_rate": ("MIN(on_truck)", "MAX(on_truck)", "passes a job when any one of its parts was aboard"),
 }
@@ -1547,7 +1571,8 @@ def mutants():
 
 
 WHOLE_TABLES = {"inventory_roi": ("load_policy", "policy, k"), "dispatch_scorecard": ("dispatch", "policy"),
-                "ai_step": ("triage", "method"), "backorder_exposure": ("backorder_list", "day, part")}
+                "ai_step": ("triage", "method"), "backorder_exposure": ("backorder_list", "day, part"),
+                "parts_cycle_time": ("dispatch", "policy")}
 CONTROL_WORDS = ("control", "shuffled", "random")    # a results row whose name holds one of these is a control
 
 
@@ -1626,8 +1651,9 @@ def controls_shown():
 
     # No query hides a row, and every control has a row of its own.
     hidden, unlisted = hidden_rows(conn, results), unlisted_controls(conn, results)
-    held = sum(len(conn.execute(f"SELECT 1 FROM {table}").fetchall()) for table, _ in WHOLE_TABLES.values())
-    print(f"  {held:,} rows in the {len(WHOLE_TABLES)} results tables a query reports whole: {len(hidden)} left out; "
+    whole = sorted({table for table, _ in WHOLE_TABLES.values()})
+    held = sum(one(conn, f"SELECT COUNT(*) FROM {table}") for table in whole)
+    print(f"  {held:,} rows in the {len(whole)} results tables that {len(WHOLE_TABLES)} queries report whole: {len(hidden)} left out; "
           f"{len(results['controls'][1])} controls, {len(unlisted)} without a row in the controls query")
     require(not hidden, "a query hides rows of its results table: " + "; ".join(hidden[:3]))
     require(not unlisted, f"a control has no row in the controls query: {unlisted}")
@@ -1637,7 +1663,8 @@ def controls_shown():
     copy = sqlite3.connect(":memory:")
     conn.backup(copy)
     copy.execute("INSERT INTO dispatch SELECT 'Staple with shuffled zones (control)', calls, served, rolled, fix_rate, "
-                 "fixes_per_call, parts_missing, drive_per_call, moved, moved_fix_rate, cost_per_call FROM dispatch LIMIT 1")
+                 "fixes_per_call, parts_missing, drive_per_call, moved, moved_fix_rate, cost_per_call, backorder_missing, wait_per_call "
+                 "FROM dispatch LIMIT 1")
     planted = unlisted_controls(copy, results)
     copy.close()
     print(f"  control: a query that filters out the shuffled rows hides {len(hidden_rows(conn, filtered))} rows, and a "
@@ -2766,6 +2793,191 @@ def history_dates():
         print("  control: a repeat visit moved onto its order day, a repair with its parts given a wait, a wait taken away, "
               "an order placed two days late, a wait of four days and a part that arrives the day its back-order ends are "
               "each refused, on the rules it breaks and no other")
+
+
+SPREADS = 4    # standard errors the recorded waits may sit from the engine's mean wait
+
+
+def wait_by_hand(visit, missing, stuck, lead_times, next_day):
+    """The mean wait of a repair that lacked these parts, worked a second way, apart from the engine. For each day
+    after the visit it takes the chance every part has arrived, as the product of each part's own chance, and adds
+    the chance that one has not."""
+    from datetime import date, timedelta
+    visit, mean = date.fromisoformat(visit), 0.0
+    for lag, chance in ((0, 1 - next_day), (1, next_day)):
+        ordered = str(visit + timedelta(days=lag))
+        ready = [(date.fromisoformat(next((b for a, b in stuck.get(part, ()) if a <= ordered < b), ordered)) - visit).days
+                 for part in missing]
+        for day in range(max(ready, default=0) + max(lead_times)):
+            arrived = 1.0
+            for r in ready:
+                arrived *= sum(share for days, share in lead_times.items() if r + days <= day)
+            mean += chance * (1 - arrived)
+    return mean
+
+
+def waits_recount(visits, loads, needed, stuck, lead_times, next_day):
+    """A replay's waiting figures counted again from its recorded visits and loads: the share of visits that lacked
+    a part, the share that lacked one no center could ship that day, and the mean days a visit waits."""
+    waiting = held = 0
+    days = 0.0
+    for day, tech, job, *_ in visits:
+        missing = needed[job] - loads[day][tech]
+        waiting += bool(missing)
+        held += any(a <= day < b for part in missing for a, b in stuck.get(part, ()))
+        days += wait_by_hand(day, missing, stuck, lead_times, next_day)
+    return waiting / len(visits), held / len(visits), days / len(visits)
+
+
+@check("cycle-time")
+def cycle_time():
+    """Parts cycle time is in the history and in every replay, agrees with a second way of working it, moves under
+    planted changes, and reaches the report with the words its figures support."""
+    import sqlite3
+    from statistics import mean, stdev
+    from staple import backtest, dispatch, examples, load, metrics, report, world
+    conn = shared_world()
+    results_written(conn)
+    stuck, needed, aboard = defaultdict(list), defaultdict(set), defaultdict(set)
+    for part, starts, ships in conn.execute("SELECT part, starts, ships FROM backorders"):
+        stuck[part].append((starts, ships))
+    for job, part in conn.execute("SELECT job, part FROM job_parts"):
+        needed[job].add(part)
+    for tech, part in conn.execute("SELECT t.tech, s.part FROM truck_stock s JOIN trucks t USING (truck)"):
+        aboard[tech].add(part)
+    leads, next_day = world.LEAD_TIMES, world.ORDER_NEXT_DAY
+
+    # The mean wait the replay gives a repair, against what the history recorded for every repair that waited.
+    history = [(day, needed[job] - aboard[tech], recorded) for job, day, tech, recorded in conn.execute(
+        "SELECT j.job, j.day, j.tech, julianday(w.repeat_visit_day) - julianday(j.day) FROM waits w JOIN jobs j USING (job)")]
+    engine = [world.expected_wait(day, missing, stuck) for day, missing, _ in history]
+    gaps = [recorded - e for (_, _, recorded), e in zip(history, engine)]
+    spread = stdev(gaps) / len(gaps) ** 0.5
+    print(f"  {len(history):,} recorded waits average {mean(r for _, _, r in history):.3f} days and the engine's mean wait for "
+          f"the same repairs {mean(engine):.3f}: {mean(gaps):+.4f} apart, where one standard error is {spread:.4f}")
+    require(len(history) > 10_000 and abs(mean(gaps)) <= SPREADS * spread,
+            f"the engine's mean wait sits more than {SPREADS} standard errors from the recorded waits")
+    same_day = mean(recorded - world.expected_wait(day, missing, stuck, next_day=0) for day, missing, recorded in history)
+    print(f"  control: an engine that orders every part on the day of the visit sits {same_day:+.3f} days from the record, "
+          f"{abs(same_day) / spread:.0f} standard errors, and is refused")
+    require(abs(same_day) > SPREADS * spread, "control: an engine with no next-morning orders passed against the record")
+
+    # The same mean worked a second way, and the rule for a repair that lacks two parts.
+    second = max(abs(e - wait_by_hand(day, missing, stuck, leads, next_day)) for (day, missing, _), e in zip(history, engine))
+    pairs = [(day, missing) for day, missing, _ in history if len(missing) > 1]
+    odd = [(day, missing) for day, missing in pairs
+           if not max(world.expected_wait(day, {p}, stuck) for p in missing) - 1e-9
+           <= world.expected_wait(day, missing, stuck) < sum(world.expected_wait(day, {p}, stuck) for p in missing)]
+    print(f"  worked a second way, day by day, the mean wait differs by at most {second:.0e} days on those repairs; "
+          f"{len(pairs):,} lacked two parts, and {len(pairs) - len(odd):,} of them wait at least as long as for either "
+          "part and less than for both in turn")
+    require(second < 1e-9, "the engine's mean wait and the second way of working it disagree")
+    require(pairs and not odd, f"a repair that lacked two parts does not wait for the last of them: {odd[:2]}")
+    longer = {days + 1: share for days, share in leads.items()}
+    off = min(abs(e - wait_by_hand(day, missing, stuck, longer, next_day)) for (day, missing, _), e in zip(history, engine))
+    print(f"  control: given lead times a day longer, the second way sits at least {off:.2f} days off on every repair")
+    require(off > 1 - 1e-9, "control: lead times a day longer were not seen by the comparison")
+
+    # Each replay's waiting figures, counted again from its recorded visits and loads.
+    jobs = backtest.test_jobs(conn)
+    load.mark_unplanned(jobs)
+    wanted = {j["job"]: j["needed"] for j in jobs}
+    table = {policy: rest for policy, *rest in
+             conn.execute("SELECT policy, parts_missing, backorder_missing, wait_per_call FROM dispatch")}
+    when = {}
+    for name, rule, loads, crew in (dispatch.POLICIES[0], dispatch.POLICIES[-1]):
+        run = dispatch.replay(conn, jobs, rule, loads, dispatch.Crew(conn, **crew), record=True)
+        trucks = {day: rec["load"] for day, rec in run["days"].items()}
+        counted = waits_recount(run["visits"], trucks, wanted, stuck, leads, next_day)
+        bare = waits_recount(run["visits"], trucks, wanted, {}, leads, next_day)
+        when[name] = (counted[2] / counted[0], bare[2] / bare[0])
+        print(f"  {name}: counted again from {len(run['visits']):,} recorded visits, {counted[0]:.1%} wait, "
+              f"{counted[1] / counted[0]:.1%} of those on a back-ordered part, {counted[2]:.4f} days a repair; the replay's "
+              f"own figures differ by at most {max(abs(a - b) for a, b in zip(counted, table[name])):.0e}")
+        require(all(abs(a - b) < 1e-9 for a, b in zip(counted, table[name])),
+                f"the replay's waiting figures for {name} are not what its visits and loads give")
+        require(bare[0] == counted[0] and bare[1] == 0 and bare[2] < counted[2],
+                "control: emptying the back-order calendar did not shorten the recounted wait")
+    (now_days, now_bare), (our_days, our_bare) = when.values()
+    print(f"  a repair that waits, waits {our_days:.2f} days under Staple against {now_days:.2f} under the current rules; "
+          f"with the back-order calendar emptied, {our_bare:.2f} against {now_bare:.2f}, so the gap goes from "
+          f"{our_days - now_days:+.2f} days to {our_bare - now_bare:+.2f}")
+    require(our_days > now_days and abs(our_bare - now_bare) < (our_days - now_days) / 2,
+            "the report says a waiting repair waits longer under Staple because of back-orders, and the replays no "
+            "longer show back-orders making up most of that gap: rewrite the card")
+
+    # The query: planted changes must move its rows.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    text = (metrics.SQL / "parts_cycle_time.sql").read_text(encoding="utf-8")
+
+    def asked(db):
+        cur = db.execute(text)
+        return rows_by_key("parts_cycle_time", ([d[0] for d in cur.description], cur.fetchall()))
+
+    rows = asked(conn)
+    first, now_name, our_name = next(iter(rows)), dispatch.POLICIES[0][0], dispatch.POLICIES[-1][0]
+    past, now, ours = rows[first], rows[now_name], rows[our_name]
+    print(f"  the query: {first} {past['repairs_waiting_pct']}% wait, {past['days_when_waiting']:.2f} days each; the current "
+          f"rules {now['repairs_waiting_pct']}% and {now['days_when_waiting']:.2f}; Staple {ours['repairs_waiting_pct']}% and "
+          f"{ours['days_when_waiting']:.2f}")
+    require(past["repairs"] == len(jobs), "the query's first row does not count every held-back repair")
+    require(ours["repairs_waiting_pct"] < now["repairs_waiting_pct"], "Staple leaves no fewer repairs waiting than the current rules")
+    copy = sqlite3.connect(":memory:")
+    conn.backup(copy)
+    copy.execute("UPDATE waits SET repeat_visit_day = date(repeat_visit_day, '+1 day')")
+    copy.execute("UPDATE dispatch SET wait_per_call = 2 * wait_per_call WHERE policy = ?", (our_name,))
+    later = asked(copy)
+    copy.execute("DELETE FROM backorders")
+    shipped = asked(copy)
+    copy.close()
+    moved = {"every repeat visit a day later": abs(later[first]["days_when_waiting"] - past["days_when_waiting"] - 1) < 0.011
+                                               and later[first]["repairs_waiting_pct"] == past["repairs_waiting_pct"],
+             "Staple's wait doubled in the replay's table": abs(later[our_name]["days_a_repair"] - 2 * ours["days_a_repair"]) < 0.011
+                                                            and later[now_name] == now,
+             "every back-order taken away": shipped[first]["waits_on_backorder_pct"] == 0 < past["waits_on_backorder_pct"]}
+    print(f"  control: planted changes moved the query's rows as they should in {sum(moved.values())} of {len(moved)} cases")
+    require(all(moved.values()), f"the cycle-time query did not move under a planted change: {moved}")
+
+    # The page: the card reads the query, and stops where its words would no longer be true.
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    card = card_text(report.build_report(results, week, stamp_text, day), "parts_cycle_time")
+    quoted = ([report.pct(r["repairs_waiting_pct"]) for r in (past, now, ours)]
+              + [f"{r['days_when_waiting']:.2f}" for r in (past, now, ours)]
+              + [report.pct(r["waits_on_backorder_pct"]) for r in (now, ours)]
+              + [f"{r['days_a_repair']:.2f}" for r in (now, ours)])
+    absent = [figure for figure in quoted if figure not in card]
+    print(f"  the report's card carries {len(quoted) - len(absent)} of the {len(quoted)} figures its words rest on")
+    require(not absent, f"the cycle-time card does not carry: {absent}")
+    marked = changed(results, "parts_cycle_time", our_name, "repairs_waiting_pct", lambda v: 0.7)
+    planted = lambda text: re.search(r"(?<![\d.])0\.7%", text)    # the planted share, and no longer figure that ends in it
+    require(not planted(card) and planted(card_text(report.build_report(marked, week, stamp_text, day), "parts_cycle_time")),
+            "control: a changed waiting share did not reach the card, so the card does not read the query")
+    turned = changed(results, "parts_cycle_time", our_name, "waits_on_backorder_pct", lambda v: 0.0)
+    try:
+        report.build_report(turned, week, stamp_text, day)
+        stopped = False
+    except ValueError:
+        stopped = True
+    print(f"  control: a changed waiting share reaches the card, and a build whose query shows none of Staple's waits on "
+          f"back-order {'stops' if stopped else 'goes on'}")
+    require(stopped, "control: the report was built though its words contradict the cycle-time query")
+    unexplained = changed(results, "parts_cycle_time", dispatch.POLICIES[2][0], "days_a_repair", lambda v: 0.0)
+    try:
+        report.build_report(unexplained, week, stamp_text, day)
+        stopped = False
+    except ValueError:
+        stopped = True
+    less = [name for name, r in rows.items() if name != first and r["days_a_repair"] < ours["days_a_repair"]]
+    print(f"  {len(less)} rows wait less than Staple, and the card names each beside the calls it fixes: {less}; a build where "
+          f"the skills-only row waits less than Staple {'stops' if stopped else 'goes on'}")
+    require(all(name in card for name in less), f"the card does not name a row that waits less than Staple: {less}")
+    require(stopped, "control: the report was built with a row waiting less than Staple that its words do not explain")
+
+    example = next(x for x in examples.EXAMPLES if x.section == "cycle")
+    print(f"  the worked example: {example.show(example.compute())}, as worked by hand")
+    require(not example_faults([example]), "the cycle-time example's hand answer is not what the engine gives")
 
 
 @check("data")

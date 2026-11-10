@@ -7,7 +7,7 @@ the seeded world, so only a change to the engine's arithmetic can move an answer
 """
 from dataclasses import dataclass
 
-from staple import backorders, backtest, db, dispatch, load, metrics, plan, triage
+from staple import backorders, backtest, db, dispatch, load, metrics, plan, triage, world
 from staple.predict import PULL, Predictor
 
 
@@ -70,6 +70,11 @@ CALLER = {"job": 1, "type": "furnace", "problem": "furnace.NO_START", "words": "
 CALL_LIST = (("drain pump", 0.55), ("door lock", 0.25), ("drive belt", 0.12), ("shock absorbers", 0.08))
 TRUCK_NOW = {"drain pump", "shock absorbers"}
 TONIGHT = {"drain pump", "drive belt", "shock absorbers"}
+VISIT = "2026-03-04"
+LEADS = {1: 0.5, 3: 0.5}                                        # days an order takes to arrive: share of orders
+NEXT_MORNING = 0.2                                              # share of orders placed the morning after the visit
+ON_BACKORDER = {"door lock": [("2026-03-01", "2026-03-08")]}    # the first day no center can ship it, and the day one can
+LACKING = (("drain pump",), ("door lock",), ("drain pump", "drive belt"))
 
 EXAMPLES = (
     Example(
@@ -183,6 +188,29 @@ EXAMPLES = (
         f"skills only:      cost = minutes · ${dispatch.MINUTE:.0f} + (1 − r̂) · R\n"
         f"skills and parts: cost = minutes · ${dispatch.MINUTE:.0f} + (1 − cover · r̂) · R\n"
         "cover = 1 − min(1, Σ_(p not available to t) o_j(p))"),
+    Example(
+        "cycle", "three repairs' waits for their parts",
+        "The days a washer repair waits when its truck lacked a part, for three repairs visited on the same day: one "
+        "lacks a part the centers can ship, one a part on back-order, and one lacks two parts.",
+        (("Input", "Value"),
+         (("Day of the visit", VISIT),
+          ("Orders placed the next morning", f"{NEXT_MORNING:.0%}; the rest go in on the day of the visit"),
+          ("Days an order takes to arrive", " or ".join(f"{d} ({s:.0%} of orders)" for d, s in LEADS.items())),
+          ("On back-order", f"the door lock, which no center can ship until {ON_BACKORDER['door lock'][0][1]}"))),
+        ("The drain pump. Ordered on the day, it arrives after 1 or 3 days, 2 on average. Ordered the next morning, "
+         "it arrives a day later, 3 on average. So the wait is 0.8 × 2 + 0.2 × 3 = 2.2 days.",
+         "The door lock. Either order day falls inside the back-order, so it ships 4 days after the visit and then "
+         "takes 2 days on average: 4 + 2 = 6.0 days.",
+         "The drain pump and the drive belt together. The repeat visit waits for the last part. Both arrive after 1 "
+         "day a quarter of the time, and otherwise the last takes 3: 0.25 × 1 + 0.75 × 3 = 2.5 days. Next-morning "
+         "orders add 0.2 × 1, so the wait is 2.7 days."),
+        (2.2, 6.0, 2.7),
+        lambda: tuple(world.expected_wait(VISIT, set(parts), ON_BACKORDER, LEADS, NEXT_MORNING) for parts in LACKING),
+        lambda v: f"{v[0]:.1f} days, {v[1]:.1f} days and {v[2]:.1f} days", "world.expected_wait",
+        "For a visit on day v that lacks the parts M, with s(ℓ) the share of orders that take ℓ days, and c_p(d) the "
+        "day a center can ship part p when it is ordered on day d:",
+        "wait = Σ_(g ∈ {0, 1}) P(g) · Σ_(one ℓ_p for each p ∈ M) Π_p s(ℓ_p) · max_(p ∈ M) (c_p(v + g) − v + ℓ_p)\n"
+        "P(1) = the share of orders placed the next morning,   P(0) = 1 − P(1)"),
     Example(
         "plan", "one call's first-time fix chance",
         "The plan's chance that one washer call is fixed on the first visit by the truck loaded for it tonight.",

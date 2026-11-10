@@ -38,7 +38,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
   call goes to the technician with the lowest expected cost: drive and repair time, plus a repeat visit
   times the chance that technician's skill or truck fails the job. It learns each technician's success rate
   from the earlier jobs.
-- **Measures it in SQL.** First-time fix, parts-caused reschedules, truck fill rate, slow truck stock,
+- **Measures it in SQL.** First-time fix, parts-caused reschedules, parts cycle time, truck fill rate, slow truck stock,
   inventory ROI, the carry-list curve, back-order exposure and the flag's record, the dispatch scorecard, the AI step's scores and
   its confidence, and every control's result are plain queries in [`sql/metrics/`](sql/metrics/). Every
   figure on the report's evidence cards comes from one of them, and the plan is the dispatch replay's own record.
@@ -60,7 +60,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 13 SQL files hold the tables and the 12 metric queries; 2 JavaScript files run the hints and switches. Beside them, 6 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 14 SQL files hold the tables and the 13 metric queries; 2 JavaScript files run the hints and switches. Beside them, 6 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
 Python 3.12 or newer is the only requirement, and nothing is installed. It is tested on Python 3.12 and 3.14.
 
