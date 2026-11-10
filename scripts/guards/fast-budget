@@ -1,1 +1,1 @@
-70200  the hover-tip check taps all four published pages in a headless browser before each publish, and took 63.2 s on its own, so this keeps the 30-to-27 headroom (2026-11-06)
+70200  the hover-tip guard taps all four published pages in a headless browser and took 63.2 s on its own, so a fast guard here is allowed 70 s

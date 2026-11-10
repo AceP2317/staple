@@ -36,7 +36,7 @@ LEDE = "Plans a repair fleet's next day: who takes each call, what each truck ca
 CARD, CARD_VERSION, CARD_SIZE = "card.png", 1, (1200, 630)   # bump CARD_VERSION whenever the card's pixels change
 STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, as bars on a 32-unit square
 SOURCES =["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
-# Every file kind by extension, named as the house map in login-starter names it; `check.py languages` refuses any other.
+# Every file kind by its extension; `check.py languages` refuses a file whose kind neither map names.
 CODE_LANGUAGES = {"py": "Python", "sql": "SQL", "js": "JavaScript", "sh": "Bash", "html": "HTML", "css": "CSS"}
 FORMATS = {"json": "Data files (JSON)", "md": "Written notes (Markdown)", "png": "Pictures", "svg": "Pictures",
            "sha": "Fingerprints", "gitignore": "Git settings", "gitattributes": "Git settings", "": "Files with no extension"}
@@ -84,6 +84,8 @@ PROGRAMS = {   # every program the code starts, as `check.py languages` finds it
     "chrome": ("Chrome", "Photographs the share card in python run.py --card, the one build step outside Python."),
     "claude": ("Claude Code (claude)", "Built the saved answers and follow-up questions with python -m staple.triage "
                                        "build, on a subscription rather than a key."),
+    "bash": ("Bash (bash)", "Runs the guard runner on a scratch folder of planted guards in check.py plain-words, which "
+                            "holds the runner to its arguments, its exit codes and the lines it prints."),
 }
 e = html.escape
 
@@ -200,6 +202,7 @@ CHECK_ABOUT = {
     "replay-clock": "The replay obeys the clock and the calendar. No call that came in during the day, and none moved by a breakdown, may start before that minute, read from the day's own events. No truck may take on a part no center can ship or send one back before it ships, and a part must be loaded again once it ships. A list read before 08:00 may name no call that has not come in, the buyer's list must be the back-order query's own rows for its day and count down a day at a time, and every technician with no booked calls must be named. Six planted faults must be refused.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
+    "plain-words": "The public copy holds no word from the author's private setup, and the guard runner keeps its contract. The private list of names and words is scanned over every file git would publish. Each entry is then planted in a copy of the README in turn and must be caught, so the list holds no entry the scan cannot see; a copy with no list tries the scan on stand-in words and says so. The runner is tried on a scratch folder of planted guards: one that passes, one that fails, an argument it does not know, an empty folder, a parked guard that now passes, one that still finds its mistake and one that is broken, a guard that hangs, a guard slower than its allowance, and guards chosen by the files a commit stages. A copy of the runner that lets a failing guard through must be refused.",
     "corners": "The corners cut on purpose are read from the comments that mark them. Only a real comment counts, so the marker written inside a string is not a corner: every corner found must be a line that opens with the marker, a planted file with the marker in a string and in a comment must give one corner, and a comment that runs on must be read whole. Every corner must name its upgrade. The methods page must list each corner once and write the marker once, where it defines it, and the report must state the count the method cuts. A page with one corner dropped, and a report with the wrong count, must be refused.",
     "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
@@ -214,7 +217,7 @@ CHECK_ABOUT = {
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
     "links": "Every link from the manual into the methods page, and every link within a page, lands on an id the page holds. A manual link turned to an anchor that does not exist must be refused.",
-    "languages": "Every file git would publish is a code language or a format Staple's map names, and that map agrees with the house map where it is on the machine. Every language held has a section on the code languages page, every program the Python code starts has a purpose line, and the published languages.json matches a fresh count and the published page. A planted .rb file, a map calling Bash PowerShell, a language with no section, a planted start of another program and a JSON with one count off must all be refused, and a folder with no git must be walked with a warning.",
+    "languages": "Every file git would publish is a code language or a format Staple's map names. Every language held has a section on the code languages page, every program the Python code starts has a purpose line, and the published languages.json matches a fresh count and the published page. A planted .rb file, a language with no section, a planted start of another program and a JSON with one count off must all be refused, and a folder with no git must be walked with a warning.",
     "first-run": "A stranger's first run, offline. Every file git would publish is copied to an empty folder; the one command and every check must pass there with an empty home folder, no Claude key and every web request sent to a dead address. The run must say which parts it skipped, and damaging its published copy must make its own report check fail. It runs the whole suite, so it runs only when named.",
     "fresh-clone": "The publishing check. The public repository is cloned as a stranger would clone it, at this commit, with an empty home folder. The one command and every check must pass there, the clone's fresh build must equal its published copy with the stamp included, and the live report must equal that copy too. Damaging the copy must make the clone's own report check fail. It needs the network and runs the whole suite, so it runs only when named.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
@@ -464,7 +467,7 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
     nav += (f'<button type="button" class="btn ghost" data-theme-toggle'
             f'{tipattr("Light or dark" + chr(10) + "The page opens light. This switches it, and this browser remembers the choice.")}>Dark mode</button>')
-    css, js = (PAGES / "house.css").read_text(encoding="utf-8"), (PAGES / "tips.js").read_text(encoding="utf-8")
+    css, js = (PAGES / "style.css").read_text(encoding="utf-8"), (PAGES / "tips.js").read_text(encoding="utf-8")
     if kind == "report":
         js += "\n" + (PAGES / "plan.js").read_text(encoding="utf-8")
     app = f' class="app" data-side="plan" data-chosen="{chosen}"' if kind == "report" else ""
@@ -528,7 +531,7 @@ def repo_files(root=ROOT, env=None):
 
 
 def kind_of(path):
-    """A file's kind as the house map reads it: a dotfile's own name, else what follows the last dot."""
+    """A file's kind: a dotfile's own name, else what follows the last dot."""
     base = path.rsplit("/", 1)[-1]
     if base.startswith(".") and "." not in base[1:]:
         return base[1:].lower()
@@ -565,7 +568,7 @@ def written_in(where="the pages"):
 
 def tokens():
     """The light scheme's colors, read from the stylesheet so the icons and the card never hold a second copy."""
-    light = re.search(r":root\{([^}]*)\}", (PAGES / "house.css").read_text(encoding="utf-8")).group(1)
+    light = re.search(r":root\{([^}]*)\}", (PAGES / "style.css").read_text(encoding="utf-8")).group(1)
     return dict(re.findall(r"(--[\w-]+):\s*(#[0-9a-fA-F]{6})", light))
 
 
@@ -604,7 +607,7 @@ def assets():
 def card_html():
     """The share card as a 1200 by 630 page. `python run.py --card` photographs it into staple/pages/card.png."""
     w, h = CARD_SIZE
-    root = re.search(r":root\{[^}]*\}", (PAGES / "house.css").read_text(encoding="utf-8")).group(0)
+    root = re.search(r":root\{[^}]*\}", (PAGES / "style.css").read_text(encoding="utf-8")).group(0)
     return (f'<!doctype html><html><head><meta charset="utf-8"><style>{root}'
             f'html,body{{margin:0;width:{w}px;height:{h}px;overflow:hidden}}*{{box-sizing:border-box}}'
             f'body{{background:var(--band);color:var(--band-ink);font-family:system-ui,"Segoe UI",sans-serif;padding:70px 80px;'
@@ -1574,6 +1577,7 @@ def build_languages(stamp_text, day):
     v = {"SENTENCE": Raw(e(written_in())),
          "MADE_OF": grid(("Language", "Files", "Where it runs"), [(lang, len(p), where.get(lang, "no section")) for lang, p in code.items()]),
          "PLACES": Raw(places),
+         "PROGRAM_COUNT": counted(len(PROGRAMS), "program"),
          "PROGRAMS": Raw("<dl>" + "".join(f"<dt><strong>{e(n)}</strong></dt><dd>{e(p)}</dd>" for n, p in PROGRAMS.values()) + "</dl>"),
          "NOT_CODE": grid(("Kind", "Files", "Which"), [(k, len(p), ", ".join(p)) for k, p in found["formats"].items()]),
          "PUBLISHED": Raw(e(", ".join([*FILES.values(), *ASSETS, LANGUAGES_JSON])))}

@@ -135,7 +135,7 @@ replay's own record of the most recent week, so every route and load on it is on
   own. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
   it. The manual and the methods page quote every number, prompt, query and check straight from the code, so
   they cannot disagree with what ran, and a check refuses a numeral typed into either.
-- `staple/pages/house.css` is the look: colors as named tokens, light and dark, the hover marker and the
+- `staple/pages/style.css` is the look: colors as named tokens, light and dark, the hover marker and the
   phone layout.
 - `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, moves the chart's crosshair, and runs the
   light/dark switch: every page opens light, and the browser remembers a reader who picks dark.
@@ -169,8 +169,12 @@ replay's own record of the most recent week, so every route and load on it is on
 - `.gitignore` keeps the built output, Python's caches and a private folder out of the repository.
 - `.gitattributes` keeps shell scripts' line endings Unix-style, because bash fails on a Windows line ending.
 - `scripts/guard.sh` runs the repository's own guards before each commit: one test per mistake already made.
-- `scripts/guards/fast-budget` is this repository's written time allowance for a guard that runs before each
-  commit, with the reason it is raised above the house default.
+  `check.py plain-words` tries it on a scratch folder of planted guards and holds it to its arguments, its
+  exit codes and the lines it prints.
+- `scripts/guards/fast-budget` is the time a guard that runs before each commit is allowed, with the reason
+  for it. The runner notes a guard that runs slower.
+- `scripts/guards/fast/the-guard-runner-keeps-its-arguments-and-exit-codes.sh` runs that check on any commit
+  that changes the runner.
 - `scripts/guards/fast/public-files-carry-no-private-names.sh` runs the package and private-names check on
   every commit, so nothing reaches the public repository without it. The same commit also recomputes every
   worked example, follows every manual link and holds the README and walkthrough to the files, because those
@@ -179,7 +183,8 @@ replay's own record of the most recent week, so every route and load on it is on
   builds a scratch repository can never write into the commit being made.
 - `scripts/guards/fast/a-hover-tip-drops-when-a-finger-lifts.sh` taps every published page in an emulated
   phone, and the report's chart in an emulated tablet, before each commit that changes them: one tap must keep
-  a hint open and the next tap must close it, with or without the browser moving focus. It runs a shared check from the author's own toolkit,
-  so it runs only on the author's machine.
+  a hint open and the next tap must close it, with or without the browser moving focus. It runs a browser script the author
+  keeps outside this repository, so it runs only on the author's machine and fails anywhere else, saying
+  that nothing was checked.
 - `scripts/guards/fast/commit-messages-stay-plain.sh` reads every commit message on the branch and refuses
   one that carries a tool's trailer or a bookkeeping line, after proving on planted messages that it can.

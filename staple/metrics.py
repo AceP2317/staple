@@ -1,4 +1,4 @@
-"""The job description's metrics as plain SQL files in sql/metrics/, run against the one SQLite file.
+"""The measures as plain SQL files in sql/metrics/, run against the one SQLite file.
 
 The pages are built from these results, so every number on them comes from a query a reader can open and
 run; each result is also written to out/metrics/<name>.csv. The made-up dollars and rates the queries need are

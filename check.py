@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 CODE_GLOBS = ["staple/*.py", "staple/pages/*.js", "sql/*.sql", "sql/metrics/*.sql", "run.py"]
 NAMES_FILE = ROOT / ".private" / "banned-names.txt"
 REPO_URL = "https://github.com/AceP2317/staple.git"
-HOUSE_MAP = Path.home() / "dev" / "login-starter" / "scripts" / "languages.mjs"
+STAND_INS = ["examplecorp", "example-tool", "example map"]    # tried in place of the private list where a copy has none
 
 CHECKS = {}
 BY_NAME = set()     # checks that run the whole suite in another folder, so they run only when named
@@ -212,6 +212,129 @@ def banned_control():
     print(f"  planted one name in a scratch file: {len(hits)} hit(s)")
     require(len(hits) == 1, "control: the names scan missed a planted name")
     require(not find_names("embossed", ["boss"]), "control: the scan matched inside a longer word")
+
+
+def find_bash():
+    """A bash that runs: on Windows the one beside git, because a bare "bash" there can start another system; else
+    the one on the path. None where neither answers."""
+    git = shutil.which("git")
+    beside = [up / "bin" / "bash.exe" for up in list(Path(git).resolve().parents)[1:3]] if os.name == "nt" and git else []
+    for bash in [str(p) for p in beside if p.exists()] + [shutil.which("bash")]:
+        if bash and subprocess.run([bash, "-c", "echo ok"], capture_output=True, text=True).stdout.strip() == "ok":
+            return bash
+    return None
+
+
+def runner_faults(bash, source, brief=False):
+    """Where a guard runner breaks its contract, tried on a scratch folder of planted guards: its arguments, its
+    three exit codes, the line it prints for each result, and the guards a commit's staged files select. brief
+    stops after the passing and the failing guard, which is all the control needs."""
+    faults = []
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        # The runner's own switches are taken out, so a run started from a commit hook tries the same cases.
+        root, env = Path(tmp), {k: v for k, v in clean_git_env().items() if not k.startswith("GUARD_")}
+        guards = root / "scripts" / "guards"
+        (root / "scripts").mkdir()
+        (root / "scripts" / "guard.sh").write_text(source, encoding="utf-8", newline="\n")
+
+        def plant(tier, **scripts):
+            shutil.rmtree(guards, ignore_errors=True)
+            (guards / tier).mkdir(parents=True)
+            for name, body in scripts.items():
+                (guards / tier / f"{name}.sh").write_text(body + "\n", encoding="utf-8", newline="\n")
+
+        def expect(what, code, *words, args=(), **extra):
+            r = subprocess.run([bash, str(root / "scripts" / "guard.sh"), *args], capture_output=True, text=True,
+                               env={**env, **extra})
+            said = r.stdout + r.stderr
+            if r.returncode != code:
+                faults.append(f"{what}: exit {r.returncode} where {code} was due")
+            elif not all(w in said for w in words):
+                faults.append(f"{what}: its lines lack {[w for w in words if w not in said]}")
+            return said
+
+        plant("fast", passes="exit 0")
+        expect("a guard that passes", 0, "  ok ", "1 test(s) run, 1 passed, 0 failed")
+        expect("an argument it does not know", 2, "usage:", args=["--nope"])
+        expect("a folder of guards that is absent", 0, "no nightly tier", args=["--nightly"])
+        plant("fast", passes="exit 0", fails="echo a planted fault; exit 1")
+        expect("a guard that fails", 1, "  FAIL ", "a planted fault", "2 test(s) run, 1 passed, 1 failed")
+        if brief:
+            return faults
+        plant("fast")
+        expect("a folder of guards that holds none", 1, "HOLDS NO GUARDS")
+        plant("quarantine", mended="exit 0")
+        expect("a parked guard that now passes", 2, "  PASSES ", args=["--quarantine"])
+        plant("quarantine", parked="echo this mistake is present; exit 1")
+        expect("a parked guard that still finds its mistake", 0, "  known ", args=["--quarantine"])
+        plant("quarantine", broken="exit 1")
+        expect("a parked guard that is broken", 1, "  FAIL ", args=["--quarantine"])
+        plant("fast", slow="sleep 1")
+        (guards / "fast-budget").write_text("1  a planted allowance\n", encoding="utf-8", newline="\n")
+        expect("a guard slower than its allowance", 0, "slower than the 1ms")
+        plant("fast", hangs="sleep 8")
+        said = expect("a guard that hangs", 1, "  KILLED ", GUARD_KILL_FAST="1")
+        if "no GNU timeout" in said:    # this machine cannot stop a guard, and the runner said so; the rule is not tried here
+            faults = [f for f in faults if not f.startswith("a guard that hangs")]
+            skip("the stop for a guard that hangs, which needs GNU timeout")
+
+        (root / "docs").mkdir()
+        (root / "docs" / "page.html").write_text("staged", encoding="utf-8")
+        for args in (["init", "-q"], ["add", "docs/page.html"]):
+            done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, env=env)
+            require(done.returncode == 0, f"git {args[0]} failed in the scratch folder: {done.stderr.strip()[:200]}")
+        plant("fast", pages="# COVERS: docs/*.html\nexit 0", queries="# COVERS: sql/*\nexit 1", always="exit 0")
+        expect("a commit that stages a page", 0, "2 test(s) run, 2 passed, 0 failed", "1 fast test(s) skipped", GUARD_SCOPE="staged")
+        expect("the same guards with no commit", 1, "3 test(s) run, 2 passed, 1 failed")
+    return faults
+
+
+@check("plain-words")
+def plain_words():
+    """The public copy holds no word from the author's private setup, every entry of the private list can be seen
+    by the scan, and the guard runner keeps its arguments, its exit codes and its result lines."""
+    if NAMES_FILE.exists():
+        names, scratch, pub = load_names(), ROOT / ".private", public_files()
+        hits = scan_for_names(pub, names)
+        print(f"  {len(names)} private names and words over {len(pub)} public files: {len(hits)} hits")
+        require(not hits, "private names or words in public files: " + "; ".join(hits))
+    else:
+        names, scratch = STAND_INS, None
+        skip("the private-words scan. Its list is kept out of the public repository, so only the author's copy holds "
+             "one; the scan itself is tried below on stand-in words")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory(dir=scratch) as tmp:
+        copy = Path(tmp) / "README.md"
+        copy.write_text(readme, encoding="utf-8")
+        clean = scan_for_names([copy], names)
+        unseen = []
+        for n, name in enumerate(names, 1):
+            copy.write_text(readme + f"\nA line that names {name} once.\n", encoding="utf-8")
+            if not scan_for_names([copy], names):
+                unseen.append(n)
+    print(f"  a copy of the README: {len(clean)} hits as it stands; each of the {len(names)} entries planted in it in turn: "
+          f"{len(names) - len(unseen)} caught")
+    require(not clean, "the copy of the README is not clean before anything is planted")
+    require(not unseen, f"the scan cannot see {len(unseen)} of its own entries when planted: entries {unseen} of the list")
+    require(find_names("see the Example Map here", STAND_INS) == ["example map"], "control: the scan missed a word of two parts")
+    require(not find_names("examples and maps, and an example-toolkit", STAND_INS),
+            "control: the scan matched a stand-in inside other words")
+    print("  control: a word of two parts is caught as a whole, and is not matched inside other words")
+
+    bash = find_bash()
+    if not bash:
+        skip("the guard runner's own test, which needs bash")
+        return
+    runner = (ROOT / "scripts" / "guard.sh").read_text(encoding="utf-8")
+    faults = runner_faults(bash, runner)
+    print(f"  the guard runner on planted guards: passing, failing, unknown argument, absent and empty folders, three parked "
+          f"guards, a slow one, a hanging one, and guards chosen by staged files: {len(faults)} faults")
+    require(not faults, "the guard runner breaks its contract: " + "; ".join(faults))
+    gate = '[ "$failed" -eq 0 ] || exit 1'
+    require(runner.count(gate) == 1, "the runner no longer holds the line this control takes out")
+    loose = runner_faults(bash, runner.replace(gate, ""), brief=True)
+    require(any(f.startswith("a guard that fails") for f in loose), "control: a runner that lets a failing guard through passed")
+    print("  control: a copy of the runner that exits 0 on a failing guard is refused")
 
 
 # ---- the made-up world ------------------------------------------------------------------------
@@ -2743,22 +2866,6 @@ def links():
     print(f"  control: a manual link turned from #{into[0]} to #ex-nowhere is refused")
 
 
-def house_map(text):
-    """The house map's two tables, read as text, because running the script writes its own inventory."""
-    tables = []
-    for name in ("CODE", "FORMATS"):
-        body = re.search(rf"export const {name} = \{{(.*?)\n\}}", text, re.S).group(1)
-        tables.append({a or b: v for a, b, v in re.findall(r"(?:'([^']*)'|(\w+))\s*:\s*'([^']*)'", body)})
-    return tables
-
-
-def house_disagreements(code, formats, house_code, house_formats):
-    """Where Staple's map and the house map name a kind differently: another language, or code against a format."""
-    faults = [f".{k} is {lang} here but {house_code.get(k) or house_formats.get(k) or 'unnamed'} in the house map"
-              for k, lang in code.items() if house_code.get(k) != lang.lower()]
-    return faults + [f".{k} is a format here but {house_code[k]} code in the house map" for k in formats if k in house_code]
-
-
 SUBPROCESS_CALLS = {"run", "Popen", "call", "check_call", "check_output"}
 
 
@@ -2862,18 +2969,6 @@ def languages_check():
     bent = dict(data, counts={**data["counts"], "Python": data["counts"]["Python"] + 1})
     require(json_faults(bent, page), "control: a JSON with one count off passed against the page")
     print("  control: a JSON with the Python count one off is refused against the page")
-
-    if not HOUSE_MAP.exists():
-        print(f"  WARN house map: {HOUSE_MAP} is not on this machine, so Staple's map was not compared with it")
-        return
-    house = house_map(HOUSE_MAP.read_text(encoding="utf-8"))
-    faults = house_disagreements(report.CODE_LANGUAGES, report.FORMATS, *house)
-    alone = sorted(f".{k}" if k else "no extension" for k in report.FORMATS if k not in house[0] and k not in house[1])
-    print(f"  against the house map: {len(faults)} disagreements; kinds only Staple names: {', '.join(alone) or 'none'}")
-    require(not faults, "; ".join(faults))
-    require(house_disagreements({**report.CODE_LANGUAGES, "sh": "PowerShell"}, report.FORMATS, *house),
-            "control: a map calling .sh PowerShell agreed with the house map")
-    print("  control: a map that calls .sh PowerShell is refused")
 
 
 def clean_git_env():

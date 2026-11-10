@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A guard's throwaway repo writes into the commit being made
-# COVERS: scripts/guards/* test-*.sh
+# COVERS: scripts/*
 #
 # WHY THIS TEST EXISTS
 # The fast guards run inside the commit hook, and a hook inherits the committing git's
@@ -10,10 +10,10 @@
 # builds a throwaway repo then stages its planted files into the real commit.
 #
 # WHEN IT FIRED
-# 2026-09-26 (evening), on the wrap commit. The staged-file guard's control planted notes.bak in a
-# throwaway repo, the planted entry landed in the wrap commit's index, and the commit died with
-# "invalid object ... for 'notes.bak'", because the file's contents lived only in the throwaway
-# repo. Measured the same evening: a hook sees GIT_INDEX_FILE and no GIT_DIR.
+# On 2026-09-26, in another of the author's repositories. A guard's control planted notes.bak in a
+# throwaway repo, the planted entry landed in the index of the commit being made, and the commit
+# died with "invalid object ... for 'notes.bak'", because the file's contents lived only in the
+# throwaway repo. Measured the same evening: a hook sees GIT_INDEX_FILE and no GIT_DIR.
 #
 # THE CLASS, NOT THE INCIDENT: any script here that runs `git init` or `git clone` must first clear
 # the variables in `git rev-parse --local-env-vars`, git's own list of what points a command at one
@@ -37,7 +37,7 @@ blind() {
 # this, the sweep could insist on a line that does nothing. The stand-in for a commit's index is an
 # empty one, held by a repo of its own.
 # Each index write carries its own hooks pin, a folder that does not exist, so no machine-wide hook
-# runs in these repos and no extra git start is paid (a-test-fixture-inherits-machine-wide-configuration-s).
+# runs in these repos and no extra git start is paid.
 ( unset $LOCAL_VARS; git init -q "$TMP/real" && GIT_INDEX_FILE="$TMP/commit.index" git -C "$TMP/real" -c core.hooksPath="$TMP/real/.git/nohooks" read-tree --empty ) 2>/dev/null
 [ -s "$TMP/commit.index" ] || blind "It could not build the stand-in index it compares against."
 cp "$TMP/commit.index" "$TMP/before.index"
@@ -89,7 +89,7 @@ case "$control_out" in
 esac
 
 # THE SWEEP.
-hits="$(bash "$TMP/sweep.sh" "$REPO_ROOT" scripts tools 2>/dev/null)"
+hits="$(bash "$TMP/sweep.sh" "$REPO_ROOT" scripts 2>/dev/null)"
 if [ -n "$hits" ]; then
   printf "FAIL %s - this mistake is present:\n%s\n" "$NAME" "$hits"
   printf "     Run its git commands inside ( %s; ... ).\n" "$IDIOM"

@@ -139,7 +139,7 @@ def parse_followups(text, problems, phrases):
 
 
 def ask_claude_code(text, system=SYSTEM):
-    """One prompt through Claude Code on the operator's subscription, with every personal setting switched off."""
+    """One prompt through Claude Code on the author's subscription, with every personal setting switched off."""
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
     run = subprocess.run([shutil.which("claude") or "claude", "-p", "--safe-mode", "--model", MODEL, "--effort", EFFORT,
                           "--output-format", "json", "--tools", "", "--no-session-persistence",
