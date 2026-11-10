@@ -162,3 +162,5 @@ replay's own record of the most recent week, so every route and load on it is on
   phone, and the report's chart in an emulated tablet, before each commit that changes them: one tap must keep
   a hint open and the next tap must close it, with or without the browser moving focus. It runs a shared check from the author's own toolkit,
   so it runs only on the author's machine.
+- `scripts/guards/fast/commit-messages-stay-plain.sh` reads every commit message on the branch and refuses
+  one that carries a tool's trailer or a bookkeeping line, after proving on planted messages that it can.
