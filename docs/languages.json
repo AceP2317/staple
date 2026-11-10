@@ -1,10 +1,10 @@
 {
- "sentence": "Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 4 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.",
+ "sentence": "Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.",
  "counts": {
   "Python": 15,
   "SQL": 10,
   "JavaScript": 2,
-  "Bash": 4,
+  "Bash": 5,
   "HTML": 3,
   "CSS": 1
  },
