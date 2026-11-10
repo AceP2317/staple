@@ -223,6 +223,13 @@ Priority is 1 for {{URGENT}}, 3 for {{LOW}}, and 2 otherwise; the day's changes 
 <p>Each candidate's cost adds the minutes the visit takes to a second visit, weighted by the chance this technician
 and truck fail the call.</p>
 {{EX_dispatch}}
+<p>The technician's success rate in that cost is learned, never given. For each technician and appliance Staple
+counts the training visits that had every part aboard and how many of them fixed the repair. It then mixes in
+{{skill_pull}} jobs at the appliance's average rate, so a technician with few visits is taken as near average until
+their own record says otherwise. The rates the made-up world was written from are read only to score what a plan
+would have fixed. <code>check.py dispatch-blind</code> scrambles them after the history exists and requires every
+visit to stay where it was. The technician's speed is still given to the rule, because the history records no
+repair minutes.</p>
 <p>At night a part is available when <var>t</var>'s truck may carry it, because the center loads overnight. During the
 day it is available only when it is on the truck now. A technician is a candidate only when they cover the appliance,
 are working, and their day still fits the call. Fit is always judged on the true repair times, so a wrong belief can

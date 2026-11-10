@@ -667,6 +667,80 @@ def dispatch_control():
             "model-level parts odds now matter to dispatch: re-read the claim that appliance-level odds suffice")
 
 
+def who_went(result):
+    """Every visit of a recorded replay without its outcome: the day, the technician, the call and its times."""
+    return [(day, tech, job, round(start, 6), round(end, 6)) for day, tech, job, start, end, _ in result["visits"]]
+
+
+@check("dispatch-blind")
+def dispatch_blind():
+    """The dispatcher's view of a technician comes from the history alone. The table the made-up world was written
+    from is scrambled after the history exists, and every visit must stay where it was."""
+    import random
+    import sqlite3
+    from staple import backtest, dispatch, load
+    conn = shared_world()
+    crew = dispatch.Crew(conn)
+    gap = max(abs(crew.belief[k][0] - crew.skill[k][0]) for k in crew.skill)
+    print(f"  {len(crew.skill)} technician and appliance pairs, each rate learned from at least {min(crew.seen.values()):,} "
+          f"training visits; every learned rate sits within {gap:.3f} of the rate the history was written with")
+    require(gap < 0.1, "a learned success rate sits far from the rate the history was written with")
+
+    # A thin record, worked by hand: a technician left with five visits must be pulled toward the appliance's average.
+    thin = sqlite3.connect(":memory:")
+    conn.backup(thin)
+    tech, kind = pair = min(crew.skill)
+    keep = "SELECT job FROM jobs WHERE split = 'train' AND parts_on_truck = 1 AND tech = ? AND type = ? ORDER BY job LIMIT 5"
+    thin.execute(f"DELETE FROM jobs WHERE split = 'train' AND tech = ? AND type = ? AND job NOT IN ({keep})", pair + pair)
+    own = thin.execute("SELECT COUNT(*), SUM(first_visit_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
+                       "AND tech = ? AND type = ?", pair).fetchone()
+    group = thin.execute("SELECT COUNT(*), SUM(first_visit_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
+                         "AND type = ?", (kind,)).fetchone()
+    by_hand = (own[1] + dispatch.SKILL_PULL * group[1] / group[0]) / (own[0] + dispatch.SKILL_PULL)
+    got = dispatch.Crew(thin).belief[pair][0]
+    print(f"  {tech} left with {own[0]} {kind} visits, {own[1]} of them fixed: the appliance's average is "
+          f"{group[1] / group[0]:.1%}, the learned rate {got:.1%}, and by hand {by_hand:.1%}")
+    require(own[0] == 5 and abs(got - by_hand) < 1e-12, "the learned rate is not the arithmetic its docstring states")
+    require(abs(got - group[1] / group[0]) < abs(got - own[1] / own[0]) or own[1] / own[0] == group[1] / group[0],
+            "a technician with five visits is not pulled toward the appliance's average")
+    thin.close()
+
+    jobs = backtest.test_jobs(conn)
+    load.mark_unplanned(jobs)
+    before = dispatch.replay(conn, jobs, "skills and parts", "balanced", crew, record=True)
+
+    scrambled = sqlite3.connect(":memory:")
+    conn.backup(scrambled)
+    rows = scrambled.execute("SELECT tech, type, success_rate FROM tech_skills ORDER BY tech, type").fetchall()
+    rates = [rate for _, _, rate in rows]
+    random.Random(1).shuffle(rates)
+    scrambled.executemany("UPDATE tech_skills SET success_rate = ? WHERE tech = ? AND type = ?",
+                          [(rate, t, k) for (t, k, _), rate in zip(rows, rates)])
+    changed = sum(old != new for (_, _, old), new in zip(rows, rates))
+    after = dispatch.replay(scrambled, jobs, "skills and parts", "balanced", dispatch.Crew(scrambled), record=True)
+    same = len(set(who_went(before)) & set(who_went(after)))
+    print(f"  the world's skill table scrambled after the history was written, {changed} of {len(rows)} rates changed: "
+          f"{same:,} of {len(before['visits']):,} visits stay with the same technician at the same time")
+    print(f"  the scrambled world then fixes {after['fixes_per_call']:.1%} of calls against {before['fixes_per_call']:.1%}, "
+          f"because the world changed under a plan that did not")
+    require(changed > len(rows) / 2, "the scramble left most rates where they were, so it tests little")
+    require(who_went(before) == who_went(after), "scrambling the world's skill table moved a visit, so dispatch reads it")
+    scrambled.close()
+
+    # Control: the same comparison must see a plan move when the history itself says something else.
+    rewritten = sqlite3.connect(":memory:")
+    conn.backup(rewritten)
+    best = max(crew.belief, key=lambda k: (crew.belief[k][0], k))
+    rewritten.execute("UPDATE jobs SET first_visit_fix = 0 WHERE split = 'train' AND tech = ? AND type = ?", best)
+    misled = dispatch.Crew(rewritten)
+    rewritten.close()
+    moved = dispatch.replay(conn, jobs, "skills and parts", "balanced", misled, record=True)
+    apart = len(set(who_went(before)) ^ set(who_went(moved)))
+    print(f"  control: a history rewritten so {best[0]} never fixed a {best[1]} drops their learned rate from "
+          f"{crew.belief[best][0]:.1%} to {misled.belief[best][0]:.1%} and moves {apart:,} visits")
+    require(misled.belief[best][0] < 0.1 and apart, "a rewritten history moved no visit, so the comparison sees nothing")
+
+
 def plan_faults(week, followups):
     """What breaks the week's plan: the day's rules, the load rules, a load its parts' worth does not
     reproduce, a call off Claude's code, an unsure call without its question, a morning that drops a sick call,

@@ -10,6 +10,9 @@ already carry. At day's end a route that runs past 17:00 drops its lowest-priori
 Staple's rule sends each call to the technician whose expected cost is lowest: drive and repair minutes,
 plus a second visit times the chance this technician fails, from their success rate on the appliance and
 whether their truck can carry the parts. The baseline sends the nearest qualified technician.
+
+The dispatcher learns each technician's success rate from the training history. The rates the made-up world
+was written from are read only to score what a plan would have fixed.
 """
 import random
 from collections import Counter, defaultdict
@@ -25,28 +28,54 @@ MINUTE = 1.0             # dollars for one minute of a technician and truck (mad
 SICK, BREAKDOWN, ESCALATE, EASE = 0.03, 0.02, 0.05, 0.05   # daily chances, made up
 URGENT = {"refrigerator.NOT_COOLING", "refrigerator.FF_WARM", "furnace.NO_HEAT", "furnace.NO_START"}
 SEED = 2026              # seeds the day's surprises: day d of the replayed days draws from SEED + d
+SKILL_PULL = 20          # jobs at the appliance's average rate mixed into each technician's own (design choice)
 LOW = {"refrigerator.NOISE", "dryer.NOISE", "furnace.NOISE", "range.DOOR", "washer.NOISE_SHAKE"}
 
 
+def learned_rates(conn, pairs):
+    """Each technician's success rate per appliance as the training history shows it, and the visits it rests on.
+    The rate is fixes over the visits that had every part aboard, since a visit short a part says nothing about
+    skill. It is pulled toward the appliance's own rate by SKILL_PULL jobs, so a technician with few visits is
+    taken as near average until their own record says otherwise."""
+    seen = {(tech, kind): (n, fixes) for tech, kind, n, fixes in conn.execute(
+        "SELECT tech, type, COUNT(*), SUM(first_visit_fix) FROM jobs "
+        "WHERE split = 'train' AND parts_on_truck = 1 GROUP BY tech, type")}
+    visits, fixes = Counter(), Counter()
+    for (_, kind), (n, fixed) in seen.items():
+        visits[kind] += n
+        fixes[kind] += fixed
+    rates = {}
+    for tech, kind in pairs:
+        n, fixed = seen.get((tech, kind), (0, 0))
+        rates[(tech, kind)] = (fixed + SKILL_PULL * fixes[kind] / visits[kind]) / (n + SKILL_PULL)
+    return rates, {pair: seen.get(pair, (0, 0))[0] for pair in pairs}
+
+
 class Crew:
-    """Each technician's success rate and speed per appliance, and what the dispatcher believes them to be."""
+    """Each technician's success rate and speed per appliance, and what the dispatcher believes them to be.
+
+    skill is the made-up world's own table, which only the scoring and the calendar read. belief is what the
+    dispatcher chooses by: the success rate learned from the training history, and the speed."""
 
     def __init__(self, conn, shuffled=False, seed=0, blind=False):
         rows = conn.execute("SELECT tech, type, success_rate, speed FROM tech_skills ORDER BY tech, type").fetchall()
         self.skill = {(t, a): (rate, speed) for t, a, rate, speed in rows}
         self.home = dict(conn.execute("SELECT tech, home_zone FROM techs"))
         self.techs = sorted(self.home)
-        self.belief = dict(self.skill)
+        learned, self.seen = learned_rates(conn, sorted(self.skill))
+        # ponytail: the speed is given to the dispatcher, because the history records no repair minutes. The
+        # upgrade is to record each visit's minutes and learn the speed the same way as the rate.
+        self.belief = {k: (learned[k], self.skill[k][1]) for k in self.skill}
         if shuffled:
             # The control: the dispatcher reads another technician's numbers; who can do which appliance stays true.
-            keys = sorted(self.skill)
-            values = [self.skill[k] for k in keys]
+            keys = sorted(self.belief)
+            values = [self.belief[k] for k in keys]
             random.Random(seed).shuffle(values)
             self.belief = dict(zip(keys, values))
         if blind:
             # A dispatcher that knows who can do which appliance but takes every technician as average.
-            rate = sum(r for r, _ in self.skill.values()) / len(self.skill)
-            self.belief = {k: (rate, 1.0) for k in self.skill}
+            rate = sum(r for r, _ in self.belief.values()) / len(self.belief)
+            self.belief = {k: (rate, 1.0) for k in self.belief}
 
 
 def priority(job, changed):
@@ -145,8 +174,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
         def plan_night(band):
             # Regret insertion: the call that loses most if its best technician fills up is placed first, so
             # a scarce technician's day goes to the calls that need them most, not to the first ones booked.
-            # ponytail: a heuristic, not the optimum; with unlimited days Staple reaches 91.0% first-visit fix,
-            # which bounds what a solver (min-cost assignment per day) could still win back.
+            # ponytail: a heuristic, not the optimum. The upgrade is a solver that assigns the whole day at once,
+            # as a min-cost assignment per day.
             costs = {j["job"]: {tech: cost_of(j, tech, True) for tech in able(j)} for j in band}
             waiting = {j["job"]: j for j in band}
 

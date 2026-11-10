@@ -65,8 +65,10 @@ replay's own record of the most recent week, so every route and load on it is on
   then brought.
 - `staple/dispatch.py` replays every held-back day under each way of handing out calls, with the same
   invented sick calls, breakdowns and priority changes. Staple's rule sends each call to the technician
-  with the lowest expected cost. Within each priority, the call with most to lose if its best technician
-  fills up is placed first. A call no route has room for rolls to tomorrow and counts as not fixed.
+  with the lowest expected cost. It learns each technician's success rate from the training history, and the
+  rates the invented world was written from only score the result. Within each priority, the call with most
+  to lose if its best technician fills up is placed first. A call no route has room for rolls to tomorrow and
+  counts as not fixed.
 
 ## The AI step
 

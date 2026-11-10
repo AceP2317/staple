@@ -17,6 +17,7 @@ def assumptions():
             ("move", load.MOVE, "dollars to put one part on a truck overnight, or take one off"),
             ("holding_rate", load.HOLDING_RATE, "yearly cost of money tied up in truck stock, per dollar held"),
             ("minute", dispatch.MINUTE, "dollars for one minute of a technician and truck"),
+            ("skill_pull", dispatch.SKILL_PULL, "jobs at the appliance's average rate mixed into a technician's own"),
             ("unplanned", load.UNPLANNED, "share of calls added or moved the same day"),
             ("sick", dispatch.SICK, "chance a technician calls out sick on a given day"),
             ("breakdown", dispatch.BREAKDOWN, "chance a truck breaks down on a given day"),

@@ -36,7 +36,8 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
   runs on its codes. Its answers ship cached in the repository, so a run needs no key.
 - **Sends the call.** It replays every held-back day with sick calls, breakdowns and priority changes. Each
   call goes to the technician with the lowest expected cost: drive and repair time, plus a second visit
-  times the chance that technician's skill or truck fails the job.
+  times the chance that technician's skill or truck fails the job. It learns each technician's success rate
+  from the earlier jobs.
 - **Measures it in SQL.** First-time fix, parts-caused reschedules, truck fill rate, slow truck stock,
   inventory ROI, back-order exposure and the dispatch scorecard are plain queries in
   [`sql/metrics/`](sql/metrics/). Every number on the report comes from one of them.
@@ -86,6 +87,8 @@ trucks, measured on first-time fix and parts-caused reschedules.
 - **Real customers.** The customer phrasings are a small invented set.
 - **Failures with the parts aboard.** The history records each technician's success rate, not wrong
   diagnoses or no-shows.
+- **Repair minutes.** The history records no repair times, so dispatch is given each technician's speed. A
+  real one learns it from the visit records, the way Staple learns the success rate.
 - **Live feeds.** Staple reads one SQLite file. A real one reads the dispatch and inventory feeds as they
   change.
 

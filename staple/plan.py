@@ -82,12 +82,12 @@ class Context:
         return WHERE[3] if part not in f.eta else WHERE[4]
 
     def chance(self, job, tech, cargo):
-        return first_visit_chance(self.lists, job, cargo, self.crew.skill[(tech, job["type"])][0])
+        return first_visit_chance(self.lists, job, cargo, self.crew.belief[(tech, job["type"])][0])
 
 
 def first_visit_chance(lists, job, cargo, rate):
     """The plan-time chance of a first-visit fix: the truck holds what the call needs, times the technician's
-    success rate on the appliance."""
+    success rate on the appliance as the history shows it."""
     return (1 - dispatch.miss_odds(lists, job, lambda p: p in cargo)) * rate
 
 

@@ -170,6 +170,7 @@ CHECK_ABOUT = {
     "backorders": "The fleet back-order forecast against what the held-back days brought, within three Poisson spreads. A forecast three times too high must fail.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
+    "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
     "plan": "The week's plan, coded by Claude and replayed. Every call carries Claude's code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay's; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run's on the same days. Each rule has a planted fault that must be caught.",
     "sql": "Every metric query returns rows, and every column of every query is recomputed in Python apart from the SQL. A decimal may differ by half a unit of its last shown place, which is all rounding can do, and the return on stock must match the replay's own figure. Planted changes in a copy of the data must move the history metrics.",
@@ -544,7 +545,7 @@ def ai_line(c):
 
 
 def call_tip(c, ctx):
-    rate = ctx.crew.skill[(c["tech"], c["type"])][0]
+    rate = ctx.crew.belief[(c["tech"], c["type"])][0]
     why = (f"Why {c['tech']}: lowest expected cost; next best {c['runner']}, ${c['gap']:.0f} more."
            if c["runner"] else f"Why {c['tech']}: the only one with room.")
     return "\n".join([
@@ -846,9 +847,9 @@ def day_proof(d, shown):
 
 def tech_card(tech, ctx, shown):
     info = ctx.techs[tech]
-    skills = sorted((t, r, s) for (x, t), (r, s) in ctx.crew.skill.items() if x == tech)
+    skills = sorted((t, r, s) for (x, t), (r, s) in ctx.crew.belief.items() if x == tech)
     head = "".join(f"<th{tipattr(t + chr(10) + h)}>{e(t)}</th>" for t, h in (
-        ("Appliance", "An appliance this technician can repair."), ("Fixes first time", "Their success rate with the parts aboard."),
+        ("Appliance", "An appliance this technician can repair."), ("Fixes first time", "Their success rate with the parts aboard, learned from the training history."),
         ("Speed", "Their repair time against an average technician's; below 1 is faster.")))
     body = "".join(f"<tr><td>{e(t)}</td><td>{r:.0%}</td><td>{s:.2f}</td></tr>" for t, r, s in skills)
     tip = f"{tech}\nThe chosen technician: what the dispatch rule knows about them. Choose another on the board or the map."
@@ -1119,7 +1120,7 @@ def facts():
          "unplanned": f"{load.UNPLANNED:.0%}", "nearby": load.NEARBY_MINUTES, "lean_tolerance": f"${load.LEAN_TOLERANCE:.0f}",
          "permanent": f"{load.PERMANENT:.0%}", "backorder_flag": f"{load.BACKORDER_FLAG:.0%}", "model": triage.MODEL,
          "effort": triage.EFFORT, "api_version": triage.API_VERSION, "blend_below": triage.BLEND_BELOW, "day": dispatch.DAY,
-         "minute": f"${dispatch.MINUTE:.0f}", "sick": f"{dispatch.SICK:.0%}", "breakdown": f"{dispatch.BREAKDOWN:.0%}",
+         "minute": f"${dispatch.MINUTE:.0f}", "skill_pull": dispatch.SKILL_PULL, "sick": f"{dispatch.SICK:.0%}", "breakdown": f"{dispatch.BREAKDOWN:.0%}",
          "escalate": f"{dispatch.ESCALATE:.0%}", "ease": f"{dispatch.EASE:.0%}",
          "REPAIR": ", ".join(f"{t} {m}" for t, m in dispatch.REPAIR.items()),
          "URGENT": ", ".join(sorted(dispatch.URGENT)), "LOW": ", ".join(sorted(dispatch.LOW)),
@@ -1145,6 +1146,7 @@ def thresholds():
              ("Truck space", f"{world.CAPACITY} units", "Space on one truck.", made, "world", None),
              ("Today's fill", f"{world.STOCK_FILL:.0%}", "How full today's trucks are kept.", made, "world", None),
              ("AI confidence", f"{triage.BLEND_BELOW}", "Below it, a reading leans on the appliance's overall odds and a follow-up question is asked.", design, "ai", "ex-ai"),
+             ("Pull toward the appliance's average", f"{dispatch.SKILL_PULL} jobs", "How far a technician with few visits leans on the appliance's average success rate.", design, "dispatch", None),
              ("Working day", f"{dispatch.DAY} minutes", "08:00 to 17:00.", design, "dispatch", None),
              ("Minute", f"${dispatch.MINUTE:.0f}", "One minute of a technician and truck.", made, "dispatch", "ex-dispatch"),
              ("Sick day", f"{dispatch.SICK:.0%} a day", "Chance a technician calls out.", made, "dispatch", None),
