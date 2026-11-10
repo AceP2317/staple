@@ -20,18 +20,21 @@ class Cell:
 
 
 class Predictor:
-    def __init__(self, conn, pull=PULL, shuffled=False, seed=0):
+    def __init__(self, conn, pull=PULL, shuffled=False, seed=0, leaked=False):
+        """leaked puts the held-back jobs, answers included, into the history. Only the leak test uses it: it
+        measures how much the hold-out is worth, and no method that is scored may be built this way."""
         self.pull = pull
+        seen = "('train', 'test')" if leaked else "('train')"
         self.parts_of = defaultdict(list)
         for part, appliance in conn.execute("SELECT part, type FROM parts ORDER BY part"):
             self.parts_of[appliance].append(part)
 
         needed = defaultdict(set)
         for job, part in conn.execute(
-                "SELECT jp.job, jp.part FROM job_parts jp JOIN jobs j USING (job) WHERE j.split = 'train'"):
+                f"SELECT jp.job, jp.part FROM job_parts jp JOIN jobs j USING (job) WHERE j.split IN {seen}"):
             needed[job].add(part)
         jobs = conn.execute(
-            "SELECT job, type, family, booked_problem FROM jobs WHERE split = 'train' ORDER BY job").fetchall()
+            f"SELECT job, type, family, booked_problem FROM jobs WHERE split IN {seen} ORDER BY job").fetchall()
 
         if shuffled:
             # The control: deal each job's parts to a random other job of the same appliance type.

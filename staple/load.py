@@ -6,6 +6,9 @@ fixed stock; that stock topped up with the day's carry lists; the lists alone; e
 for the day's appliance types; and a balanced truck that keeps a part only while it earns its space.
 A share of calls is unplanned: added or moved the same day, so no night-before list saw them.
 The dollar figures and that share are made up and stated once, here, so a real run swaps in real ones.
+
+The balanced truck is also replayed three ways that test its gain: loaded from shuffled history, held to
+the space today's stock uses, and with one move priced higher than the made-up figure.
 """
 import datetime as dt
 import random
@@ -17,6 +20,7 @@ from staple.world import travel_minutes
 
 REPEAT_VISIT = 165.0   # a second truck roll because a part was missing (made up)
 MOVE = 2.0             # putting one part on a truck at the center overnight, or taking one off (made up)
+MOVE_STEPS = (5.0, 10.0, 20.0)   # higher prices for one move, replayed to show how far the saving leans on MOVE
 HOLDING_RATE = 0.25    # yearly cost of money tied up in truck stock, as a share of its value (made up)
 UNPLANNED = 0.15       # share of calls added or moved the same day (made up until the dispatch replay measures it)
 NEARBY_MINUTES = 30    # another truck is nearby when it is based within this drive of the job
@@ -28,6 +32,7 @@ SHOWN_K = 3
 TODAY, EVERYTHING, BALANCED = "today's trucks", "every part that fits for the day's types", "balanced truck"
 TOP_UP, LISTS_ONLY = "today's stock plus the day's lists", "the day's lists only"
 CONTROL, CONTROL_BALANCED = "top-up from shuffled history", "balanced from shuffled history"
+EQUAL_SPACE = "balanced truck, held to the space today's stock uses"
 MARKS = ("needs a certified technician", "on this truck", "from a center overnight", "on another truck nearby",
          "back-ordered")   # in the order mark() tries them: a part gets the first that holds
 
@@ -66,6 +71,15 @@ class Fleet:
     def holding(self, part):
         return self.cost[part] * HOLDING_RATE / 365
 
+    def used(self, tech):
+        """The space today's stock takes on this technician's truck."""
+        return sum(self.size[p] for p in self.stock[tech])
+
+
+def at_move(move):
+    """The balanced truck's row when one move is priced at this many dollars."""
+    return f"balanced truck, a move priced at ${move:.0f}"
+
 
 def mark_unplanned(jobs, seed=2026):
     rng = random.Random(seed)
@@ -94,15 +108,16 @@ def surprise_value(conn, predictor):
     return value
 
 
-def fill(fleet, tech, load, wanted, stuck=(), before=()):
+def fill(fleet, tech, load, wanted, stuck=(), before=(), room=None):
     """Add the wanted parts, best first, while the truck has space and may carry them. A back-ordered part that
     was aboard the night before stays aboard first: the center has none to swap it for, and a part sent back
-    would be one the center could ship."""
+    would be one the center could ship. room, when given, is a tighter space limit than the truck's own."""
+    room = fleet.capacity[tech] if room is None else room
     load |= {p for p in before if p in stuck}
     space = sum(fleet.size[p] for p in load)
     for part in sorted(wanted, key=lambda q: (-wanted[q], q)):
         if (part not in load and fleet.may_carry(tech, part, stuck, before)
-                and space + fleet.size[part] <= fleet.capacity[tech]):
+                and space + fleet.size[part] <= room):
             load.add(part)
             space += fleet.size[part]
     return load
@@ -120,7 +135,7 @@ def list_load(fleet, tech, day_jobs, lists, k, keep_stock, before=(), stuck=()):
     return fill(fleet, tech, set(fleet.stock[tech]) if keep_stock else set(), wanted, stuck, before)
 
 
-def worth(fleet, tech, day_jobs, lists, surprise, before):
+def worth(fleet, tech, day_jobs, lists, surprise, before, move=MOVE):
     """Each part's worth for tomorrow in dollars: the booked calls' odds and the unplanned calls' share,
     times a repeat visit, less its holding, and less a move unless it is already on board."""
     # ponytail: worth adds each call's odds as if one part fixed it; a call needing two parts is counted
@@ -130,13 +145,13 @@ def worth(fleet, tech, day_jobs, lists, surprise, before):
         if not j["unplanned"]:
             for part, p in lists[j["job"]]:
                 gross[part] += p * REPEAT_VISIT
-    return {p: w - fleet.holding(p) + (MOVE if p in before else -MOVE) for p, w in gross.items()}
+    return {p: w - fleet.holding(p) + (move if p in before else -move) for p, w in gross.items()}
 
 
-def balanced_load(fleet, tech, day_jobs, lists, surprise, before, stuck=()):
+def balanced_load(fleet, tech, day_jobs, lists, surprise, before, stuck=(), room=None, move=MOVE):
     """The parts worth carrying, best worth per unit of space first, while the truck has room."""
-    net = worth(fleet, tech, day_jobs, lists, surprise, before)
-    return fill(fleet, tech, set(), {p: v / fleet.size[p] for p, v in net.items() if v > 0}, stuck, before)
+    net = worth(fleet, tech, day_jobs, lists, surprise, before, move)
+    return fill(fleet, tech, set(), {p: v / fleet.size[p] for p, v in net.items() if v > 0}, stuck, before, room)
 
 
 # Each policy builds one truck's load for a day from its booked calls, its load the night before, and the
@@ -149,13 +164,17 @@ def top_up(fleet, lists, k, keep_stock=True):
     return lambda tech, day_jobs, before, stuck: list_load(fleet, tech, day_jobs, lists, k, keep_stock, before, stuck)
 
 
-def balanced(fleet, lists, surprise):
-    return lambda tech, day_jobs, before, stuck: balanced_load(fleet, tech, day_jobs, lists, surprise, before, stuck)
+def balanced(fleet, lists, surprise, equal_space=False, move=MOVE):
+    """equal_space holds each truck to the space its own stock uses today, so the balanced truck and today's
+    truck are compared on the same room. move is the price of one move the truck plans by."""
+    return lambda tech, day_jobs, before, stuck: balanced_load(
+        fleet, tech, day_jobs, lists, surprise, before, stuck, fleet.used(tech) if equal_space else None, move)
 
 
 def policies(fleet, lists, shuffled, surprise, every):
     out = [(TODAY, 0, today(fleet)), (EVERYTHING, every, top_up(fleet, lists, every)),
-           (BALANCED, 0, balanced(fleet, lists, surprise)), (CONTROL_BALANCED, 0, balanced(fleet, shuffled, surprise))]
+           (BALANCED, 0, balanced(fleet, lists, surprise)), (CONTROL_BALANCED, 0, balanced(fleet, shuffled, surprise)),
+           (EQUAL_SPACE, 0, balanced(fleet, lists, surprise, equal_space=True))]
     for k in KS:
         out += [(TOP_UP, k, top_up(fleet, lists, k)), (LISTS_ONLY, k, top_up(fleet, lists, k, keep_stock=False)),
                 (CONTROL, k, top_up(fleet, shuffled, k))]
@@ -169,13 +188,14 @@ def truck_days(jobs):
     return days
 
 
-def day_cost(fleet, load, before, misses):
+def day_cost(fleet, load, before, misses, move=MOVE):
     """One truck-day in dollars: repeat visits, parts moved on or off overnight, and money tied up in stock."""
-    return misses * REPEAT_VISIT, len(load ^ before) * MOVE, sum(fleet.holding(p) for p in load)
+    return misses * REPEAT_VISIT, len(load ^ before) * move, sum(fleet.holding(p) for p in load)
 
 
-def replay(fleet, jobs, chosen, record=False):
-    """Every held-back truck-day under each policy, each truck in date order, averaged per truck-day."""
+def replay(fleet, jobs, chosen, record=False, move=MOVE):
+    """Every held-back truck-day under each policy, each truck in date order, averaged per truck-day. move is
+    what one move is charged at; a policy that plans by another price is being scored on the wrong bill."""
     days = truck_days(jobs)
     order = sorted(days, key=lambda d: (d[1], d[0]))
     worked = Counter(tech for _, tech in days)
@@ -186,8 +206,10 @@ def replay(fleet, jobs, chosen, record=False):
             day_jobs, before = days[(day, tech)], last.get(tech, fleet.stock[tech])
             load = build(tech, day_jobs, before, fleet.stuck(day))
             covered = sum(1 for j in day_jobs if j["needed"] <= load)
-            repeat, handling, holding = day_cost(fleet, load, before, len(day_jobs) - covered)
-            for key, v in (("jobs", len(day_jobs)), ("covered", covered), ("parts", len(load)),
+            # A job that needed no part is covered by an empty truck, so the stock saved no repeat visit on it.
+            saved = sum(1 for j in day_jobs if j["needed"] and j["needed"] <= load)
+            repeat, handling, holding = day_cost(fleet, load, before, len(day_jobs) - covered, move)
+            for key, v in (("jobs", len(day_jobs)), ("covered", covered), ("saved", saved), ("parts", len(load)),
                            ("space", sum(fleet.size[p] for p in load)), ("value", sum(fleet.cost[p] for p in load)),
                            ("moves", len(load ^ before)), ("repeat", repeat), ("handling", handling),
                            ("holding", holding)):
@@ -198,11 +220,12 @@ def replay(fleet, jobs, chosen, record=False):
                 loads[(day, tech)] = load
         n = len(days)
         row = {"policy": name, "k": k, "truck_days": n, "coverage": t["covered"] / t["jobs"],
-               **{key: t[key] / n for key in ("jobs", "parts", "space", "value", "moves",
+               **{key: t[key] / n for key in ("jobs", "saved", "parts", "space", "value", "moves",
                                               "repeat", "handling", "holding")}}
         row["total"] = row["repeat"] + row["handling"] + row["holding"]
         # Inventory ROI here: repeat-visit dollars a year that the stock avoids, per dollar of stock on the truck.
-        row["roi"] = t["covered"] / n * REPEAT_VISIT * 365 / row["value"]
+        # Only a job that needed a part counts, because an empty truck covers the rest.
+        row["roi"] = row["saved"] * REPEAT_VISIT * 365 / row["value"]
         row["permanent"] = sum(sum(1 for c in nights[tech].values() if c >= PERMANENT * worked[tech])
                                for tech in worked) / len(worked)
         if record:
@@ -275,12 +298,14 @@ def run(conn):
     shuffled = ranked_lists(Predictor(conn, shuffled=True, seed=7), jobs)
     every = max(len(v) for v in lists.values())
     rows = replay(fleet, jobs, policies(fleet, lists, shuffled, surprise, every))
+    for move in MOVE_STEPS:
+        rows += replay(fleet, jobs, [(at_move(move), 0, balanced(fleet, lists, surprise, move=move))], move=move)
     avail = availability(fleet, jobs, lists)
 
     conn.execute("DELETE FROM load_policy")
     conn.execute("DELETE FROM availability")
-    conn.executemany("INSERT INTO load_policy VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                     [(r["policy"], r["k"], r["truck_days"], r["jobs"], r["coverage"], r["parts"], r["space"],
+    conn.executemany("INSERT INTO load_policy VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                     [(r["policy"], r["k"], r["truck_days"], r["jobs"], r["coverage"], r["saved"], r["parts"], r["space"],
                        r["value"], r["moves"], r["permanent"], r["repeat"], r["handling"], r["holding"],
                        r["total"], r["roi"]) for r in rows])
     conn.executemany("INSERT INTO availability VALUES (?,?,?)",
@@ -295,5 +320,6 @@ def run(conn):
                   ((now["repeat"] - top["repeat"]) / REPEAT_VISIT))
     return {"rows": rows, "best": best, "today": now, "everything": named[(EVERYTHING, every)],
             "balanced": named[(BALANCED, 0)], "control_balanced": named[(CONTROL_BALANCED, 0)],
+            "equal_space": named[(EQUAL_SPACE, 0)], "moves": {m: named[(at_move(m), 0)] for m in MOVE_STEPS},
             "break_even": break_even, "availability": avail, "fleet": fleet, "lists": lists, "jobs": jobs,
             "shuffled": shuffled, "surprise": surprise}

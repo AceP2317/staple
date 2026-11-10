@@ -39,7 +39,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
   times the chance that technician's skill or truck fails the job. It learns each technician's success rate
   from the earlier jobs.
 - **Measures it in SQL.** First-time fix, parts-caused reschedules, truck fill rate, slow truck stock,
-  inventory ROI, back-order exposure and the dispatch scorecard are plain queries in
+  inventory ROI, back-order exposure, the dispatch scorecard and every control's result are plain queries in
   [`sql/metrics/`](sql/metrics/). Every number on the report comes from one of them.
 
 ## How it is kept honest
@@ -47,15 +47,19 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 - **A held-back period.** The history holds 160,000 jobs over three years. Every method learns from the
   days before the last 92 days and is scored on those days as if they had not happened yet.
 - **A control for every gain.** Each claimed gain has a deliberately broken twin: shuffled history,
-  shuffled technician skills, shuffled AI answers, random replies to the follow-up question. A gain counts
-  only when its control falls back.
+  shuffled technician skills, shuffled AI answers, random replies to the follow-up question. A gain is
+  credited to a link only when its control falls back. The report lists every control with the share of
+  the gain it kept, and names the ones that do not fall back.
+- **Tests that could hurt.** The balanced truck is also replayed held to the space today's stock uses, and
+  with a higher price for moving a part. The predictor is scored once with the held-back days leaked into
+  its history, to show what the hold-out is worth.
 - **Checks that can fail.** `python check.py` runs every check, and each one plants a fault or a known
   answer it must catch. A check that never fails looks exactly like one that sees nothing.
 - **One seed.** Seed 2026 rebuilds every row, so every figure reproduces exactly.
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 11 SQL files hold the tables and the 10 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
 Python 3.12 or newer is the only requirement, and nothing is installed. It is tested on Python 3.12 and 3.14.
 

@@ -97,23 +97,31 @@ caused by a part missing from the truck. Its table adds the share of each applia
 part caused. The rest failed on the technician's success rate.</p>
 <p><strong>Which parts to carry</strong> plots, for carry lists of {{ks}} parts, the share of held-back jobs whose
 every needed part was on the list. The horizontal line is today's trucks, which carry far more than eight parts.
-The list's job is to top the truck up for the day, not to replace it.</p>
+The list's job is to top the truck up for the day, not to replace it. The table's leaked column scores the
+predictor again with the held-back jobs already in its history. The gap between the two is what holding those
+days back is worth.</p>
 <p><strong>What to load tonight</strong> ranks each way of loading a truck by its cost a truck-day: repeat visits
 for jobs the truck could not cover, parts moved on or off overnight, and the cost of money tied up in stock.
-Lower is better. Each bar's label also gives the share of jobs covered.</p>
+Lower is better. Each bar's label also gives the share of jobs covered. Some rows test the balanced truck: loaded
+from shuffled history, held to the space today's stock uses, and with one move priced at {{move_steps}} where the
+other rows price it at {{move}}.</p>
 <p><strong>Who takes the call</strong> replays every held-back day under each way of handing out calls, with the
 same made-up sick calls, breakdowns and priority changes. The bar is calls fixed on the first visit; the label
-adds the cost a call.</p>
+adds the cost a call. Two rows are controls: one shuffles the technicians' skills, the other shuffles the history
+behind the parts odds the dispatcher reads.</p>
 <p><strong>Reading the customer's words</strong> compares Claude, keyword rules and a control in which Claude's
 answers are shuffled between bookings. The label adds how often the 3-part carry list built from that reading
 covered the job.</p>
 <p><strong>Back-orders to chase first</strong> lists each part the centers cannot ship, with the calls expected to
-need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p></section>
+need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p>
+<p><strong>Each gain against its control</strong> draws, for every control, the share of the gain it keeps. A
+control that keeps under {{falls_back}} has fallen back, so that gain came from the link the control broke. A long
+bar is a gain that came from something plainer, and the card that owns the gain says what.</p></section>
 
 <section id="labels"><h2>Every label and status, and what to do about it</h2>
 <table class="wrap"><thead><tr><th>Label</th><th>What it means</th><th>What to do</th></tr></thead><tbody>
 <tr><td>made-up data</td><td>The figure comes from invented history. It shows the method, never a result.</td><td>Run the same back-test on real history before trusting any number.</td></tr>
-<tr><td>(control)</td><td>A deliberately broken version of a method: history shuffled, skills shuffled, or answers shuffled. It shows how much of a gain the real links in the data earn.</td><td>A control that scores close to the real method means the gain is not real. Every control here falls back.</td></tr>
+<tr><td>(control)</td><td>A method run again with one link in its data broken: history shuffled, skills shuffled, answers shuffled, or replies made random. It shows how much of a gain that link earns.</td><td>Read the card named Each gain against its control. Where a control falls back, the gain came from the link it broke. Where one does not, its own card says what the gain rests on.</td></tr>
 <tr><td>Highlighted bar</td><td>The row the section is about.</td><td>Read it against the rows around it, not alone.</td></tr>
 <tr><td>Rolled to tomorrow</td><td>A call that no technician's day had room for, after sick calls and breakdowns.</td><td>It counts as not fixed today. A policy that wins by rolling calls is refused by the checks.</td></tr>
 {{MARKS}}
@@ -129,7 +137,9 @@ need it before it arrives, how many of those have no truck nearby holding one, a
 <tr><td>first_visit_fix_pct</td><td>Expected first-visit fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
 <tr><td>cost_per_call</td><td>Drive and repair minutes at {{minute}}, plus one minus the fix rate, times {{repeat_visit}}.</td></tr>
 <tr><td>cost_a_truck_day</td><td>Repeat visits at {{repeat_visit}}, plus {{move}} for each part moved on or off overnight, plus each part's cost times {{holding_rate}} a year, per day.</td></tr>
-<tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. Each covered job counts as one repeat visit avoided against an empty truck.</td></tr>
+<tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. A job counts as one repeat visit avoided when it needed a part and every part was aboard. A job that needed none is left out, because an empty truck covers it.</td></tr>
+<tr><td>gain_kept_pct</td><td>For a control: its figure less the figure without the method, over the method's figure less the same, from the three figures as shown. Under {{falls_back}}, the control has fallen back.</td></tr>
+<tr><td>leaked_pct</td><td>Coverage for the predictor with the held-back jobs already in its history. No scored method is built that way; the column only measures what the hold-out is worth.</td></tr>
 <tr><td>expected_calls</td><td>For a back-ordered part: its share of its appliance's past calls, times that appliance's calls a day in the same month of past years, times the days until it ships.</td></tr>
 <tr><td>expected_stuck</td><td>Expected calls in zones with no holding truck based within {{nearby}} minutes, less the calls the holders themselves usually take there.</td></tr>
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>

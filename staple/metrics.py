@@ -10,11 +10,14 @@ from pathlib import Path
 from staple import db, dispatch, load, world
 
 SQL = Path(__file__).resolve().parent.parent / "sql" / "metrics"
+FALLS_BACK = 0.25   # a control falls back when it keeps less than this share of the gain it tests (design choice)
 
 
 def assumptions():
     rows = [("repeat_visit", load.REPEAT_VISIT, "dollars for a second visit because the first did not fix it"),
             ("move", load.MOVE, "dollars to put one part on a truck overnight, or take one off"),
+            ("falls_back", FALLS_BACK, "share of a gain below which a control counts as fallen back"),
+            ("carry_list_quoted", load.SHOWN_K, "parts on the carry list the report quotes"),
             ("holding_rate", load.HOLDING_RATE, "yearly cost of money tied up in truck stock, per dollar held"),
             ("minute", dispatch.MINUTE, "dollars for one minute of a technician and truck"),
             ("skill_pull", dispatch.SKILL_PULL, "jobs at the appliance's average rate mixed into a technician's own"),

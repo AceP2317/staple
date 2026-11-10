@@ -106,10 +106,15 @@ replay's own record of the most recent week, so every route and load on it is on
   share of jobs with every line there.
 - `sql/metrics/slow_truck_stock.sql`: what each truck holds that its own technician's jobs did not need in
   the year before the held-back months.
-- `sql/metrics/inventory_roi.sql`: each way of loading a truck, with its coverage, stock, overnight moves,
-  costs a truck-day and the repeat-visit dollars a year its stock avoids per dollar held.
+- `sql/metrics/inventory_roi.sql`: each way of loading a truck, cheapest first, with its coverage, stock,
+  overnight moves, costs a truck-day and the repeat-visit dollars a year its stock avoids per dollar held.
+  The shuffled-history controls and the balanced truck's tests are rows here too: held to the space today's
+  stock uses, and with a higher price for one move.
 - `sql/metrics/carry_list_curve.sql`: coverage against carry-list length, for the predictor, the national
-  top-parts list and the shuffled-history control.
+  top-parts list and the shuffled-history control. One more column scores the predictor with the held-back
+  jobs leaked into its history, which shows what holding them back is worth.
+- `sql/metrics/controls.sql`: every control beside the gain it tests, with the share of the gain it keeps and
+  whether it falls back.
 - `sql/metrics/backorder_exposure.sql`: the buyer's list for every held-back day. Each row is a part no center
   can ship that day, with its forecast calls and stuck calls before it ships and what the held-back days then
   brought. The plan's buyer items quote these rows.

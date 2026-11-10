@@ -3,6 +3,9 @@
 The score is first-visit coverage: the share of held-back jobs where every part the job needed
 was on the carry list. It stands in for parts-caused first-time fix; it cannot see a repair that
 failed for another reason, such as a wrong diagnosis.
+
+One row is a test of the hold-out itself: the predictor scored again with the held-back jobs already in
+its history. The gap between that row and the predictor is what holding the days back is worth.
 """
 from collections import defaultdict
 
@@ -10,6 +13,8 @@ from staple.predict import Predictor, national_top
 
 KS = range(1, 9)
 SHOWN_K = 3
+PREDICTOR, NATIONAL, SHUFFLED = "predictor", "national top parts", "shuffled-history control"
+LEAKED = "predictor that has seen the held-back jobs (leak test)"
 
 
 def test_jobs(conn):
@@ -35,17 +40,20 @@ def methods(conn):
     real = Predictor(conn)
     shuffled = Predictor(conn, shuffled=True, seed=7)
     no_pull = Predictor(conn, pull=0)
+    leaked = Predictor(conn, leaked=True)
     return {
-        "predictor": lambda j, k: real.carry_list(j["type"], j["family"], j["problem"], k),
-        "national top parts": lambda j, k: national_top(real, j["type"], k),
-        "shuffled-history control": lambda j, k: shuffled.carry_list(j["type"], j["family"], j["problem"], k),
+        PREDICTOR: lambda j, k: real.carry_list(j["type"], j["family"], j["problem"], k),
+        NATIONAL: lambda j, k: national_top(real, j["type"], k),
+        SHUFFLED: lambda j, k: shuffled.carry_list(j["type"], j["family"], j["problem"], k),
         "no lean on wider groups": lambda j, k: no_pull.carry_list(j["type"], j["family"], j["problem"], k),
+        LEAKED: lambda j, k: leaked.carry_list(j["type"], j["family"], j["problem"], k),
     }
 
 
 def run(conn):
     jobs = test_jobs(conn)
-    found = {name: {k: coverage(jobs, f, k) for k in KS} for name, f in methods(conn).items()}
+    lists = methods(conn)
+    found = {name: {k: coverage(jobs, f, k) for k in KS} for name, f in lists.items()}
     today = sum(j["on_truck"] for j in jobs) / len(jobs)
 
     groups = {
@@ -55,8 +63,7 @@ def run(conn):
         "newest model families": [j for j in jobs if j["thin"]],
         "established families": [j for j in jobs if not j["thin"]],
     }
-    lists = methods(conn)
-    by_group = {g: {m: (len(js), coverage(js, lists[m], SHOWN_K)) for m in ("predictor", "national top parts",
+    by_group = {g: {m: (len(js), coverage(js, lists[m], SHOWN_K)) for m in (PREDICTOR, NATIONAL,
                                                                         "no lean on wider groups")}
                 for g, js in groups.items()}
 

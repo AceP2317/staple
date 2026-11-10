@@ -94,7 +94,8 @@ GLOSSARY = {
     "truck-day": "One technician's truck on one day: its load, its jobs and its costs.",
     "repeat visit": f"A second truck roll because the first visit did not fix the job, costed at ${load.REPEAT_VISIT:.0f} (made up).",
     "holding cost": f"The yearly cost of money tied up in truck stock: {load.HOLDING_RATE:.0%} of its value (made up).",
-    "control": "A deliberately broken copy of a method with its data's links shuffled. If it scores as well, the gain is not real.",
+    "control": "A method run again with one link in its data broken, such as its history shuffled. A control that "
+               "scores as well as the method shows the gain does not come from that link.",
     "lean": f"Where a model family has little history, its odds lean on the wider group, as if {predict.PULL} more jobs were seen there.",
     "regret insertion": "Placing first the call that loses most if its best technician's day fills up, not the call booked first.",
     "back-order": "A part the distribution centers cannot ship until a set day.",
@@ -123,18 +124,29 @@ COLUMNS = {
     "k": "Parts on the carry list.", "predictor_pct": "Held-back jobs whose every needed part is on the predictor's list.",
     "national_pct": "The same, for the appliance's nationally most-used parts.",
     "shuffled_pct": "The same, for the predictor trained on shuffled history (control).",
+    "leaked_pct": "The same, for the predictor with the held-back jobs already in its history. Its gap to the "
+                  "predictor is what holding those days back is worth.",
     "todays_trucks_pct": "Held-back jobs whose every needed part was on today's truck.",
     "policy": "How the truck is loaded, or how calls are handed out.",
     "parts_per_job": "Carry-list parts per booked call; 0 where the policy uses no list.",
     "covered_pct": "Jobs whose every needed part was aboard.", "parts_aboard": "Parts on the truck, per truck-day.",
+    "part_jobs_covered": "Jobs a truck-day that needed a part and had every one aboard. A job that needed none is left out.",
+    "space_used": "Units of truck space the load takes, per truck-day.",
     "permanent_parts": f"Parts aboard on at least {load.PERMANENT:.0%} of a truck's days.",
     "moves_a_night": "Parts put on or taken off overnight, per truck.",
     "stock_value": "Dollars of stock on board: money tied up, not spent.",
     "repeat_cost": f"Repeat visits for jobs the load missed, at ${load.REPEAT_VISIT:.0f} each, per truck-day.",
-    "handling_cost": f"Parts moved overnight at ${load.MOVE:.0f} each, per truck-day.",
+    "handling_cost": f"Parts moved overnight at ${load.MOVE:.0f} each, or at the price the row names, per truck-day.",
     "holding_cost": f"Stock value times {load.HOLDING_RATE:.0%} a year, per day.",
     "cost_a_truck_day": "Repeat, handling and holding together, per truck-day.",
-    "roi": "Repeat-visit dollars a year the stock avoids, per dollar of stock on board.",
+    "roi": "Repeat-visit dollars a year the stock avoids, per dollar of stock on board, counting only jobs that needed a part.",
+    "control": "The control: the method run again with one link in its data broken.",
+    "gain_tested": "The gain this control tests.", "measure": "What the three figures count.",
+    "without_it": "The measure without the method.", "with_it": "The measure with the method.",
+    "with_control": "The measure with the control in the method's place.",
+    "gain_kept_pct": "The share of the gain the control keeps, from the three figures as shown. Below zero, it lands "
+                     "worse than where the method started.",
+    "verdict": f"Falls back when the control keeps under {metrics.FALLS_BACK:.0%} of the gain.",
     "calls": "Held-back calls.", "rolled": "Calls rolled to tomorrow; each counts as not fixed.",
     "first_visit_fix_pct": "Expected first-visit fixes per call, a rolled call counting zero.",
     "parts_missing_pct": "Visits where a needed part was not on the truck.",
@@ -174,10 +186,11 @@ CHECK_ABOUT = {
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
-    "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point. No control may win by overbooking the day.",
+    "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point, and the reason the report gives for that is measured: odds that know only the appliance must score within half a point of the shuffled ones, and the parts odds handed over for same-day calls alone must keep more than half the gain. No control may win by overbooking the day.",
+    "controls-shown": "Every control and test the engine runs is on the report with its real result. No query may leave out a row of the results table it reports, and every row the engine names a control must have a row in the controls query. The report's cards must carry the figures of the balanced truck's three tests, the leak test and each control, and the words they rest on must match the query's verdicts. The return on stock must leave out jobs that needed no part, and its table must run from the cheapest truck-day up. Held to today's space, no load may take more space than today's stock, and at a prohibitive price for a move the balanced truck must move nothing and cost what today's truck costs. A query that hides the shuffled rows, a control with no row, a figure changed on the page and a verdict turned over must all be refused.",
     "plan": "The week's plan, coded by Claude and replayed. Every call carries Claude's code and every unsure call its question and answer; every booked call appears once; no route runs past 17:00; loads stay within space, locks and back-orders; day totals equal the replay's; each moved call names where it came from and went; and the sick calls and breakdowns equal the 92-day run's on the same days. Each rule has a planted fault that must be caught.",
-    "sql": "Every metric query returns rows, and every column of every query is recomputed in Python apart from the SQL. A decimal may differ by half a unit of its last shown place, which is all rounding can do, and the return on stock must match the replay's own figure. Planted changes in a copy of the data must move the history metrics.",
-    "mutants": "Every metric query against one wrong version of itself, such as a fix rate that counts the wrong column or a year counted as 52 days. The Python recomputation that agrees with the real query must refuse each wrong one, and a query added without a wrong version fails the check.",
+    "sql": "Every metric query returns rows, and every column of every query is recomputed in Python apart from the SQL. A decimal may differ by half a unit of its last shown place, which is all rounding can do, and the return on today's trucks is counted again from the jobs and the stock. Planted changes in a copy of the data must move the history metrics, and a part taken off a truck must move that recount.",
+    "mutants": "Every metric query against one wrong version of itself, such as a fix rate that counts the wrong column or a return on stock that counts jobs needing no part. The Python recomputation that agrees with the real query must refuse each wrong one, and a query added without a wrong version fails the check.",
     "stamp": "The build stamp is read from git alone. On a scratch history it must give the count, day and code of the last change outside the published copy; committing only that copy must leave it alone; unsaved code must add a +; a partial history must drop the count and warn; and a folder with no history must say so. Two builds that differ only in their stamps must compare equal once the stamps are emptied.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
@@ -229,6 +242,22 @@ def money(v):
 def rows(results, name):
     columns, data = results[name]
     return [dict(zip(columns, r)) for r in data]
+
+
+# The verdict each card's words rest on. A build whose controls query says otherwise stops, so no page says a
+# control fell back when it did not.
+WORDS_REST_ON = {"shuffled-history control": "falls back",
+                 load.CONTROL: "does not fall back",
+                 load.CONTROL_BALANCED: "does not fall back",
+                 dispatch.SHUFFLED_SKILLS: "falls back",
+                 dispatch.SHUFFLED_ODDS: "does not fall back",
+                 "Claude answers shuffled (control)": "falls back",
+                 "Claude, asking when unsure, random replies (control)": "falls back"}
+
+
+def kept(row):
+    """The share of a gain one control keeps, as the report says it."""
+    return f"{row['gain_kept_pct']:.0f}%" if row["gain_kept_pct"] > 0 else "none"
 
 
 def about(name):
@@ -347,7 +376,8 @@ def curve(points, jobs):
                f'<rect class="hit" x="{left}" y="{top}" width="{w - left - right}" height="{h - top - bottom}"/>')
     tips = [f"{p['k']} part{'s' if p['k'] > 1 else ''} on the list: predictor covers {pct(p['predictor_pct'])}\n"
             f"National top parts {pct(p['national_pct'])}, so the predictor adds {p['predictor_pct'] - p['national_pct']:+.1f} points.\n"
-            f"Shuffled history (control) {pct(p['shuffled_pct'])}; today's trucks {pct(today)}.\n"
+            f"Shuffled history (control) {pct(p['shuffled_pct'])}; with the held-back jobs leaked in {pct(p['leaked_pct'])}; "
+            f"today's trucks {pct(today)}.\n"
             f"Share of the {jobs:,} held-back jobs whose every needed part is on the list." for p in points]
     data = {"w": w, "xs": x, "ks": ks, "tips": tips}
     keys = "".join(f'<span class="key"{tipattr(n + chr(10) + t)}><i style="background:var({c})"></i>{e(n)}</span>'
@@ -871,13 +901,21 @@ def build_report(results, week, stamp_text, day):
     names = [n for n, *_ in dispatch.POLICIES]
     disp = {r["policy"]: r for r in rows(results, "dispatch_scorecard")}
     now, loaded, skills, parts_only, ours = (disp[n] for n in names)
-    shuffled_skills = disp[dispatch.SHUFFLED_SKILLS]
+    shuffled_skills, shuffled_odds = disp[dispatch.SHUFFLED_SKILLS], disp[dispatch.SHUFFLED_ODDS]
     calls = ours["calls"]
     best = {}
     for r in rows(results, "inventory_roi"):
         if r["policy"] not in best or r["cost_a_truck_day"] < best[r["policy"]]["cost_a_truck_day"]:
             best[r["policy"]] = r
     fixed, bal = best[load.TODAY], best[load.BALANCED]
+    shuffled_load, equal = best[load.CONTROL_BALANCED], best[load.EQUAL_SPACE]
+    priced = [(m, best[load.at_move(m)]) for m in load.MOVE_STEPS]
+    controls = {r["control"]: r for r in rows(results, "controls")}
+    for name, verdict in WORDS_REST_ON.items():
+        if controls[name]["verdict"] != verdict:
+            raise ValueError(f"the report's words say the control '{name}' {verdict}, and the controls query says it "
+                             f"{controls[name]['verdict']}: rewrite the card before publishing")
+    held = [r for r in controls.values() if r["verdict"] != "falls back"]
     ai = {r["method"]: r for r in rows(results, "ai_step")}
     claude, keywords = ai["Claude"], ai["keyword rules"]
     shuffled_ai = next(r for m, r in ai.items() if m.startswith("Claude answers shuffled"))
@@ -936,7 +974,15 @@ def build_report(results, week, stamp_text, day):
                        f"Repeat visits ${r['repeat_cost']:.2f} + parts moved ${r['handling_cost']:.2f} + holding ${r['holding_cost']:.2f}.\n"
                        f"{r['parts_aboard']:.0f} parts aboard ({r['permanent_parts']:.0f} permanent), {r['moves_a_night']} moved a night, "
                        f"${r['stock_value']:,.0f} of stock; ROI {r['roi']:.0f} dollars a year per dollar held.",
-                       "lead" if r is bal else "") for r in sorted(best.values(), key=lambda r: r["cost_a_truck_day"])])
+                       "lead" if r is bal else "control" if "shuffled" in r["policy"] else "")
+                      for r in sorted(best.values(), key=lambda r: r["cost_a_truck_day"])])
+    control_bars = bars([(r["control"], max(r["gain_kept_pct"], 0.0),
+                          f"{kept(r)} of the gain · {r['verdict']}",
+                          f"{r['control']}: {r['verdict']}\nIt tests {r['gain_tested']}.\n{r['measure'].capitalize()}: "
+                          f"{r['without_it']} without it, {r['with_it']} with it, {r['with_control']} with the control.\n"
+                          + (f"The control keeps {r['gain_kept_pct']:.0f}% of the gain." if r["gain_kept_pct"] > 0 else
+                             "The control lands at or below where the method started, so it keeps none of the gain."),
+                          "" if r["verdict"] == "falls back" else "lead") for r in controls.values()])
     dispatch_bars = bars([(r["policy"], r["first_visit_fix_pct"], f"{pct(r['first_visit_fix_pct'])} · ${r['cost_per_call']:.0f} a call",
                            f"{pct(r['first_visit_fix_pct'])} fixed on the first visit, ${r['cost_per_call']:.2f} a call\n"
                            f"Drive {r['drive_minutes']} minutes a call; a part missing on {pct(r['parts_missing_pct'])} of visits; "
@@ -982,7 +1028,14 @@ def build_report(results, week, stamp_text, day):
             ", below the parts-only rule's ",
             hv(pct(parts_only["first_visit_fix_pct"]), f"{pct(parts_only['first_visit_fix_pct'])} on parts alone\nEvery technician "
                f"taken as average; ${parts_only['cost_per_call']:.2f} a call."),
-            ", so the gain comes from knowing who is good at what. Calls moved by a sick day or a breakdown were fixed first time ",
+            ", so the gain comes from knowing who is good at what. Shuffling the history behind the parts odds it "
+            "reads leaves it at ",
+            hv(pct(shuffled_odds["first_visit_fix_pct"]), f"{pct(shuffled_odds['first_visit_fix_pct'])} with shuffled-history parts odds\n"
+               f"Against {pct(skills['first_visit_fix_pct'])} with no parts judgment at all. The control keeps "
+               f"{kept(controls[dispatch.SHUFFLED_ODDS])} of that gain: it {controls[dispatch.SHUFFLED_ODDS]['verdict']}."),
+            ", so that control does not fall back. The parts judgment earns most of its gain during the day, by sending a "
+            "call that comes in or is moved to a truck already loaded for that appliance. That needs only what each "
+            "appliance usually needs, which the shuffle keeps. Calls moved by a sick day or a breakdown were fixed first time ",
             hv(pct(ours["moved_fix_pct"]), f"{pct(ours['moved_fix_pct'])} of {ours['moved']} moved calls fixed first time\n"
                f"The nearest technician on today's stock, facing the same surprises: {pct(now['moved_fix_pct'])} of {now['moved']}."),
             f" of the time, against {pct(now['moved_fix_pct'])} for the current way. A rolled call", q("rolled call"),
@@ -1002,7 +1055,31 @@ def build_report(results, week, stamp_text, day):
             " for today's fixed stock, while holding ",
             hv(f"${bal['stock_value']:,.0f}", f"${bal['stock_value']:,.0f} of stock on the balanced truck\n{bal['parts_aboard']:.0f} parts, "
                f"{bal['permanent_parts']:.0f} of them aboard nearly every day."),
-            f" against ${fixed['stock_value']:,.0f}."),
+            f" against ${fixed['stock_value']:,.0f}. Three tests of that gain follow. Loaded from shuffled history, the control",
+            q("control"), ", it still covers ",
+            hv(pct(shuffled_load["covered_pct"]), f"{pct(shuffled_load['covered_pct'])} of jobs, loaded from shuffled history\n"
+               f"${shuffled_load['cost_a_truck_day']:.2f} a truck-day. The shuffle keeps what each appliance usually needs "
+               "and breaks every link to model family and problem."),
+            f" for ${shuffled_load['cost_a_truck_day']:.0f} and keeps ",
+            hv(kept(controls[load.CONTROL_BALANCED]), f"{kept(controls[load.CONTROL_BALANCED])} of the saving kept\n"
+               f"${fixed['cost_a_truck_day']:.2f} on today's stock, ${bal['cost_a_truck_day']:.2f} balanced, "
+               f"${shuffled_load['cost_a_truck_day']:.2f} from shuffled history: it {controls[load.CONTROL_BALANCED]['verdict']}.\n"
+               "From controls.sql."),
+            " of the saving. So that share comes from loading each truck for the appliances it will meet tomorrow, and "
+            "the rest from the predictor's odds for each model family and problem. The balanced truck also fills ",
+            hv(f"{bal['space_used']:.0f} units", f"{bal['space_used']} units of space used, of {world.CAPACITY} on a truck\n"
+               f"Today's stock uses {fixed['space_used']}."),
+            f" of space where today's stock uses {fixed['space_used']:.0f}; held to today's space it covers ",
+            hv(pct(equal["covered_pct"]), f"{pct(equal['covered_pct'])} of jobs in the space today's stock uses\n"
+               f"${equal['cost_a_truck_day']:.2f} a truck-day on {equal['space_used']} units, against "
+               f"${bal['cost_a_truck_day']:.2f} with the whole truck."),
+            f" for ${equal['cost_a_truck_day']:.0f}. And the saving leans on the made-up ${load.MOVE:.0f} for moving one part: ",
+            Raw(", ".join(f"at ${m:.0f} it costs " + hv(f"${r['cost_a_truck_day']:.0f}",
+                          f"${r['cost_a_truck_day']:.2f} a truck-day when one move costs ${m:.0f}\nIt covers "
+                          f"{pct(r['covered_pct'])} of jobs and moves {r['moves_a_night']} parts a night, against "
+                          f"{bal['moves_a_night']} at ${load.MOVE:.0f}.") for m, r in priced)),
+            (", each still under" if all(r["cost_a_truck_day"] < fixed["cost_a_truck_day"] for _, r in priced)
+             else ", no longer all under"), f" today's ${fixed['cost_a_truck_day']:.0f}."),
             figure("inventory_roi", "Cost a truck-day: repeat visits, parts moved overnight, and money tied up", load_bars,
                    results["inventory_roi"]),
             "switch the overnight load from a fixed stock list to tomorrow's booked calls, so the parts room works from a load "
@@ -1047,7 +1124,13 @@ def build_report(results, week, stamp_text, day):
             hv(pct(three["national_pct"]), f"{pct(three['national_pct'])} with the national top {load.SHOWN_K}\nThe appliance's "
                "most-used parts, whatever the problem."), ". Shuffling the history drops the predictor to ",
             hv(pct(three["shuffled_pct"]), f"{pct(three['shuffled_pct'])} on shuffled history\nThe control falls to the national "
-               "line, so the gain comes from what the history links."), "."),
+               "line, so the gain comes from what the history links."),
+            ". Scored again with the held-back jobs already in its history, it covers ",
+            hv(pct(three["leaked_pct"]), f"{pct(three['leaked_pct'])} with the held-back jobs leaked in\n"
+               f"{three['leaked_pct'] - three['predictor_pct']:+.1f} points on the predictor's {pct(three['predictor_pct'])}. "
+               "No scored method is built this way; the row only measures what the hold-out is worth."),
+            f", {three['leaked_pct'] - three['predictor_pct']:+.1f} points. That gap is what holding the days back is worth. "
+            "It is small here because the invented failure rates never change; on real history it is the gap to watch."),
             figure("carry_list_curve", "Held-back jobs whose every needed part is on the list", curve(points, calls),
                    results["carry_list_curve"]),
             "rank each booked call's parts by model family and problem rather than by national usage, and feed those lists to "
@@ -1063,6 +1146,20 @@ def build_report(results, week, stamp_text, day):
             figure("parts_caused_reschedules", "Repeat visits caused by a missing part, per 100 jobs", cause_bars,
                    results["parts_caused_reschedules"]),
             f"start the pilot on {worst['appliance']}s, where a missing part costs the most second visits."),
+        card("controls", "Each gain against its control", join(
+            "A control", q("control"), " is a method run again with one link in its data broken. Where the gain goes "
+            f"with the link, it came from the link. {len(controls) - len(held)} of these {len(controls)} controls fall back, "
+            f"each keeping under {metrics.FALLS_BACK:.0%} of its gain. ",
+            (f"{counted(len(held), 'control')} {'does' if len(held) == 1 else 'do'} not: "
+             + "; ".join(f"{r['control']} keeps {kept(r)}" for r in held)
+             + ". Each of them shuffles the history, and that shuffle keeps what every appliance usually needs. So the "
+               "share a control keeps is what knowing tomorrow's appliances is worth, and the rest is what the links to "
+               "model family and problem add. The carry list's own control falls back because the list it is measured "
+               "against, the national top parts, already knows the appliance."
+             if held else "None keeps its gain.")),
+            figure("controls", "The share of each gain its control keeps", control_bars, results["controls"]),
+            "run every control on its own history before crediting a gain, and credit a gain to a link only where "
+            "breaking that link takes the gain away."),
     ]
     adopt = ('<section class="card"><h3' + tipattr("How a fleet would adopt it\nThe order I would run it in on real history, "
              "each step with the result that decides the next.") + '>How a fleet would adopt it</h3><ol class="steps">'
@@ -1075,8 +1172,10 @@ def build_report(results, week, stamp_text, day):
               "list every limit; the methods manual names each shortcut and its upgrade.") + '>What this shows, and what it does not</h3>'
               f'<p>The plan on the left runs on Claude\'s codes for one invented week. The evidence above runs on the call-taker\'s '
               f'booked codes for all {world.TEST_DAYS} held-back days, so it measures the planning apart from the reading. Every '
-              'result reproduces from one seed, and each gain has a shuffled control that falls back when the history\'s links '
-              'are broken. None of it shows the gains on a real fleet, because the history is invented. Three corners are cut on '
+              f'result reproduces from one seed, and each gain is shown beside a control that breaks the link it should come '
+              f'from: {len(controls) - len(held)} of the {len(controls)} fall back, and the last card above names the '
+              f'{"one that does" if len(held) == 1 else "ones that do"} not. None of it shows the gains on a real fleet, '
+              'because the history is invented. Three corners are cut on '
               'purpose: counting instead of a trained model, zone-to-zone drive times instead of road routing, and a call-by-call '
               'night plan instead of a solver.</p></section>')
 
@@ -1143,7 +1242,8 @@ def facts():
          "FOLLOWUP_TEMPLATE": as_sent(triage.FOLLOWUP_TEMPLATE), "week": plan.WEEK, "likely": f"{plan.LIKELY:.0%}",
          "behind": f"{plan.BEHIND:.0%}", "backorder_starts": f"{world.BACKORDER_STARTS:.0%}",
          "backorder_days": f"{world.BACKORDER_DAYS[0]} to {world.BACKORDER_DAYS[1]}",
-         "same_day_until": plan.clock(dispatch.SAME_DAY_UNTIL), "buyer_items": plan.BUYER_ITEMS}
+         "same_day_until": plan.clock(dispatch.SAME_DAY_UNTIL), "buyer_items": plan.BUYER_ITEMS,
+         "falls_back": f"{metrics.FALLS_BACK:.0%}", "move_steps": ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS)}
     return {k: Raw(e(str(x))) for k, x in v.items()}
 
 
@@ -1154,6 +1254,8 @@ def thresholds():
              ("Carry list quoted", f"{load.SHOWN_K} parts", "The list length the report quotes.", design, "backtest", "ex-backtest"),
              ("Repeat visit", f"${load.REPEAT_VISIT:.0f}", "A second truck roll.", made, "loads", None),
              ("Moving a part", f"${load.MOVE:.0f}", "Loading or unloading one part overnight.", made, "loads", None),
+             ("Higher move prices replayed", ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS), "Other prices for one move, each replayed to show how far the balanced truck's saving leans on that price.", made, "loads", None),
+             ("A control falls back", f"under {metrics.FALLS_BACK:.0%} of the gain kept", "A control keeping less than this share of the gain it tests counts as fallen back.", design, "principles", None),
              ("Holding rate", f"{load.HOLDING_RATE:.0%} a year", "Cost of money tied up in stock.", made, "loads", None),
              ("Unplanned share", f"{load.UNPLANNED:.0%}", "Calls added or moved on the day.", made, "loads", None),
              ("Nearby", f"{load.NEARBY_MINUTES} minutes", "Another truck counts as nearby within this drive.", design, "availability", None),

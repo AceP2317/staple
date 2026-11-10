@@ -713,9 +713,35 @@ def dispatch_control():
     print(f"  shuffled skills {skills_off['fixes_per_call']:.1%}: the skill gain over parts only "
           f"({staple['fixes_per_call'] - parts['fixes_per_call']:+.1%}) becomes "
           f"{skills_off['fixes_per_call'] - parts['fixes_per_call']:+.1%}")
-    print(f"  shuffled-history parts odds {odds_off['fixes_per_call']:.1%}: dispatch needs only appliance-level "
-          f"parts odds, since at night any truck can load anything but locked or back-ordered parts")
     require(abs(same["fixes_per_call"] - staple["fixes_per_call"]) < 1e-12, "the control's machinery changes the answer by itself")
+
+    # Why the parts-odds control does not fall back, measured and not only said. The odds are handed to the
+    # dispatcher in three cut-down forms: knowing only the appliance, for same-day calls alone, for booked calls alone.
+    predictor = load.Predictor(conn)
+    lists = load.ranked_lists(predictor, jobs)
+    by_type = {}
+    for kind in {j["type"] for j in jobs}:
+        n, counts = predictor.history("type", kind)
+        by_type[kind] = sorted(((p, counts[p] / n) for p in predictor.parts_of[kind]), key=lambda kv: (-kv[1], kv[0]))
+    cut = {"appliance only": {j["job"]: by_type[j["type"]] for j in jobs},
+           "same-day calls only": {j["job"]: lists[j["job"]] if j["unplanned"] else [] for j in jobs},
+           "booked calls only": {j["job"]: [] if j["unplanned"] else lists[j["job"]] for j in jobs}}
+    got = {name: dispatch.replay(conn, jobs, "skills and parts", "balanced", part_odds=odds)["fixes_per_call"]
+           for name, odds in cut.items()}
+    none = out["skills only, balanced loads"]["fixes_per_call"]
+    gain = staple["fixes_per_call"] - none
+    print(f"  shuffled-history parts odds {odds_off['fixes_per_call']:.1%}, against {none:.1%} with no parts judgment and "
+          f"{got['appliance only']:.1%} with odds that know only the appliance")
+    print(f"  of the parts judgment's {gain:+.1%}: {(got['same-day calls only'] - none) / gain:.0%} is kept with odds "
+          f"for same-day calls alone, {(got['booked calls only'] - none) / gain:.0%} with odds for booked calls alone")
+    require(abs(got["appliance only"] - odds_off["fixes_per_call"]) < 0.005,
+            "appliance-level odds no longer match the shuffled ones: the report's reason for this control is wrong")
+    require(abs(none - odds_off["fixes_per_call"]) >= 0.005,
+            "control: no parts judgment at all sits within half a point of the shuffled odds, so that test cannot fail")
+    require(got["same-day calls only"] - none > 0.5 * gain,
+            "same-day calls no longer carry most of the parts judgment's gain: rewrite the report's reason")
+    require(got["booked calls only"] - none < 0.5 * gain,
+            "control: booked calls alone also keep most of the gain, so the split tells nothing")
     side = max(c["rolled"] for c in (skills_off, odds_off)) - staple["rolled"]
     print(f"  the controls roll {side:+} calls beyond Staple's, so neither wins by overbooking the day")
     require(side <= 0.01 * staple["calls"], "a control withdraws the gain by overbooking routes, not by choosing worse")
@@ -1074,11 +1100,13 @@ def to(value, places):
     return (value, places)
 
 
-def hand_tables(conn):
+def hand_tables(conn, stock_as_replayed=True):
     """Every column of every metric query recomputed in Python, apart from the SQL, as {query: {row: {column: value}}}.
-    The four history measures are counted again from the jobs, the parts they needed and the truck stock. The other
-    five report a results table, so its raw rows are read and the query's arithmetic is redone. The limit: for those
-    five this guards the query and not the replay that filled the table, which the engine's own checks hold."""
+    The four history measures are counted again from the jobs, the parts they needed and the truck stock. The others
+    report a results table, so its raw rows are read and the query's arithmetic is redone. The limit: for those
+    this guards the query and not the replay that filled the table, which the engine's own checks hold. One row
+    goes further: the return on today's trucks is counted again from the jobs and the stock. Pass
+    stock_as_replayed=False where the stock was changed after the replay ran, and that recount is left out."""
     from datetime import date, timedelta
 
     def pct(share):
@@ -1124,6 +1152,66 @@ def hand_tables(conn):
                            "unused_value_pct": of(sum(idle), sum(value.values()))}
 
     cover = {(method, k): c for method, k, c in conn.execute("SELECT method, k, coverage FROM backtest")}
+
+    # Today's trucks, counted again from the held-back jobs and the stock: the jobs a truck-day that needed a part
+    # and found every one aboard, and the return on the stock that covered them.
+    worked = Counter((day, tech) for _, day, _, tech, *_ in jobs if day >= test_from)
+    saved_today = sum(1 for job, day, _, tech, *_ in jobs
+                      if day >= test_from and needed[job] and needed[job] <= aboard[tech]) / len(worked)
+    stock_today = sum(sum(cost[p] for p in aboard[tech]) for _, tech in worked) / len(worked)
+    repeat_visit = one(conn, "SELECT value FROM assumptions WHERE name = 'repeat_visit'")
+    loads = {
+        (policy, k): {"covered_pct": pct(covered), "part_jobs_covered": to(saved, 2), "space_used": to(space, 1),
+                      "parts_aboard": to(parts, 1), "permanent_parts": to(permanent, 1), "moves_a_night": to(moves, 1),
+                      "stock_value": to(value, 0), "repeat_cost": to(repeat, 2), "handling_cost": to(handling, 2),
+                      "holding_cost": to(holding, 2), "cost_a_truck_day": to(total, 2), "roi": to(roi, 2)}
+        for policy, k, covered, saved, space, parts, permanent, moves, value, repeat, handling, holding, total, roi in
+        conn.execute("SELECT policy, k, coverage, saved, space, parts, permanent, moves, value, repeat_cost, handling, "
+                     "holding, total, roi FROM load_policy")}
+    if stock_as_replayed:
+        loads[("today's trucks", 0)].update(part_jobs_covered=to(saved_today, 2),
+                                            roi=to(saved_today * repeat_visit * 365 / stock_today, 2))
+
+    falls_back = one(conn, "SELECT value FROM assumptions WHERE name = 'falls_back'")
+    quoted = one(conn, "SELECT value FROM assumptions WHERE name = 'carry_list_quoted'")
+    cheapest = dict(conn.execute("SELECT policy, MIN(total) FROM load_policy GROUP BY policy"))
+    fixes = {policy: 100 * share for policy, share in conn.execute("SELECT policy, fixes_per_call FROM dispatch")}
+    read = {method: 100 * share for method, share in conn.execute("SELECT method, coverage FROM triage")}
+
+    def control(gain, measure, places, without, with_it, broken):
+        shown = [round(v, places) for v in (without, with_it, broken)]
+        share = (shown[2] - shown[0]) / (shown[1] - shown[0])
+        return {"gain_tested": gain, "measure": measure, "without_it": to(without, places), "with_it": to(with_it, places),
+                "with_control": to(broken, places), "gain_kept_pct": to(100 * share, 0),
+                "verdict": "falls back" if share < falls_back else "does not fall back"}
+
+    first, list_covers, dollars = "calls fixed on the first visit, %", "jobs the 3-part list covers, %", "cost a truck-day, $"
+    controls = {
+        "shuffled-history control": control(
+            "the predictor over the national top parts", "jobs the quoted carry list covers, %", 1,
+            *(100 * cover[(m, quoted)] for m in ("national top parts", "predictor", "shuffled-history control"))),
+        "top-up from shuffled history": control(
+            "topping today's stock up with the day's lists", dollars, 2,
+            *(cheapest[p] for p in ("today's trucks", "today's stock plus the day's lists", "top-up from shuffled history"))),
+        "balanced from shuffled history": control(
+            "the balanced truck over today's stock", dollars, 2,
+            *(cheapest[p] for p in ("today's trucks", "balanced truck", "balanced from shuffled history"))),
+        "Staple with shuffled skills (control)": control(
+            "knowing each technician's skill", first, 1,
+            *(fixes[p] for p in ("parts only, balanced loads", "Staple: skills and parts, balanced loads",
+                                 "Staple with shuffled skills (control)"))),
+        "Staple with shuffled-history parts odds (control)": control(
+            "the dispatcher judging each truck's parts", first, 1,
+            *(fixes[p] for p in ("skills only, balanced loads", "Staple: skills and parts, balanced loads",
+                                 "Staple with shuffled-history parts odds (control)"))),
+        "Claude answers shuffled (control)": control(
+            "Claude reading the customer's words", list_covers, 1,
+            *(read[m] for m in ("no code", "Claude", "Claude answers shuffled (control)"))),
+        "Claude, asking when unsure, random replies (control)": control(
+            "Claude asking one question when unsure", list_covers, 1,
+            *(read[m] for m in ("Claude", "Claude, asking when unsure",
+                                "Claude, asking when unsure, random replies (control)"))),
+    }
     return {
         "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
         "parts_caused_reschedules": {
@@ -1138,6 +1226,7 @@ def hand_tables(conn):
             k: {"predictor_pct": pct(cover.get(("predictor", k))),
                 "national_pct": pct(cover.get(("national top parts", k))),
                 "shuffled_pct": pct(cover.get(("shuffled-history control", k))),
+                "leaked_pct": pct(cover.get(("predictor that has seen the held-back jobs (leak test)", k))),
                 "todays_trucks_pct": pct(cover.get(("today's trucks", 0)))} for k in {k for _, k in cover if k > 0}},
         "ai_step": {
             method: {"jobs": n, "agrees_booked_pct": pct(booked), "agrees_true_pct": pct(true), "coverage_pct": pct(covered)}
@@ -1157,15 +1246,10 @@ def hand_tables(conn):
             for day, part, left, holders, zones, calls, stuck, risk, came, came_stuck, first, whole in
             conn.execute("SELECT day, part, days_left, holders, open_zones, expected_calls, expected_stuck, at_risk, "
                          "actual_calls, actual_stuck, first_listed, whole_wait FROM backorder_list")},
-        # The return on stock is held to the replay's own figure, which the load step works out by another route.
-        "inventory_roi": {
-            (policy, k): {"covered_pct": pct(covered), "parts_aboard": to(parts, 1), "permanent_parts": to(permanent, 1),
-                          "moves_a_night": to(moves, 1), "stock_value": to(value, 0), "repeat_cost": to(repeat, 2),
-                          "handling_cost": to(handling, 2), "holding_cost": to(holding, 2),
-                          "cost_a_truck_day": to(total, 2), "roi": to(roi, 2)}
-            for policy, k, covered, parts, permanent, moves, value, repeat, handling, holding, total, roi in
-            conn.execute("SELECT policy, k, coverage, parts, permanent, moves, value, repeat_cost, handling, holding, "
-                         "total, roi FROM load_policy") if "shuffled" not in policy},
+        # Every row the load replay wrote, none left out. The return is held to the replay's own figure, and for
+        # today's trucks to the count made above from the jobs and the stock.
+        "inventory_roi": loads,
+        "controls": controls,
     }
 
 
@@ -1257,8 +1341,14 @@ def sql_metrics():
                                                   == base["slow_truck_stock"][other]["unused_value"] + 50}
         print(f"  control: planted changes in the data moved {sum(moved.values())} of {len(moved)} metrics")
         require(all(moved.values()), f"a metric did not move under a planted change: {moved}")
-        apart = metric_gaps(after, hand_tables(copy))
+        # The copy's replay tables were filled before a part came off a truck, so the recount from that stock is left out.
+        apart = metric_gaps(after, hand_tables(copy, stock_as_replayed=False))
         require(not apart, "the recomputation and the SQL part ways on planted data: " + "; ".join(apart[:3]))
+        recount = hand_tables(copy)["inventory_roi"][("today's trucks", 0)]["part_jobs_covered"][0]
+        replayed = one(copy, "SELECT saved FROM load_policy WHERE policy = 'today''s trucks'")
+        print(f"  control: with that part off its truck, the recount of jobs today's trucks cover falls from "
+              f"{replayed:.4f} a truck-day to {recount:.4f}")
+        require(recount < replayed, "control: taking a needed part off a truck did not move the recount of today's trucks")
         copy.close()
 
 
@@ -1271,7 +1361,9 @@ WRONG_QUERIES = {
     "dispatch_scorecard": ("100.0 * fixes_per_call", "100.0 * moved_fix_rate",
                            "reports the moved calls' fix rate as every call's"),
     "first_time_fix": ("AVG(first_visit_fix)", "AVG(parts_on_truck)", "counts a visit with its parts aboard as a fix"),
-    "inventory_roi": ("a.value * 365", "a.value * 52", "counts a year as 52 days"),
+    "controls": ("< a.value", ">= a.value", "calls a control that kept its gain fallen back, and one that lost it kept"),
+    "inventory_roi": ("l.saved * a.value", "l.coverage * l.jobs * a.value",
+                      "counts a job that needed no part as a repeat visit the stock avoided"),
     "parts_caused_reschedules": ("AND parts_on_truck = 0) / COUNT(*)", "AND parts_on_truck = 1) / COUNT(*)",
                                  "counts the repeats that had their parts as caused by parts"),
     "slow_truck_stock": ("'-365 days'", "'-30 days'", "looks back one month for use, not twelve"),
@@ -1305,6 +1397,177 @@ def mutants():
         if not refused:
             passed.append(name)
     require(not passed, f"a wrong version of a metric query passed its recomputation: {', '.join(passed)}")
+
+
+WHOLE_TABLES = {"inventory_roi": ("load_policy", "policy, k"), "dispatch_scorecard": ("dispatch", "policy"),
+                "ai_step": ("triage", "method"), "backorder_exposure": ("backorder_list", "day, part")}
+CONTROL_WORDS = ("control", "shuffled", "random")    # a results row whose name holds one of these is a control
+
+
+def hidden_rows(conn, results):
+    """Rows a results table holds that the query reporting it leaves out. Each of these queries reports its table
+    whole, so a filter in one hides a result."""
+    out = []
+    for name, (table, key) in WHOLE_TABLES.items():
+        width = len(key.split(", "))
+        shown = {tuple(r[:width]) for r in results[name][1]}
+        out += [f"{name} leaves out {' / '.join(map(str, row))}" for row in conn.execute(f"SELECT {key} FROM {table}")
+                if tuple(row) not in shown]
+    return out
+
+
+def unlisted_controls(conn, results):
+    """Rows the engine names a control that the controls query does not list."""
+    listed = {r[0] for r in results["controls"][1]}
+    named = set()
+    for table, column in (("backtest", "method"), ("load_policy", "policy"), ("dispatch", "policy"), ("triage", "method")):
+        named |= {name for (name,) in conn.execute(f"SELECT DISTINCT {column} FROM {table}")
+                  if any(word in name for word in CONTROL_WORDS)}
+    return sorted(named - listed)
+
+
+def card_text(page, name):
+    """One evidence card of the report as a reader meets it: its words and its hover hints."""
+    import html
+    start = page.index(f'id="proof-{name}"')
+    return html.unescape(page[start:page.index("</section>", start)])
+
+
+def figures_missing(page, results):
+    """Each control or test whose own figures the report's cards do not carry, read from the queries' rows."""
+    from staple import load, report
+
+    def named(query, key):
+        return {tuple(r[:key]) if key > 1 else r[0]: dict(zip(results[query][0], r)) for r in results[query][1]}
+
+    loads, curve, controls = named("inventory_roi", 2), named("carry_list_curve", 1), named("controls", 1)
+    scores = named("dispatch_scorecard", 1)
+    cost, covers = (lambda r: f"${r['cost_a_truck_day']:.2f}"), (lambda r: report.pct(r["covered_pct"]))
+    shuffled, equal = loads[(load.CONTROL_BALANCED, 0)], loads[(load.EQUAL_SPACE, 0)]
+    odds = "Staple with shuffled-history parts odds (control)"
+    want = {
+        "the balanced truck loaded from shuffled history": ("inventory_roi", [covers(shuffled), cost(shuffled),
+                                                                              report.kept(controls[load.CONTROL_BALANCED])]),
+        "the balanced truck held to today's space": ("inventory_roi", [covers(equal), cost(equal)]),
+        "the balanced truck at each higher move price": ("inventory_roi", [cost(loads[(load.at_move(m), 0)]) for m in load.MOVE_STEPS]),
+        "the leak test": ("carry_list_curve", [report.pct(curve[load.SHOWN_K]["leaked_pct"])]),
+        "the parts-odds control": ("dispatch_scorecard", [report.pct(scores[odds]["first_visit_fix_pct"]),
+                                                          report.kept(controls[odds])]),
+    }
+    want.update({f"the control '{name}'": ("controls", [name, row["verdict"], f"{row['without_it']} without it",
+                                                        f"{row['with_it']} with it", f"{row['with_control']} with the control"])
+                 for name, row in controls.items()})
+    return sorted(what for what, (card, texts) in want.items() if any(t not in card_text(page, card) for t in texts))
+
+
+@check("controls-shown")
+def controls_shown():
+    """Every control and test the engine runs reaches the report with its real result, and no query hides a row."""
+    import sqlite3
+    from staple import load, metrics, report
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+
+    # No query hides a row, and every control has a row of its own.
+    hidden, unlisted = hidden_rows(conn, results), unlisted_controls(conn, results)
+    held = sum(len(conn.execute(f"SELECT 1 FROM {table}").fetchall()) for table, _ in WHOLE_TABLES.values())
+    print(f"  {held:,} rows in the {len(WHOLE_TABLES)} results tables a query reports whole: {len(hidden)} left out; "
+          f"{len(results['controls'][1])} controls, {len(unlisted)} without a row in the controls query")
+    require(not hidden, "a query hides rows of its results table: " + "; ".join(hidden[:3]))
+    require(not unlisted, f"a control has no row in the controls query: {unlisted}")
+    text = (metrics.SQL / "inventory_roi.sql").read_text(encoding="utf-8")
+    cur = conn.execute(text.replace("ORDER BY", "WHERE l.policy NOT LIKE '%shuffled%' ORDER BY"))
+    filtered = dict(results, inventory_roi=([d[0] for d in cur.description], cur.fetchall()))
+    copy = sqlite3.connect(":memory:")
+    conn.backup(copy)
+    copy.execute("INSERT INTO dispatch SELECT 'Staple with shuffled zones (control)', calls, served, rolled, fix_rate, "
+                 "fixes_per_call, parts_missing, drive_per_call, moved, moved_fix_rate, cost_per_call FROM dispatch LIMIT 1")
+    planted = unlisted_controls(copy, results)
+    copy.close()
+    print(f"  control: a query that filters out the shuffled rows hides {len(hidden_rows(conn, filtered))} rows, and a "
+          f"control planted in the dispatch table is named: {planted}")
+    require(len(hidden_rows(conn, filtered)) > 1, "control: a query filtering out the shuffled rows was not caught")
+    require(planted == ["Staple with shuffled zones (control)"], "control: a planted control with no row was not caught")
+
+    # The return on stock, and the order of its rows.
+    columns, rows = results["inventory_roi"]
+    loads = {(r[0], r[1]): dict(zip(columns, r)) for r in rows}
+    jobs = load.test_jobs(conn)
+    none = sum(1 for j in jobs if not j["needed"])
+    bal = loads[(load.BALANCED, 0)]
+    raw = conn.execute("SELECT coverage * jobs, saved FROM load_policy WHERE policy = ?", (load.BALANCED,)).fetchone()
+    print(f"  {none:,} of {len(jobs):,} held-back jobs needed no part; counting them would lift the balanced truck's "
+          f"return from {bal['roi']:.2f} to {bal['roi'] * raw[0] / raw[1]:.2f}")
+    require(none and raw[0] > raw[1], "control: no held-back job needs no part, so the return cannot tell the two counts apart")
+    costs = [r[columns.index("cost_a_truck_day")] for r in rows]
+    by_return = sorted(rows, key=lambda r: -r[columns.index("roi")])
+    print(f"  the cheapest truck-day leads the table: {rows[0][0]} at ${costs[0]:.2f}; ordered by return, "
+          f"{by_return[0][0]} would lead at ${by_return[0][columns.index('cost_a_truck_day')]:.2f}")
+    require(costs == sorted(costs), "the inventory query does not list its rows from the cheapest truck-day up")
+    require(by_return[0][columns.index("cost_a_truck_day")] > costs[0],
+            "control: ordering by return also puts the cheapest first, so the order test proves nothing")
+
+    # The balanced truck's tests, replayed here and held to what they claim.
+    fleet = load.Fleet(conn)
+    load.mark_unplanned(jobs)
+    lists, surprise = load.ranked_lists(load.Predictor(conn), jobs), load.surprise_value(conn, load.Predictor(conn))
+    tight, roomy, frozen = load.replay(fleet, jobs, [
+        ("held to today's space", 0, load.balanced(fleet, lists, surprise, equal_space=True)),
+        ("the whole truck", 0, load.balanced(fleet, lists, surprise))], record=True) + load.replay(
+        fleet, jobs, [("a prohibitive move", 0, load.balanced(fleet, lists, surprise, move=1000.0))], move=1000.0)
+
+    def over(row):
+        return sum(sum(fleet.size[p] for p in parts) > fleet.used(tech) for (_, tech), parts in row["loads"].items())
+
+    print(f"  held to the space today's stock uses, {over(tight)} of {len(tight['loads']):,} loads take more than that "
+          f"space; given the whole truck, {over(roomy):,} do")
+    require(over(tight) == 0, "the equal-space truck takes more space than today's stock on some truck-day")
+    require(over(roomy) > 0, "control: the whole-truck load never passes today's space, so the space test cannot fail")
+    today = loads[(load.TODAY, 0)]
+    print(f"  at $1,000 a move the balanced truck moves {frozen['moves']:.2f} parts a night and costs "
+          f"${frozen['total']:.2f}, against today's ${today['cost_a_truck_day']:.2f}; at ${load.MOVE:.0f} it moves "
+          f"{bal['moves_a_night']}")
+    require(frozen["moves"] == 0 and abs(frozen["total"] - today["cost_a_truck_day"]) < 0.005,
+            "at a prohibitive price for a move the balanced truck does not become today's truck")
+    require(bal["moves_a_night"] > 0, "control: the balanced truck moves nothing at the usual price either")
+    steps = [loads[(load.at_move(m), 0)]["moves_a_night"] for m in load.MOVE_STEPS]
+    require(all(a >= b for a, b in zip([bal["moves_a_night"]] + steps, steps)), "a higher price for a move does not mean fewer moves")
+
+    # The page: each control and test with its own figures, and words that match the verdicts.
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    page = report.build_report(results, week, stamp_text, day)
+    missing = figures_missing(page, results)
+    curve = {r[0]: dict(zip(results["carry_list_curve"][0], r)) for r in results["carry_list_curve"][1]}[load.SHOWN_K]
+    gap = curve["leaked_pct"] - curve["predictor_pct"]
+    verdicts = Counter(r[results["controls"][0].index("verdict")] for r in results["controls"][1])
+    print(f"  the report carries the figures of {5 + len(results['controls'][1]) - len(missing)} of "
+          f"{5 + len(results['controls'][1])} controls and tests; verdicts: {dict(verdicts)}; the leak test moves the "
+          f"predictor {gap:+.1f} points")
+    require(not missing, f"the report does not carry the figures of: {missing}")
+    require(abs(gap) <= 1.0, "the report calls the leak gap small, and it is now over a point: rewrite the card")
+
+    def changed(query, key, column, value):
+        columns, rows = results[query]
+        at = columns.index(column)
+        return dict(results, **{query: (columns, [r[:at] + (value(r[at]),) + r[at + 1:] if r[0] == key else r for r in rows])})
+
+    off_by_one = changed("inventory_roi", load.EQUAL_SPACE, "cost_a_truck_day", lambda v: v + 1)
+    wrong_page = report.build_report(off_by_one, week, stamp_text, day)
+    require(figures_missing(wrong_page, results) == ["the balanced truck held to today's space"],
+            "control: a report whose equal-space cost is a dollar off was not caught, or the wrong card was blamed")
+    odds = "Staple with shuffled-history parts odds (control)"
+    turned = changed("controls", odds, "verdict", lambda v: "falls back")
+    try:
+        report.build_report(turned, week, stamp_text, day)
+        stopped = False
+    except ValueError:
+        stopped = True
+    print(f"  control: a report with the equal-space cost a dollar off is refused, and a build whose query says the "
+          f"parts-odds control falls back {'stops' if stopped else 'goes on'}")
+    require(stopped, "control: the report was built though its words contradict the controls query")
 
 
 class Hints(HTMLParser):

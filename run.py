@@ -48,12 +48,13 @@ def main():
     k = backtest.SHOWN_K
     print(f"back-test on {bt['jobs']:,} held-back jobs, first-visit coverage with {k} parts on the list:")
     for name, row in bt["coverage"].items():
-        print(f"  {name:<26} {row[k]:.1%}")
-    print(f"  {'today' + chr(39) + 's trucks':<26} {bt['today']:.1%}")
+        print(f"  {name:<56} {row[k]:.1%}")
+    print(f"  {'today' + chr(39) + 's trucks':<56} {bt['today']:.1%}")
     ld = load.run(conn)
     today = ld["today"]
     print(f"truck loads over {today['truck_days']:,} held-back truck-days, per truck-day (dollars made up):")
-    for r in [today, ld["everything"], *ld["best"].values(), ld["balanced"]]:
+    for r in [today, ld["everything"], *ld["best"].values(), ld["balanced"], ld["control_balanced"], ld["equal_space"],
+              *ld["moves"].values()]:
         label = r["policy"] + (f", {r['k']} per job" if r["policy"] in (load.TOP_UP, load.LISTS_ONLY) else "")
         print(f"  {label}: covers {r['coverage']:.1%}, {r['parts']:.0f} parts, "
               f"${r['value']:,.0f} of stock held, costs ${r['total']:,.0f} a day")

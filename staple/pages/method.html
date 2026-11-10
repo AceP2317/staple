@@ -20,11 +20,16 @@ booking and the noise in it are known. That lets each method be scored against t
 real history would record. A real history records only the booked code.</p>
 <p><strong>A temporal hold-out.</strong> The last {{test_days}} days are held back. Every count, share and rate a
 method uses is read from the earlier days (<code>split = 'train'</code>), and the method is then scored on the
-held-back days. No held-back fact reaches a method.</p>
+held-back days. No held-back fact reaches a method. One row breaks that rule on purpose and is never a result: the
+leak test scores the predictor with the held-back jobs in its history, to measure what the hold-out is worth.</p>
 <p><strong>A control for every gain.</strong> Each claimed gain has a control that breaks the link the gain should
-come from: shuffled history, shuffled technician skills, shuffled AI answers, random follow-up replies. A gain
-counts only when its control falls back. Where a check could pass without looking, it also runs a planted input
-that must make it fail.</p>
+come from: shuffled history, shuffled technician skills, shuffled AI answers, random follow-up replies. The share of
+a gain its control keeps is:</p>
+<code class="formula">kept = (with the control − without the method) / (with the method − without the method)</code>
+<p>A control falls back when it keeps under {{falls_back}}. A gain is credited to a link only where its control
+falls back. <code>controls.sql</code> lists every control with the share it kept, and the report names the ones
+that do not fall back and what those gains rest on. Where a check could pass without looking, it also runs a
+planted input that must make it fail.</p>
 <p><strong>One seed, one source.</strong> Seed {{seed}} reproduces every row. Every figure on the report is read
 from the result of a SQL query in <code>sql/metrics/</code>, and every constant in these manuals is read from the
 code at build time.</p></section>
@@ -99,6 +104,10 @@ part being on the truck. Variants scored at every <var>k</var>:</p>
 <li><strong>shuffled-history control</strong>: within each appliance type, each training job's set of needed parts is dealt
 to a random other job of the same type (seed 7). The type-level shares survive; every link to family and problem is
 destroyed. The control must fall to the national baseline, or the gain is not coming from the links.</li>
+<li><strong>leak test</strong>: the predictor with the held-back jobs, answers included, already in its history. No
+scored method is built this way. Its gap to the predictor is what holding the days back is worth. The gap is small
+here because the invented failure rates never change over time; on real history, where models and parts change, it
+is the gap to watch.</li>
 </ul>
 <p>Coverage is also cut by planted noise (none, misdescribed, patternless) and by family age (newest against
 established) at <var>k</var> = {{shown_k}}.</p></section>
@@ -146,12 +155,20 @@ truck-day of that policy's cheapest.</p>
 {{EX_loads}}
 <p>The repeat-visit cost at which the chosen top-up stops paying is:</p>
 <code class="formula">R* = (Δhandling + Δholding) / (Δrepeat / R)    (top-up against today's trucks)</code>
-<p>A part is called permanent when it is aboard on at least {{permanent}} of a truck's days. Inventory ROI is covered
-jobs per truck-day times <var>R</var> times 365, divided by the stock value on board.</p>
-<h3>Controls</h3>
+<p>A part is called permanent when it is aboard on at least {{permanent}} of a truck's days. Inventory ROI is the
+jobs per truck-day that needed a part and had every one aboard, times <var>R</var> times 365, divided by the stock
+value on board. A job that needed no part is left out, because an empty truck covers it.</p>
+<h3>Controls and tests</h3>
 <p>The top-up and the balanced truck are rerun with carry lists from the shuffled-history predictor. A second shuffle
 with another seed measures how far two shuffles differ by chance. The balanced truck's edge over its shuffled control
-must exceed three times that difference.</p></section>
+must exceed three times that difference. That control does not fall back. The shuffle keeps what each appliance
+usually needs, so a truck loaded from it is still loaded for tomorrow's appliances, and the report gives the share
+of the saving it keeps.</p>
+<p>Two more replays test the balanced truck. Today's stock fills {{stock_fill}} of the truck and the balanced truck
+may fill all of it, so one replay holds each truck to the space its own stock uses today. The price of one move is
+made up, so the truck is also replayed at {{move_steps}} a move, planning by that price and paying it. At a price
+high enough it moves nothing and becomes today's truck, and the check <code>controls-shown</code> holds it to
+that.</p></section>
 
 <section id="availability"><h2>Availability and the back-order flag</h2>
 <p>Each carry-list part gets the first mark that applies, for the job's technician and zone:</p>
@@ -268,7 +285,7 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <li><strong>Parts only</strong>: parts, with every technician believed average: the fleet's mean rate and a time multiplier of 1.</li>
 <li><strong>Staple</strong>: skills and parts.</li>
 <li><strong>Shuffled skills (control)</strong>: each technician-appliance pair reads another pair's rate and time (seed 5); who covers what stays true. It must lose at least half the skill gain over parts only.</li>
-<li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgment uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, because at night any truck can load anything but locked or back-ordered parts. The check fails the day that stops being true.</li>
+<li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgment uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, so it does not fall back. At night any truck can load anything but locked or back-ordered parts, so the parts judgment does most of its work during the day, on calls that come in or are moved and can use only what a truck already carries. Trucks are loaded by appliance, and the shuffle keeps what each appliance usually needs. The check measures both halves of that reason: odds that know only the appliance must score within half a point of the shuffled ones, and odds handed over for same-day calls alone must keep more than half the gain.</li>
 </ul>
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
 broken truck working after its breakdown, no route past 17:00. A control may roll at most one per cent more calls
