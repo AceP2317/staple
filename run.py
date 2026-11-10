@@ -72,13 +72,19 @@ def main():
     for r in stuck[:3]:
         print(f"  {r['day']}, {r['part']}: ships in {plan.days(r['days_left'])}, {r['expected']:.1f} calls expected, "
               f"{r['stuck']:.1f} with no truck nearby holding one (${r['at_risk']:,.0f})")
-    tr = triage.run(conn, *triage.load(conn, live="--live" in sys.argv[1:]))
-    print(f"AI step ({triage.MODEL}) reading the customer's own words, on the same held-back jobs:")
+    # Loaded once, so a live run's answers reach the scores and the week's plan alike.
+    answers, followups = triage.load(conn, live="--live" in sys.argv[1:])
+    tr = triage.run(conn, answers, followups)
+    print(f"AI step ({triage.MODEL}) reading the customer's own words, on the same held-back jobs, which say their "
+          f"problems {tr['phrasings']} ways:")
     for name, r in tr["rows"].items():
-        print(f"  {name:<52} agrees with the booked code {r['agree_booked']:.1%}, with the true problem "
+        print(f"  {name:<56} agrees with the booked code {r['agree_booked']:.1%}, with the true problem "
               f"{r['agree_true']:.1%}; 3-part list covers {r['coverage']:.1%}")
     print(f"  follow-up question asked on {tr['asked']:,} unsure bookings; the customer's problem was among "
           f"the offered answers on {tr['settled']:,}")
+    for b in tr["bands"]:
+        print(f"  stated confidence {b['low']:.2f} to {b['high']:.2f}: {b['jobs']:,} bookings in {b['phrasings']} "
+              f"phrasings, first reading matches the booked code {b['agree_booked']:.1%}")
     dp = dispatch.run(conn)
     print("dispatch replay of every held-back day, with the same made-up sick calls, breakdowns and priority changes:")
     for name, r in dp.items():
@@ -86,7 +92,7 @@ def main():
               f"minutes a call, ${r['cost_per_call']:.0f} a call")
     found = metrics.run(conn)
     print(f"metrics: {len(found)} SQL files in sql/metrics/, each result written to out/metrics/<name>.csv")
-    week = plan.build(conn)
+    week = plan.build(conn, answers, followups)
     print(f"the week's plan, {plan.WEEK} days coded by Claude and replayed; first-visit fix against the nearest technician:")
     for d in week["days"]:
         o, b, m = d["ours"], d["base"], d["morning"]

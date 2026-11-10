@@ -77,8 +77,9 @@ replay's own record of the most recent week, so every route and load on it is on
 - `staple/triage.py` has Claude read the customer's own words and pick the problem code, with a confidence.
   When it is unsure, the reading leans on the appliance's overall odds, and Claude writes one short question
   for the customer. Claude sees only the appliance type and each code's label, never the invented phrasings.
-  Its score is held against keyword rules and two controls: its answers shuffled between bookings, and
-  random replies to its question.
+  Its score is held against a plain keyword matcher and two controls: its answers shuffled between bookings,
+  and random replies to its question. The customer who answers the question is simulated and always picks the
+  matching answer, so that score is labeled an upper bound.
 - `data/triage-cache.json` holds Claude's answers for every customer phrasing, made once with Claude Haiku
   5.5, so a run needs no network and no key.
 - `data/followup-cache.json` holds the follow-up question Claude wrote for each unsure phrasing, with the
@@ -119,7 +120,9 @@ replay's own record of the most recent week, so every route and load on it is on
   can ship that day, with its forecast calls and stuck calls before it ships and what the held-back days then
   brought. The plan's buyer items quote these rows.
 - `sql/metrics/ai_step.sql`: each reading of the customer's words, its agreement with the booked code and the
-  true problem, and the coverage of the list it leads to.
+  true problem, and the coverage of the list it leads to. It also counts the distinct phrasings the bookings
+  hold, which is the real size of the sample.
+- `sql/metrics/ai_calibration.sql`: how often Claude's first reading is right at each confidence it states.
 - `sql/metrics/dispatch_scorecard.sql`: each way of handing out calls, with fixes, drive time, rolled calls,
   moved calls and cost a call.
 

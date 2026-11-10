@@ -119,6 +119,11 @@ CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL
 CREATE TABLE triage (method TEXT PRIMARY KEY, jobs INTEGER NOT NULL, agree_booked REAL NOT NULL,
                      agree_true REAL NOT NULL, coverage REAL NOT NULL);
 
+-- Claude's first reading on the held-back jobs, by the confidence it stated: how many distinct phrasings and
+-- jobs fall in each band, and how often the reading agrees with the booked code and with the true problem.
+CREATE TABLE triage_calibration (low REAL PRIMARY KEY, high REAL NOT NULL, phrasings INTEGER NOT NULL,
+                                 jobs INTEGER NOT NULL, agree_booked REAL NOT NULL, agree_true REAL NOT NULL);
+
 -- The dispatch replay over every held-back day, with the same made-up sick calls, breakdowns and priority
 -- changes for every policy. A call rolled to tomorrow counts as not fixed today in fixes_per_call.
 CREATE TABLE dispatch (

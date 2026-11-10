@@ -219,19 +219,35 @@ question to put to the customer, verbatim:</p>
 <pre>{{FOLLOWUP_SYSTEM}}</pre>
 <pre>{{FOLLOWUP_TEMPLATE}}</pre>
 <p>Questions ship in <code>data/followup-cache.json</code>, keyed the same way. In the replay, the simulated customer
-picks the offered answer whose code is the booked code. When no offered answer fits, the lean reading stands. The
-control replies at random, seeded by the job number, and must lower coverage.</p>
+picks the offered answer whose code is the booked code. When no offered answer fits, the lean reading stands. A
+real customer answers less surely than that, so the score after the question is an upper bound, and the report
+labels it one. The control replies at random, seeded by the job number, and must lower coverage; it is the lower
+end, and a real customer lands between the two.</p>
 {{EX_ai}}
-<h3>The keyword rules it is compared with</h3>
-<p>Words are lowercased, cut to letters, stripped of the suffixes "ing", "er", "es", "ed" and "s" when at least
+<h3>The keyword matcher it is compared with</h3>
+<p>The matcher is the simplest reading there is, a floor for Claude to beat. It is no claim about how any booking
+screen works. Words are lowercased, cut to letters, stripped of the suffixes "ing", "er", "es", "ed" and "s" when at least
 three letters remain, and cleared of eight stop words. The code whose label shares the most words with the
 customer's wins, with ties going to the alphabetically first. No shared word means no code.</p>
 <h3>What is measured</h3>
 <p>Agreement with the booked code, the only target a real history allows, and agreement with the true code, known
 here only because the data is invented. The 3-part carry list's coverage is measured too, which is what the reading
-is for. A calibration split counts how often answers above and below {{blend_below}} match the booked code. The
-control deals Claude's answers to other descriptions of the same appliance (seed 7). It falls toward chance, which
-shows the agreement comes from reading the words.</p></section>
+is for. The control deals Claude's answers to other descriptions of the same appliance (seed 7). It falls toward
+chance, which shows the agreement comes from reading the words.</p>
+<h3>What the sample is</h3>
+<p>The invented customers say each problem only a few ways: an opener, one of three phrasings, and sometimes "since
+yesterday". So the held-back bookings hold a few hundred distinct descriptions, and a score over those bookings is a
+score over that many readings, weighted by how often each is said. <code>ai_step.sql</code> returns the count, and
+the report states it beside the scores.</p>
+<h3>Calibration</h3>
+<p>Claude's first readings are grouped by the confidence it stated, in bands from each lower edge up to the next.
+For each band <code>ai_calibration.sql</code> returns the bookings, the distinct phrasings, and how often the reading
+matches the booked code and the true code. The check <code>triage-honest</code> counts the bands again from the
+bookings and holds Claude to what it states. In every band the reading must match the booked code at least as often
+as the band's lower edge, and in the lowest band less often than its upper edge. Shuffled answers must break the
+first rule. The line at {{blend_below}} is a design choice. A band under it that is right as often as the bands above
+it shows the line is cautious, and the report says so when that happens. Staple does not move the line to fit,
+because it would then be tuned on the jobs it is scored on.</p></section>
 
 <section id="dispatch"><h2>The dispatch replay</h2>
 <p>Source: <code>staple/dispatch.py</code>. A working day is {{day}} minutes, 08:00 to 17:00. Repair minutes for an

@@ -18,7 +18,7 @@ VAGUE_WORDS = 0.08               # customer gives words that fit no single probl
 
 # type -> (openers, parts, problems). A part is (name, cost $, size, locked).
 # A problem is code -> (label, phrasings, {part name: weight}).
-CATALOGUE = {
+CATALOG = {
     "refrigerator": (
         ["My fridge", "The refrigerator"],
         [("defrost heater", 38, 2, 0), ("defrost thermostat", 22, 1, 0), ("evaporator fan motor", 64, 2, 0),
@@ -27,7 +27,7 @@ CATALOGUE = {
          ("sealed-system compressor", 420, 8, 1)],
         {"FF_WARM": ("Fresh-food side warm, freezer cold",
                      ["is warm in the fridge side but the freezer is fine", "won't keep the milk cold, freezer still freezes",
-                      "fridge section is getting warm"],
+                      "is getting warm inside, but the freezer still works"],
                      {"defrost heater": 34, "defrost thermostat": 20, "evaporator fan motor": 26, "main control board": 8}),
          "NOT_COOLING": ("Not cooling at all",
                          ["is not cooling at all", "is warm everywhere, freezer too", "stopped getting cold"],
@@ -71,7 +71,8 @@ CATALOGUE = {
                      {"heating element": 30, "thermal fuse": 22, "igniter": 20, "gas valve coils": 12, "cycling thermostat": 8}),
          "NO_START": ("Will not start", ["won't start", "is completely dead", "hums but won't turn"],
                       {"thermal fuse": 35, "door switch": 30, "main control board": 15, "drive belt": 6}),
-         "NO_TUMBLE": ("Drum not turning", ["runs but the drum doesn't turn", "the drum won't spin", "motor runs, drum stays still"],
+         "NO_TUMBLE": ("Drum not turning", ["runs but the drum doesn't turn", "has a drum that won't spin",
+                                          "sounds like it runs, but the drum stays still"],
                        {"drive belt": 55, "idler pulley": 22, "drum rollers": 8}),
          "NOISE": ("Loud noise", ["squeals loudly", "makes a thumping noise", "is rumbling and squeaking"],
                    {"drum rollers": 42, "idler pulley": 35, "drive belt": 10}),
@@ -84,26 +85,27 @@ CATALOGUE = {
          ("float switch", 17, 1, 0), ("door gasket", 31, 2, 0)],
         {"NO_DRAIN": ("Will not drain", ["won't drain", "has standing water in the bottom", "leaves dirty water inside"],
                       {"drain pump": 64, "main control board": 8}),
-         "NOT_CLEANING": ("Not cleaning", ["isn't cleaning the dishes", "leaves food on everything", "dishes come out dirty"],
+         "NOT_CLEANING": ("Not cleaning", ["isn't cleaning the dishes", "leaves food on everything",
+                                           "runs, but the dishes come out dirty"],
                           {"circulation pump": 38, "spray arm": 30, "water inlet valve": 12}),
          "LEAK": ("Leaking water", ["is leaking from the door", "leaks onto the floor", "leaves a puddle"],
                   {"door gasket": 44, "float switch": 16, "water inlet valve": 14, "circulation pump": 8}),
          "NO_START": ("Will not start", ["won't start", "has no lights at all", "won't run a cycle"],
                       {"door latch": 42, "main control board": 38}),
-         "NO_DRY": ("Dishes not drying", ["doesn't dry the dishes", "everything comes out wet", "drying stopped working"],
+         "NO_DRY": ("Dishes not drying", ["doesn't dry the dishes", "leaves everything wet at the end", "has stopped drying"],
                     {"heating element": 64, "main control board": 12})}),
     "range": (
-        ["My oven", "The range"],
+        ["My stove", "The range"],
         [("bake element", 42, 2, 0), ("broil element", 44, 2, 0), ("oven igniter", 58, 1, 0), ("surface burner switch", 34, 1, 0),
          ("temperature sensor", 27, 1, 0), ("main control board", 198, 2, 0), ("door hinge", 23, 1, 0),
          ("gas safety valve", 96, 2, 1), ("spark module", 61, 1, 0)],
-        {"OVEN_NO_HEAT": ("Oven not heating", ["oven won't heat up", "oven stays cold", "bake doesn't work"],
+        {"OVEN_NO_HEAT": ("Oven not heating", ["oven won't heat up", "oven stays cold", "won't bake, the oven never gets hot"],
                          {"bake element": 34, "oven igniter": 34, "gas safety valve": 10, "main control board": 8}),
          "BURNER_NO_LIGHT": ("Burner will not light", ["burner won't light", "keeps clicking but no flame", "top burner is dead"],
                             {"spark module": 42, "surface burner switch": 38}),
          "TEMP_WRONG": ("Temperature off", ["burns everything, runs too hot", "oven temperature is way off", "takes forever to bake"],
                         {"temperature sensor": 60, "main control board": 22}),
-         "NO_POWER": ("No power", ["is completely dead", "display is blank", "nothing comes on"],
+         "NO_POWER": ("No power", ["is completely dead", "display is blank", "has nothing coming on at all"],
                       {"main control board": 70, "surface burner switch": 6}),
          "DOOR": ("Door problem", ["door won't close properly", "door is hanging crooked", "door hinge broke"],
                   {"door hinge": 84})}),
@@ -112,15 +114,15 @@ CATALOGUE = {
         [("hot surface igniter", 52, 1, 0), ("flame sensor", 24, 1, 0), ("inducer motor", 230, 4, 0),
          ("pressure switch", 48, 1, 0), ("main control board", 245, 2, 0), ("gas valve", 185, 2, 1),
          ("blower motor", 310, 6, 0), ("run capacitor", 19, 1, 0), ("limit switch", 31, 1, 0)],
-        {"NO_HEAT": ("No heat", ["isn't putting out any heat", "blows cold air", "the house won't warm up"],
+        {"NO_HEAT": ("No heat", ["isn't putting out any heat", "blows cold air", "isn't warming the house up"],
                      {"hot surface igniter": 30, "flame sensor": 24, "gas valve": 12, "main control board": 12}),
          "SHORT_CYCLE": ("Short cycling", ["turns on and off every few minutes", "keeps shutting off", "starts then stops"],
                          {"flame sensor": 40, "limit switch": 28, "pressure switch": 16}),
-         "BLOWER_ONLY": ("Blower problem", ["fan won't come on", "no air coming out of the vents", "blower runs nonstop"],
+         "BLOWER_ONLY": ("Blower problem", ["fan won't come on", "has no air coming out of the vents", "blower runs nonstop"],
                          {"run capacitor": 40, "blower motor": 30, "main control board": 18}),
          "NOISE": ("Loud noise", ["is making a loud humming noise", "rattles when it starts", "squeals loudly"],
                    {"inducer motor": 46, "blower motor": 28, "run capacitor": 10}),
-         "NO_START": ("Will not start", ["won't start at all", "is totally dead", "the thermostat calls but nothing happens"],
+         "NO_START": ("Will not start", ["won't start at all", "is totally dead", "does nothing when the thermostat calls for heat"],
                       {"main control board": 34, "pressure switch": 30, "limit switch": 14})}),
 }
 # The long tail: parts each needed on a small share of calls, as in a real catalog, where the whole
@@ -178,11 +180,11 @@ RARE = {
 }
 for _appliance, _rare in RARE.items():
     for _name, _cost, _size, _where in _rare:
-        CATALOGUE[_appliance][1].append((_name, _cost, _size, 0))
+        CATALOG[_appliance][1].append((_name, _cost, _size, 0))
         for _code, _weight in _where.items():
-            CATALOGUE[_appliance][2][_code][2][_name] = _weight
+            CATALOG[_appliance][2][_code][2][_name] = _weight
 
-VAGUE = ["is acting up and not working right", "is broken and making a strange noise", "stopped working properly"]
+VAGUE = ["is acting up and not working right", "is broken and needs someone to look at it", "stopped working properly"]
 DETAILS = ["", " since yesterday"]
 FAMILY_PREFIX = {"refrigerator": "RF", "washer": "WM", "dryer": "DR", "dishwasher": "DW", "range": "RG", "furnace": "FN"}
 FAMILIES_PER_TYPE = 10
@@ -226,7 +228,7 @@ def build(conn, seed=SEED):
     with open(_schema_path(), encoding="utf-8") as f:
         conn.executescript(f.read())
 
-    for appliance, (_, parts, problems) in CATALOGUE.items():
+    for appliance, (_, parts, problems) in CATALOG.items():
         conn.execute("INSERT INTO appliance_types VALUES (?)", (appliance,))
         conn.executemany("INSERT INTO parts VALUES (?,?,?,?,?,?)",
                          [(part_id(appliance, n), appliance, n, c, s, lk) for n, c, s, lk in parts])
@@ -234,7 +236,7 @@ def build(conn, seed=SEED):
                          [(problem_id(appliance, code), appliance, p[0]) for code, p in problems.items()])
 
     families = {}
-    for appliance, (_, parts, problems) in CATALOGUE.items():
+    for appliance, (_, parts, problems) in CATALOG.items():
         shared = [n for n, *_ in parts if sum(n in p[2] for p in problems.values()) >= 2]
         for i in range(FAMILIES_PER_TYPE):
             fam = f"{FAMILY_PREFIX[appliance]}-{(i + 1) * 10 + 200}"
@@ -255,7 +257,7 @@ def build(conn, seed=SEED):
         day = rng.randrange(DAYS)
         date = START + dt.timedelta(days=day)
         appliance = _season_pick(rng, date.month)
-        openers, _, problems = CATALOGUE[appliance]
+        openers, _, problems = CATALOG[appliance]
         fam = _family_pick(rng, families, appliance, day)
         true_code = rng.choice(list(problems))
         noise, booked_code = "none", true_code
@@ -264,7 +266,7 @@ def build(conn, seed=SEED):
         weights = problems[true_code][2]
         if rng.random() < RANDOM_FAILURE:
             noise = "random"
-            weights = {n: 1 for n, *_ in CATALOGUE[appliance][1]}
+            weights = {n: 1 for n, *_ in CATALOG[appliance][1]}
         needed = pick_parts(rng, weights, families[fam][1])
         phrasings = VAGUE if rng.random() < VAGUE_WORDS else problems[booked_code][1]
         words = customer_words(rng, appliance, openers, phrasings)
@@ -291,7 +293,7 @@ def _schema_path():
 def _season_pick(rng, month):
     """Furnace calls triple in winter and nearly vanish in summer; everything else is steady."""
     furnace = 3.0 if month in (11, 12, 1, 2) else 0.3 if month in (6, 7, 8) else 1.0
-    types = list(CATALOGUE)
+    types = list(CATALOG)
     return rng.choices(types, [furnace if t == "furnace" else 1.0 for t in types])[0]
 
 
@@ -309,7 +311,7 @@ def _build_techs(conn, rng):
         tech = f"T{i:02d}"
         level = rng.choices(list(levels), [25, 45, 30])[0]
         profile = "specialist" if rng.random() < 0.4 else "generalist"
-        types = rng.sample(list(CATALOGUE), rng.choice([2, 3])) if profile == "specialist" else list(CATALOGUE)
+        types = rng.sample(list(CATALOG), rng.choice([2, 3])) if profile == "specialist" else list(CATALOG)
         certified = int(level == "senior" or (level == "mid" and rng.random() < 0.5))
         base_rate, base_speed = levels[level]
         skills = {}
@@ -320,7 +322,7 @@ def _build_techs(conn, rng):
         stock, space = {}, 0
         # Today's policy: fill the truck to STOCK_FILL with each type's most-used parts, one rank at a time.
         for _, t, name in sorted((rank, t, n) for t in types for rank, n in enumerate(national_top[t])):
-            size = next(sz for n, _, sz, _ in CATALOGUE[t][1] if n == name)
+            size = next(sz for n, _, sz, _ in CATALOG[t][1] if n == name)
             if (_locked(t, name) and not certified) or space + size > STOCK_FILL * CAPACITY:
                 continue
             stock[part_id(t, name)] = 1
@@ -337,7 +339,7 @@ def _build_techs(conn, rng):
 def _national_top_parts():
     """Every part of each appliance type, most used first: the ranking today's stocking policy follows."""
     top = {}
-    for appliance, (_, parts, problems) in CATALOGUE.items():
+    for appliance, (_, parts, problems) in CATALOG.items():
         totals = {n: 0.0 for n, *_ in parts}       # a part no problem names still fails at random, so it ranks last
         for _, _, weights in problems.values():
             share = sum(weights.values())
@@ -348,7 +350,7 @@ def _national_top_parts():
 
 
 def _locked(appliance, name):
-    return any(n == name and lk for n, _, _, lk in CATALOGUE[appliance][1])
+    return any(n == name and lk for n, _, _, lk in CATALOG[appliance][1])
 
 
 def _history_tech(rng, techs, appliance, zone):
@@ -371,7 +373,7 @@ def _build_centers(conn, rng):
     goes on back-order: no center can ship it from the day that starts until the day it ships."""
     conn.executemany("INSERT INTO centers VALUES (?,?)", [("North center", 1), ("South center", 10)])
     rows = []
-    for appliance, (_, parts, _) in CATALOGUE.items():
+    for appliance, (_, parts, _) in CATALOG.items():
         for n, *_ in parts:
             day = DAYS - TEST_DAYS - BACKORDER_DAYS[1]    # early enough that some are under way on the first held-back day
             while day < DAYS:

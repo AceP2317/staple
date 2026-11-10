@@ -77,47 +77,47 @@
     ],
     "question": "Since yesterday, what is the main problem with the dishwasher?"
    },
-   "My dishwasher is broken and making a strange noise": {
+   "My dishwasher is broken and needs someone to look at it": {
     "answers": [
      {
       "code": "LEAK",
-      "text": "Water is leaking"
-     },
-     {
-      "code": "NO_DRAIN",
-      "text": "Water stays in the tub"
+      "text": "Water is leaking onto the floor"
      },
      {
       "code": "NOT_CLEANING",
-      "text": "Dishes are still dirty"
+      "text": "Dishes come out still dirty"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "Water stays in the tub after a cycle"
      },
      {
       "code": "NO_START",
-      "text": "Nothing happens when I press start"
+      "text": "It won't turn on at all"
      }
     ],
-    "question": "Besides the noise, what else do you notice about the dishwasher?"
+    "question": "What is the dishwasher doing wrong?"
    },
-   "My dishwasher is broken and making a strange noise since yesterday": {
+   "My dishwasher is broken and needs someone to look at it since yesterday": {
     "answers": [
      {
       "code": "LEAK",
-      "text": "Water is leaking"
-     },
-     {
-      "code": "NO_DRAIN",
-      "text": "Water stays in the tub"
+      "text": "Water is leaking onto the floor"
      },
      {
       "code": "NOT_CLEANING",
-      "text": "Dishes are still dirty"
+      "text": "Dishes come out still dirty"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "Water stays in the tub after a cycle"
      },
      {
       "code": "NO_START",
-      "text": "Nothing happens when I press start"
+      "text": "It won't turn on at all"
      }
     ],
-    "question": "Since yesterday, besides the noise, what else do you notice?"
+    "question": "Since yesterday, what is the dishwasher doing wrong?"
    },
    "My dishwasher stopped working properly": {
     "answers": [
@@ -237,47 +237,47 @@
     ],
     "question": "Since yesterday, what is the main problem with the dishwasher?"
    },
-   "The dishwasher is broken and making a strange noise": {
+   "The dishwasher is broken and needs someone to look at it": {
     "answers": [
      {
       "code": "LEAK",
-      "text": "Water is leaking"
-     },
-     {
-      "code": "NO_DRAIN",
-      "text": "Water stays in the tub"
+      "text": "Water is leaking onto the floor"
      },
      {
       "code": "NOT_CLEANING",
-      "text": "Dishes are still dirty"
+      "text": "Dishes come out still dirty"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "Water stays in the tub after a cycle"
      },
      {
       "code": "NO_START",
-      "text": "Nothing happens when I press start"
+      "text": "It won't turn on at all"
      }
     ],
-    "question": "Besides the noise, what else do you notice about the dishwasher?"
+    "question": "What is the dishwasher doing wrong?"
    },
-   "The dishwasher is broken and making a strange noise since yesterday": {
+   "The dishwasher is broken and needs someone to look at it since yesterday": {
     "answers": [
      {
       "code": "LEAK",
-      "text": "Water is leaking"
-     },
-     {
-      "code": "NO_DRAIN",
-      "text": "Water stays in the tub"
+      "text": "Water is leaking onto the floor"
      },
      {
       "code": "NOT_CLEANING",
-      "text": "Dishes are still dirty"
+      "text": "Dishes come out still dirty"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "Water stays in the tub after a cycle"
      },
      {
       "code": "NO_START",
-      "text": "Nothing happens when I press start"
+      "text": "It won't turn on at all"
      }
     ],
-    "question": "Since yesterday, besides the noise, what else do you notice?"
+    "question": "Since yesterday, what is the dishwasher doing wrong?"
    },
    "The dishwasher stopped working properly": {
     "answers": [
@@ -365,6 +365,44 @@
     ],
     "question": "What exactly is the dryer doing wrong?"
    },
+   "My dryer is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Won't turn on at all"
+     },
+     {
+      "code": "NO_TUMBLE",
+      "text": "Drum doesn't spin"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Clothes aren't getting warm"
+     },
+     {
+      "code": "NOISE",
+      "text": "Making a loud noise"
+     }
+    ],
+    "question": "What is the dryer doing when it's broken?"
+   },
+   "My dryer is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Won't start"
+     },
+     {
+      "code": "SLOW_DRY",
+      "text": "Clothes take far too long to dry"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Clothes are cold after a cycle"
+     }
+    ],
+    "question": "What symptom has your dryer been showing since yesterday?"
+   },
    "My dryer stopped working properly": {
     "answers": [
      {
@@ -449,6 +487,44 @@
     ],
     "question": "What exactly is the dryer doing wrong?"
    },
+   "The clothes dryer is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "NO_TUMBLE",
+      "text": "Drum isn't turning"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging or grinding"
+     },
+     {
+      "code": "SLOW_DRY",
+      "text": "Clothes come out damp"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "No heat when running"
+     }
+    ],
+    "question": "Which problem best describes your clothes dryer?"
+   },
+   "The clothes dryer is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "It won't power on"
+     },
+     {
+      "code": "NO_TUMBLE",
+      "text": "The drum is stuck"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "It runs but stays cool"
+     }
+    ],
+    "question": "What is the main issue with the clothes dryer since yesterday?"
+   },
    "The clothes dryer stopped working properly": {
     "answers": [
      {
@@ -493,6 +569,48 @@
    }
   },
   "furnace": {
+   "My furnace does nothing when the thermostat calls for heat": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Nothing at all, no sound or lights"
+     },
+     {
+      "code": "BLOWER_ONLY",
+      "text": "Fan blows but the air is not warm"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat comes on, then shuts off quickly"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging or squealing noises"
+     }
+    ],
+    "question": "What happens when the thermostat calls for heat?"
+   },
+   "My furnace does nothing when the thermostat calls for heat since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Nothing at all, no sound or lights"
+     },
+     {
+      "code": "BLOWER_ONLY",
+      "text": "Fan blows but the air is not warm"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat comes on, then shuts off quickly"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging or squealing noises"
+     }
+    ],
+    "question": "What happens when the thermostat calls for heat since yesterday?"
+   },
    "My furnace is acting up and not working right": {
     "answers": [
      {
@@ -534,6 +652,48 @@
      }
     ],
     "question": "What is the furnace doing wrong right now?"
+   },
+   "My furnace is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Furnace won't turn on at all"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Fan runs but the house stays cold"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging, squealing, or rattling"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat turns on and off repeatedly"
+     }
+    ],
+    "question": "What symptom are you noticing with your furnace?"
+   },
+   "My furnace is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Furnace won't turn on at all"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Fan runs but the house stays cold"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging, squealing, or rattling"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat turns on and off repeatedly"
+     }
+    ],
+    "question": "What symptom are you noticing with your furnace since yesterday?"
    },
    "My furnace starts then stops": {
     "answers": [
@@ -611,6 +771,48 @@
     ],
     "question": "What is the furnace doing wrong right now?"
    },
+   "The heating system does nothing when the thermostat calls for heat": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Nothing at all, no sound or lights"
+     },
+     {
+      "code": "BLOWER_ONLY",
+      "text": "Fan blows but the air is not warm"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat comes on, then shuts off quickly"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging or squealing noises"
+     }
+    ],
+    "question": "What happens when the thermostat calls for heat?"
+   },
+   "The heating system does nothing when the thermostat calls for heat since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Nothing at all, no sound or lights"
+     },
+     {
+      "code": "BLOWER_ONLY",
+      "text": "Fan blows but the air is not warm"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat comes on, then shuts off quickly"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging or squealing noises"
+     }
+    ],
+    "question": "What happens when the thermostat calls for heat since yesterday?"
+   },
    "The heating system is acting up and not working right": {
     "answers": [
      {
@@ -652,6 +854,48 @@
      }
     ],
     "question": "What is the heating system doing wrong right now?"
+   },
+   "The heating system is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Heating system won't turn on at all"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Fan runs but the house stays cold"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging, squealing, or rattling"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat turns on and off repeatedly"
+     }
+    ],
+    "question": "What symptom are you noticing with your heating system?"
+   },
+   "The heating system is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "NO_START",
+      "text": "Heating system won't turn on at all"
+     },
+     {
+      "code": "NO_HEAT",
+      "text": "Fan runs but the house stays cold"
+     },
+     {
+      "code": "NOISE",
+      "text": "Loud banging, squealing, or rattling"
+     },
+     {
+      "code": "SHORT_CYCLE",
+      "text": "Heat turns on and off repeatedly"
+     }
+    ],
+    "question": "What symptom are you noticing with your heating system since yesterday?"
    },
    "The heating system starts then stops": {
     "answers": [
@@ -731,209 +975,165 @@
    }
   },
   "range": {
-   "My oven bake doesn't work": {
+   "My stove is acting up and not working right": {
     "answers": [
      {
       "code": "BURNER_NO_LIGHT",
-      "text": "Burner won't light"
+      "text": "A burner won't light"
      },
      {
       "code": "OVEN_NO_HEAT",
-      "text": "Oven stays cold"
+      "text": "The oven isn't heating"
+     },
+     {
+      "code": "TEMP_WRONG",
+      "text": "The temperature is off"
      },
      {
       "code": "NO_POWER",
-      "text": "Display is dead"
+      "text": "Nothing turns on at all"
      }
     ],
-    "question": "When you select bake, what happens?"
+    "question": "What is going wrong with the stove?"
    },
-   "My oven bake doesn't work since yesterday": {
+   "My stove is acting up and not working right since yesterday": {
     "answers": [
      {
       "code": "BURNER_NO_LIGHT",
-      "text": "Burner won't light"
+      "text": "A burner won't light"
      },
      {
       "code": "OVEN_NO_HEAT",
-      "text": "Oven stays cold"
+      "text": "The oven isn't heating"
      },
      {
       "code": "TEMP_WRONG",
-      "text": "Food cooks at the wrong temperature"
+      "text": "The temperature is off"
+     },
+     {
+      "code": "NO_POWER",
+      "text": "Nothing turns on at all"
      }
     ],
-    "question": "Since yesterday, when you select bake, what happens?"
+    "question": "What is going wrong with the stove since yesterday?"
    },
-   "My oven is acting up and not working right": {
+   "My stove is broken and needs someone to look at it": {
     "answers": [
      {
-      "code": "OVEN_NO_HEAT",
-      "text": "Won't heat up"
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
      },
      {
-      "code": "TEMP_WRONG",
-      "text": "Temperature is off"
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
      },
      {
       "code": "DOOR",
-      "text": "Door won't close or open"
-     }
-    ],
-    "question": "What exactly is the oven doing wrong?"
-   },
-   "My oven is acting up and not working right since yesterday": {
-    "answers": [
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Won't heat up"
+      "text": "The oven door won't close properly"
      },
      {
-      "code": "TEMP_WRONG",
-      "text": "Temperature is off"
+      "code": "NO_POWER",
+      "text": "Nothing turns on at all"
+     }
+    ],
+    "question": "What symptom is the stove showing?"
+   },
+   "My stove is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
+     },
+     {
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
      },
      {
       "code": "DOOR",
-      "text": "Door won't close or open"
+      "text": "The oven door won't close properly"
+     },
+     {
+      "code": "NO_POWER",
+      "text": "Nothing turns on at all"
      }
     ],
-    "question": "Since yesterday, what exactly is the oven doing wrong?"
+    "question": "What symptom has the stove shown since yesterday?"
    },
-   "My oven is broken and making a strange noise": {
+   "My stove stopped working properly": {
     "answers": [
+     {
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
+     },
+     {
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
+     },
+     {
+      "code": "TEMP_WRONG",
+      "text": "The temperature is off"
+     },
+     {
+      "code": "NO_POWER",
+      "text": "Nothing turns on at all"
+     }
+    ],
+    "question": "How has the stove stopped working properly?"
+   },
+   "My stove stopped working properly since yesterday": {
+    "answers": [
+     {
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
+     },
+     {
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
+     },
+     {
+      "code": "TEMP_WRONG",
+      "text": "The temperature is off"
+     },
+     {
+      "code": "NO_POWER",
+      "text": "Nothing turns on at all"
+     }
+    ],
+    "question": "How has the stove stopped working properly since yesterday?"
+   },
+   "My stove takes forever to bake": {
+    "answers": [
+     {
+      "code": "OVEN_NO_HEAT",
+      "text": "It doesn't heat up at all"
+     },
+     {
+      "code": "TEMP_WRONG",
+      "text": "It heats, but the temperature is off"
+     },
      {
       "code": "DOOR",
-      "text": "Near the door"
-     },
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Under the burners"
-     },
-     {
-      "code": "NO_POWER",
-      "text": "The unit won't turn on at all"
+      "text": "The oven door won't close properly"
      }
     ],
-    "question": "Where is the strange noise coming from?"
+    "question": "Does the oven heat up but cook at the wrong temperature?"
    },
-   "My oven is broken and making a strange noise since yesterday": {
+   "My stove takes forever to bake since yesterday": {
     "answers": [
+     {
+      "code": "OVEN_NO_HEAT",
+      "text": "It doesn't heat up at all"
+     },
+     {
+      "code": "TEMP_WRONG",
+      "text": "It heats, but the temperature is off"
+     },
      {
       "code": "DOOR",
-      "text": "Near the door"
-     },
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Under the burners"
-     },
-     {
-      "code": "NO_POWER",
-      "text": "The unit won't turn on at all"
+      "text": "The oven door won't close properly"
      }
     ],
-    "question": "Since yesterday, where is the strange noise coming from?"
-   },
-   "My oven stopped working properly": {
-    "answers": [
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Won't heat at all"
-     },
-     {
-      "code": "TEMP_WRONG",
-      "text": "Heats to the wrong temperature"
-     },
-     {
-      "code": "NO_POWER",
-      "text": "Completely dead, no power"
-     }
-    ],
-    "question": "How has the oven stopped working properly?"
-   },
-   "My oven stopped working properly since yesterday": {
-    "answers": [
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Won't heat at all"
-     },
-     {
-      "code": "TEMP_WRONG",
-      "text": "Heats to the wrong temperature"
-     },
-     {
-      "code": "NO_POWER",
-      "text": "Completely dead, no power"
-     }
-    ],
-    "question": "Since yesterday, how has the oven stopped working properly?"
-   },
-   "My oven takes forever to bake": {
-    "answers": [
-     {
-      "code": "TEMP_WRONG",
-      "text": "Heats up but very slowly"
-     },
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Barely heats at all"
-     },
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Burner takes ages to light"
-     }
-    ],
-    "question": "Does the oven heat up but cook slowly?"
-   },
-   "My oven takes forever to bake since yesterday": {
-    "answers": [
-     {
-      "code": "TEMP_WRONG",
-      "text": "Heats up but very slowly"
-     },
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Barely heats at all"
-     },
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Burner takes ages to light"
-     }
-    ],
-    "question": "Since yesterday, does the oven heat up but cook slowly?"
-   },
-   "The range bake doesn't work": {
-    "answers": [
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Burner won't light"
-     },
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Range stays cold"
-     },
-     {
-      "code": "NO_POWER",
-      "text": "Display is dead"
-     }
-    ],
-    "question": "When you select bake on the range, what happens?"
-   },
-   "The range bake doesn't work since yesterday": {
-    "answers": [
-     {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Burner won't light"
-     },
-     {
-      "code": "OVEN_NO_HEAT",
-      "text": "Range stays cold"
-     },
-     {
-      "code": "TEMP_WRONG",
-      "text": "Food cooks at the wrong temperature"
-     }
-    ],
-    "question": "Since yesterday, when you select bake on the range, what happens?"
+    "question": "Since yesterday, does the oven heat but at the wrong temperature?"
    },
    "The range is acting up and not working right": {
     "answers": [
@@ -969,39 +1169,47 @@
     ],
     "question": "Since yesterday, what exactly is the range doing wrong?"
    },
-   "The range is broken and making a strange noise": {
+   "The range is broken and needs someone to look at it": {
     "answers": [
      {
-      "code": "DOOR",
-      "text": "Near the door"
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
      },
      {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Under the burners"
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
+     },
+     {
+      "code": "DOOR",
+      "text": "The oven door won't close properly"
      },
      {
       "code": "NO_POWER",
-      "text": "The range won't turn on at all"
+      "text": "Nothing turns on at all"
      }
     ],
-    "question": "Where is the strange noise coming from on the range?"
+    "question": "What is wrong with the range?"
    },
-   "The range is broken and making a strange noise since yesterday": {
+   "The range is broken and needs someone to look at it since yesterday": {
     "answers": [
      {
-      "code": "DOOR",
-      "text": "Near the door"
+      "code": "BURNER_NO_LIGHT",
+      "text": "A burner won't light"
      },
      {
-      "code": "BURNER_NO_LIGHT",
-      "text": "Under the burners"
+      "code": "OVEN_NO_HEAT",
+      "text": "The oven isn't heating"
+     },
+     {
+      "code": "DOOR",
+      "text": "The oven door won't close properly"
      },
      {
       "code": "NO_POWER",
-      "text": "The range won't turn on at all"
+      "text": "Nothing turns on at all"
      }
     ],
-    "question": "Since yesterday, where is the strange noise coming from on the range?"
+    "question": "What has been wrong with the range since yesterday?"
    },
    "The range stopped working properly": {
     "answers": [
@@ -1115,6 +1323,48 @@
     ],
     "question": "What exactly is the fridge doing wrong since yesterday?"
    },
+   "My fridge is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "FF_WARM",
+      "text": "Fresh-food side is warm but freezer is cold"
+     },
+     {
+      "code": "NOT_COOLING",
+      "text": "Not cooling at all"
+     },
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE",
+      "text": "It makes a loud noise"
+     }
+    ],
+    "question": "What is the fridge doing that's wrong?"
+   },
+   "My fridge is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "FF_WARM",
+      "text": "Fresh-food side is warm but freezer is cold"
+     },
+     {
+      "code": "NOT_COOLING",
+      "text": "Not cooling at all"
+     },
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE",
+      "text": "It makes a loud noise"
+     }
+    ],
+    "question": "What is the fridge doing that's wrong?"
+   },
    "My fridge stopped working properly": {
     "answers": [
      {
@@ -1198,6 +1448,48 @@
      }
     ],
     "question": "What exactly is the refrigerator doing wrong since yesterday?"
+   },
+   "The refrigerator is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "FF_WARM",
+      "text": "Fresh-food side is warm but freezer is cold"
+     },
+     {
+      "code": "NOT_COOLING",
+      "text": "Not cooling at all"
+     },
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE",
+      "text": "It makes a loud noise"
+     }
+    ],
+    "question": "What is the refrigerator doing that's wrong?"
+   },
+   "The refrigerator is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "FF_WARM",
+      "text": "Fresh-food side is warm but freezer is cold"
+     },
+     {
+      "code": "NOT_COOLING",
+      "text": "Not cooling at all"
+     },
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE",
+      "text": "It makes a loud noise"
+     }
+    ],
+    "question": "What is the refrigerator doing that's wrong?"
    },
    "The refrigerator stopped working properly": {
     "answers": [
@@ -1285,6 +1577,48 @@
     ],
     "question": "What is the washer doing wrong?"
    },
+   "My washer is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE_SHAKE",
+      "text": "It is loud or shaking"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "It will not drain"
+     },
+     {
+      "code": "NO_START",
+      "text": "It will not start"
+     }
+    ],
+    "question": "What is the washer doing wrong?"
+   },
+   "My washer is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE_SHAKE",
+      "text": "It is loud or shaking"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "It will not drain"
+     },
+     {
+      "code": "NO_START",
+      "text": "It will not start"
+     }
+    ],
+    "question": "What is the washer doing wrong?"
+   },
    "My washer stopped working properly": {
     "answers": [
      {
@@ -1365,6 +1699,48 @@
      {
       "code": "NO_START",
       "text": "It will not start at all"
+     }
+    ],
+    "question": "What is the washing machine doing wrong?"
+   },
+   "The washing machine is broken and needs someone to look at it": {
+    "answers": [
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE_SHAKE",
+      "text": "It is loud or shaking"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "It will not drain"
+     },
+     {
+      "code": "NO_START",
+      "text": "It will not start"
+     }
+    ],
+    "question": "What is the washing machine doing wrong?"
+   },
+   "The washing machine is broken and needs someone to look at it since yesterday": {
+    "answers": [
+     {
+      "code": "LEAK",
+      "text": "Water is leaking out"
+     },
+     {
+      "code": "NOISE_SHAKE",
+      "text": "It is loud or shaking"
+     },
+     {
+      "code": "NO_DRAIN",
+      "text": "It will not drain"
+     },
+     {
+      "code": "NO_START",
+      "text": "It will not start"
      }
     ],
     "question": "What is the washing machine doing wrong?"

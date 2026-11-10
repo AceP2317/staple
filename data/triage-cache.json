@@ -1,14 +1,6 @@
 {
  "answers": {
   "dishwasher": {
-   "My dishwasher dishes come out dirty": {
-    "code": "NOT_CLEANING",
-    "confidence": 0.95
-   },
-   "My dishwasher dishes come out dirty since yesterday": {
-    "code": "NOT_CLEANING",
-    "confidence": 0.95
-   },
    "My dishwasher doesn't dry the dishes": {
     "code": "NO_DRY",
     "confidence": 0.95
@@ -16,22 +8,6 @@
    "My dishwasher doesn't dry the dishes since yesterday": {
     "code": "NO_DRY",
     "confidence": 0.95
-   },
-   "My dishwasher drying stopped working": {
-    "code": "NO_DRY",
-    "confidence": 0.9
-   },
-   "My dishwasher drying stopped working since yesterday": {
-    "code": "NO_DRY",
-    "confidence": 0.9
-   },
-   "My dishwasher everything comes out wet": {
-    "code": "NO_DRY",
-    "confidence": 0.85
-   },
-   "My dishwasher everything comes out wet since yesterday": {
-    "code": "NO_DRY",
-    "confidence": 0.85
    },
    "My dishwasher has no lights at all": {
     "code": "NO_START",
@@ -49,6 +25,14 @@
     "code": "NO_DRAIN",
     "confidence": 0.9
    },
+   "My dishwasher has stopped drying": {
+    "code": "NO_DRY",
+    "confidence": 0.95
+   },
+   "My dishwasher has stopped drying since yesterday": {
+    "code": "NO_DRY",
+    "confidence": 0.95
+   },
    "My dishwasher is acting up and not working right": {
     "code": "NO_START",
     "confidence": 0.2
@@ -57,13 +41,13 @@
     "code": "NO_START",
     "confidence": 0.2
    },
-   "My dishwasher is broken and making a strange noise": {
-    "code": "NO_DRAIN",
-    "confidence": 0.2
+   "My dishwasher is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "My dishwasher is broken and making a strange noise since yesterday": {
-    "code": "NO_DRAIN",
-    "confidence": 0.2
+   "My dishwasher is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "My dishwasher is leaking from the door": {
     "code": "LEAK",
@@ -105,6 +89,14 @@
     "code": "NO_DRAIN",
     "confidence": 0.75
    },
+   "My dishwasher leaves everything wet at the end": {
+    "code": "NO_DRY",
+    "confidence": 0.9
+   },
+   "My dishwasher leaves everything wet at the end since yesterday": {
+    "code": "NO_DRY",
+    "confidence": 0.9
+   },
    "My dishwasher leaves food on everything": {
     "code": "NOT_CLEANING",
     "confidence": 0.85
@@ -112,6 +104,14 @@
    "My dishwasher leaves food on everything since yesterday": {
     "code": "NOT_CLEANING",
     "confidence": 0.85
+   },
+   "My dishwasher runs, but the dishes come out dirty": {
+    "code": "NOT_CLEANING",
+    "confidence": 0.95
+   },
+   "My dishwasher runs, but the dishes come out dirty since yesterday": {
+    "code": "NOT_CLEANING",
+    "confidence": 0.95
    },
    "My dishwasher stopped working properly": {
     "code": "NO_START",
@@ -145,14 +145,6 @@
     "code": "NO_START",
     "confidence": 0.98
    },
-   "The dishwasher dishes come out dirty": {
-    "code": "NOT_CLEANING",
-    "confidence": 0.95
-   },
-   "The dishwasher dishes come out dirty since yesterday": {
-    "code": "NOT_CLEANING",
-    "confidence": 0.95
-   },
    "The dishwasher doesn't dry the dishes": {
     "code": "NO_DRY",
     "confidence": 0.95
@@ -160,22 +152,6 @@
    "The dishwasher doesn't dry the dishes since yesterday": {
     "code": "NO_DRY",
     "confidence": 0.95
-   },
-   "The dishwasher drying stopped working": {
-    "code": "NO_DRY",
-    "confidence": 0.9
-   },
-   "The dishwasher drying stopped working since yesterday": {
-    "code": "NO_DRY",
-    "confidence": 0.9
-   },
-   "The dishwasher everything comes out wet": {
-    "code": "NO_DRY",
-    "confidence": 0.85
-   },
-   "The dishwasher everything comes out wet since yesterday": {
-    "code": "NO_DRY",
-    "confidence": 0.85
    },
    "The dishwasher has no lights at all": {
     "code": "NO_START",
@@ -193,6 +169,14 @@
     "code": "NO_DRAIN",
     "confidence": 0.9
    },
+   "The dishwasher has stopped drying": {
+    "code": "NO_DRY",
+    "confidence": 0.95
+   },
+   "The dishwasher has stopped drying since yesterday": {
+    "code": "NO_DRY",
+    "confidence": 0.95
+   },
    "The dishwasher is acting up and not working right": {
     "code": "NO_START",
     "confidence": 0.2
@@ -201,13 +185,13 @@
     "code": "NO_START",
     "confidence": 0.2
    },
-   "The dishwasher is broken and making a strange noise": {
-    "code": "NO_DRAIN",
-    "confidence": 0.2
+   "The dishwasher is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "The dishwasher is broken and making a strange noise since yesterday": {
-    "code": "NO_DRAIN",
-    "confidence": 0.2
+   "The dishwasher is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "The dishwasher is leaking from the door": {
     "code": "LEAK",
@@ -249,6 +233,14 @@
     "code": "NO_DRAIN",
     "confidence": 0.75
    },
+   "The dishwasher leaves everything wet at the end": {
+    "code": "NO_DRY",
+    "confidence": 0.9
+   },
+   "The dishwasher leaves everything wet at the end since yesterday": {
+    "code": "NO_DRY",
+    "confidence": 0.9
+   },
    "The dishwasher leaves food on everything": {
     "code": "NOT_CLEANING",
     "confidence": 0.85
@@ -256,6 +248,14 @@
    "The dishwasher leaves food on everything since yesterday": {
     "code": "NOT_CLEANING",
     "confidence": 0.85
+   },
+   "The dishwasher runs, but the dishes come out dirty": {
+    "code": "NOT_CLEANING",
+    "confidence": 0.95
+   },
+   "The dishwasher runs, but the dishes come out dirty since yesterday": {
+    "code": "NOT_CLEANING",
+    "confidence": 0.95
    },
    "The dishwasher stopped working properly": {
     "code": "NO_START",
@@ -291,6 +291,14 @@
    }
   },
   "dryer": {
+   "My dryer has a drum that won't spin": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.95
+   },
+   "My dryer has a drum that won't spin since yesterday": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.95
+   },
    "My dryer hums but won't turn": {
     "code": "NO_TUMBLE",
     "confidence": 0.9
@@ -307,13 +315,13 @@
     "code": "NO_START",
     "confidence": 0.15
    },
-   "My dryer is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.7
+   "My dryer is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "My dryer is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.7
+   "My dryer is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "My dryer is completely dead": {
     "code": "NO_START",
@@ -347,14 +355,6 @@
     "code": "NOISE",
     "confidence": 0.9
    },
-   "My dryer motor runs, drum stays still": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
-   "My dryer motor runs, drum stays still since yesterday": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
    "My dryer runs but doesn't heat": {
     "code": "NO_HEAT",
     "confidence": 0.95
@@ -370,6 +370,14 @@
    "My dryer runs but the drum doesn't turn since yesterday": {
     "code": "NO_TUMBLE",
     "confidence": 0.95
+   },
+   "My dryer sounds like it runs, but the drum stays still": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.9
+   },
+   "My dryer sounds like it runs, but the drum stays still since yesterday": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.9
    },
    "My dryer squeals loudly": {
     "code": "NOISE",
@@ -403,14 +411,6 @@
     "code": "SLOW_DRY",
     "confidence": 0.9
    },
-   "My dryer the drum won't spin": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
-   "My dryer the drum won't spin since yesterday": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
    "My dryer tumbles but the clothes stay cold": {
     "code": "NO_HEAT",
     "confidence": 0.95
@@ -435,6 +435,14 @@
     "code": "NO_START",
     "confidence": 0.95
    },
+   "The clothes dryer has a drum that won't spin": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.95
+   },
+   "The clothes dryer has a drum that won't spin since yesterday": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.95
+   },
    "The clothes dryer hums but won't turn": {
     "code": "NO_TUMBLE",
     "confidence": 0.9
@@ -451,13 +459,13 @@
     "code": "NO_START",
     "confidence": 0.15
    },
-   "The clothes dryer is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.7
+   "The clothes dryer is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "The clothes dryer is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.7
+   "The clothes dryer is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "The clothes dryer is completely dead": {
     "code": "NO_START",
@@ -491,14 +499,6 @@
     "code": "NOISE",
     "confidence": 0.9
    },
-   "The clothes dryer motor runs, drum stays still": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
-   "The clothes dryer motor runs, drum stays still since yesterday": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
    "The clothes dryer runs but doesn't heat": {
     "code": "NO_HEAT",
     "confidence": 0.95
@@ -514,6 +514,14 @@
    "The clothes dryer runs but the drum doesn't turn since yesterday": {
     "code": "NO_TUMBLE",
     "confidence": 0.95
+   },
+   "The clothes dryer sounds like it runs, but the drum stays still": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.9
+   },
+   "The clothes dryer sounds like it runs, but the drum stays still since yesterday": {
+    "code": "NO_TUMBLE",
+    "confidence": 0.9
    },
    "The clothes dryer squeals loudly": {
     "code": "NOISE",
@@ -546,14 +554,6 @@
    "The clothes dryer takes two cycles to dry since yesterday": {
     "code": "SLOW_DRY",
     "confidence": 0.9
-   },
-   "The clothes dryer the drum won't spin": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
-   },
-   "The clothes dryer the drum won't spin since yesterday": {
-    "code": "NO_TUMBLE",
-    "confidence": 0.95
    },
    "The clothes dryer tumbles but the clothes stay cold": {
     "code": "NO_HEAT",
@@ -597,6 +597,14 @@
     "code": "NO_HEAT",
     "confidence": 0.8
    },
+   "My furnace does nothing when the thermostat calls for heat": {
+    "code": "NO_START",
+    "confidence": 0.6
+   },
+   "My furnace does nothing when the thermostat calls for heat since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.6
+   },
    "My furnace fan won't come on": {
     "code": "BLOWER_ONLY",
     "confidence": 0.8
@@ -604,6 +612,14 @@
    "My furnace fan won't come on since yesterday": {
     "code": "BLOWER_ONLY",
     "confidence": 0.8
+   },
+   "My furnace has no air coming out of the vents": {
+    "code": "BLOWER_ONLY",
+    "confidence": 0.7
+   },
+   "My furnace has no air coming out of the vents since yesterday": {
+    "code": "BLOWER_ONLY",
+    "confidence": 0.7
    },
    "My furnace is acting up and not working right": {
     "code": "NO_HEAT",
@@ -613,13 +629,13 @@
     "code": "NO_HEAT",
     "confidence": 0.2
    },
-   "My furnace is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.8
+   "My furnace is broken and needs someone to look at it": {
+    "code": "NO_HEAT",
+    "confidence": 0.2
    },
-   "My furnace is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.8
+   "My furnace is broken and needs someone to look at it since yesterday": {
+    "code": "NO_HEAT",
+    "confidence": 0.2
    },
    "My furnace is making a loud humming noise": {
     "code": "NOISE",
@@ -645,6 +661,14 @@
     "code": "NO_HEAT",
     "confidence": 0.95
    },
+   "My furnace isn't warming the house up": {
+    "code": "NO_HEAT",
+    "confidence": 0.9
+   },
+   "My furnace isn't warming the house up since yesterday": {
+    "code": "NO_HEAT",
+    "confidence": 0.9
+   },
    "My furnace keeps shutting off": {
     "code": "SHORT_CYCLE",
     "confidence": 0.8
@@ -652,14 +676,6 @@
    "My furnace keeps shutting off since yesterday": {
     "code": "SHORT_CYCLE",
     "confidence": 0.8
-   },
-   "My furnace no air coming out of the vents": {
-    "code": "BLOWER_ONLY",
-    "confidence": 0.7
-   },
-   "My furnace no air coming out of the vents since yesterday": {
-    "code": "BLOWER_ONLY",
-    "confidence": 0.7
    },
    "My furnace rattles when it starts": {
     "code": "NOISE",
@@ -693,22 +709,6 @@
     "code": "NO_HEAT",
     "confidence": 0.2
    },
-   "My furnace the house won't warm up": {
-    "code": "NO_HEAT",
-    "confidence": 0.9
-   },
-   "My furnace the house won't warm up since yesterday": {
-    "code": "NO_HEAT",
-    "confidence": 0.9
-   },
-   "My furnace the thermostat calls but nothing happens": {
-    "code": "NO_START",
-    "confidence": 0.85
-   },
-   "My furnace the thermostat calls but nothing happens since yesterday": {
-    "code": "NO_START",
-    "confidence": 0.85
-   },
    "My furnace turns on and off every few minutes": {
     "code": "SHORT_CYCLE",
     "confidence": 0.9
@@ -741,6 +741,14 @@
     "code": "NO_HEAT",
     "confidence": 0.8
    },
+   "The heating system does nothing when the thermostat calls for heat": {
+    "code": "NO_START",
+    "confidence": 0.6
+   },
+   "The heating system does nothing when the thermostat calls for heat since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.6
+   },
    "The heating system fan won't come on": {
     "code": "BLOWER_ONLY",
     "confidence": 0.8
@@ -748,6 +756,14 @@
    "The heating system fan won't come on since yesterday": {
     "code": "BLOWER_ONLY",
     "confidence": 0.8
+   },
+   "The heating system has no air coming out of the vents": {
+    "code": "BLOWER_ONLY",
+    "confidence": 0.7
+   },
+   "The heating system has no air coming out of the vents since yesterday": {
+    "code": "BLOWER_ONLY",
+    "confidence": 0.7
    },
    "The heating system is acting up and not working right": {
     "code": "NO_HEAT",
@@ -757,13 +773,13 @@
     "code": "NO_HEAT",
     "confidence": 0.2
    },
-   "The heating system is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.8
+   "The heating system is broken and needs someone to look at it": {
+    "code": "NO_HEAT",
+    "confidence": 0.2
    },
-   "The heating system is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.8
+   "The heating system is broken and needs someone to look at it since yesterday": {
+    "code": "NO_HEAT",
+    "confidence": 0.2
    },
    "The heating system is making a loud humming noise": {
     "code": "NOISE",
@@ -789,6 +805,14 @@
     "code": "NO_HEAT",
     "confidence": 0.95
    },
+   "The heating system isn't warming the house up": {
+    "code": "NO_HEAT",
+    "confidence": 0.9
+   },
+   "The heating system isn't warming the house up since yesterday": {
+    "code": "NO_HEAT",
+    "confidence": 0.9
+   },
    "The heating system keeps shutting off": {
     "code": "SHORT_CYCLE",
     "confidence": 0.8
@@ -796,14 +820,6 @@
    "The heating system keeps shutting off since yesterday": {
     "code": "SHORT_CYCLE",
     "confidence": 0.8
-   },
-   "The heating system no air coming out of the vents": {
-    "code": "BLOWER_ONLY",
-    "confidence": 0.7
-   },
-   "The heating system no air coming out of the vents since yesterday": {
-    "code": "BLOWER_ONLY",
-    "confidence": 0.7
    },
    "The heating system rattles when it starts": {
     "code": "NOISE",
@@ -837,22 +853,6 @@
     "code": "NO_HEAT",
     "confidence": 0.2
    },
-   "The heating system the house won't warm up": {
-    "code": "NO_HEAT",
-    "confidence": 0.9
-   },
-   "The heating system the house won't warm up since yesterday": {
-    "code": "NO_HEAT",
-    "confidence": 0.9
-   },
-   "The heating system the thermostat calls but nothing happens": {
-    "code": "NO_START",
-    "confidence": 0.85
-   },
-   "The heating system the thermostat calls but nothing happens since yesterday": {
-    "code": "NO_START",
-    "confidence": 0.85
-   },
    "The heating system turns on and off every few minutes": {
     "code": "SHORT_CYCLE",
     "confidence": 0.9
@@ -871,157 +871,149 @@
    }
   },
   "range": {
-   "My oven bake doesn't work": {
-    "code": "OVEN_NO_HEAT",
-    "confidence": 0.6
-   },
-   "My oven bake doesn't work since yesterday": {
-    "code": "OVEN_NO_HEAT",
-    "confidence": 0.6
-   },
-   "My oven burner won't light": {
+   "My stove burner won't light": {
     "code": "BURNER_NO_LIGHT",
-    "confidence": 0.85
+    "confidence": 0.95
    },
-   "My oven burner won't light since yesterday": {
+   "My stove burner won't light since yesterday": {
     "code": "BURNER_NO_LIGHT",
-    "confidence": 0.85
+    "confidence": 0.95
    },
-   "My oven burns everything, runs too hot": {
+   "My stove burns everything, runs too hot": {
     "code": "TEMP_WRONG",
-    "confidence": 0.9
+    "confidence": 0.85
    },
-   "My oven burns everything, runs too hot since yesterday": {
+   "My stove burns everything, runs too hot since yesterday": {
     "code": "TEMP_WRONG",
-    "confidence": 0.9
+    "confidence": 0.85
    },
-   "My oven display is blank": {
-    "code": "NO_POWER",
-    "confidence": 0.7
-   },
-   "My oven display is blank since yesterday": {
-    "code": "NO_POWER",
-    "confidence": 0.7
-   },
-   "My oven door hinge broke": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven door hinge broke since yesterday": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven door is hanging crooked": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven door is hanging crooked since yesterday": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven door won't close properly": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven door won't close properly since yesterday": {
-    "code": "DOOR",
-    "confidence": 0.95
-   },
-   "My oven is acting up and not working right": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven is acting up and not working right since yesterday": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven is broken and making a strange noise": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven is broken and making a strange noise since yesterday": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven is completely dead": {
+   "My stove display is blank": {
     "code": "NO_POWER",
     "confidence": 0.85
    },
-   "My oven is completely dead since yesterday": {
+   "My stove display is blank since yesterday": {
     "code": "NO_POWER",
     "confidence": 0.85
    },
-   "My oven keeps clicking but no flame": {
-    "code": "BURNER_NO_LIGHT",
-    "confidence": 0.9
+   "My stove door hinge broke": {
+    "code": "DOOR",
+    "confidence": 0.95
    },
-   "My oven keeps clicking but no flame since yesterday": {
-    "code": "BURNER_NO_LIGHT",
-    "confidence": 0.9
+   "My stove door hinge broke since yesterday": {
+    "code": "DOOR",
+    "confidence": 0.95
    },
-   "My oven nothing comes on": {
+   "My stove door is hanging crooked": {
+    "code": "DOOR",
+    "confidence": 0.95
+   },
+   "My stove door is hanging crooked since yesterday": {
+    "code": "DOOR",
+    "confidence": 0.95
+   },
+   "My stove door won't close properly": {
+    "code": "DOOR",
+    "confidence": 0.95
+   },
+   "My stove door won't close properly since yesterday": {
+    "code": "DOOR",
+    "confidence": 0.95
+   },
+   "My stove has nothing coming on at all": {
     "code": "NO_POWER",
     "confidence": 0.8
    },
-   "My oven nothing comes on since yesterday": {
+   "My stove has nothing coming on at all since yesterday": {
     "code": "NO_POWER",
     "confidence": 0.8
    },
-   "My oven oven stays cold": {
-    "code": "OVEN_NO_HEAT",
+   "My stove is acting up and not working right": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove is acting up and not working right since yesterday": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove is broken and needs someone to look at it": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove is broken and needs someone to look at it since yesterday": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove is completely dead": {
+    "code": "NO_POWER",
+    "confidence": 0.85
+   },
+   "My stove is completely dead since yesterday": {
+    "code": "NO_POWER",
+    "confidence": 0.85
+   },
+   "My stove keeps clicking but no flame": {
+    "code": "BURNER_NO_LIGHT",
     "confidence": 0.9
    },
-   "My oven oven stays cold since yesterday": {
-    "code": "OVEN_NO_HEAT",
+   "My stove keeps clicking but no flame since yesterday": {
+    "code": "BURNER_NO_LIGHT",
     "confidence": 0.9
    },
-   "My oven oven temperature is way off": {
-    "code": "TEMP_WRONG",
-    "confidence": 0.95
-   },
-   "My oven oven temperature is way off since yesterday": {
-    "code": "TEMP_WRONG",
-    "confidence": 0.95
-   },
-   "My oven oven won't heat up": {
+   "My stove oven stays cold": {
     "code": "OVEN_NO_HEAT",
     "confidence": 0.95
    },
-   "My oven oven won't heat up since yesterday": {
+   "My stove oven stays cold since yesterday": {
     "code": "OVEN_NO_HEAT",
     "confidence": 0.95
    },
-   "My oven stopped working properly": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven stopped working properly since yesterday": {
-    "code": "NO_POWER",
-    "confidence": 0.15
-   },
-   "My oven takes forever to bake": {
+   "My stove oven temperature is way off": {
     "code": "TEMP_WRONG",
-    "confidence": 0.55
+    "confidence": 0.95
    },
-   "My oven takes forever to bake since yesterday": {
+   "My stove oven temperature is way off since yesterday": {
     "code": "TEMP_WRONG",
-    "confidence": 0.55
+    "confidence": 0.95
    },
-   "My oven top burner is dead": {
+   "My stove oven won't heat up": {
+    "code": "OVEN_NO_HEAT",
+    "confidence": 0.95
+   },
+   "My stove oven won't heat up since yesterday": {
+    "code": "OVEN_NO_HEAT",
+    "confidence": 0.95
+   },
+   "My stove stopped working properly": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove stopped working properly since yesterday": {
+    "code": "NO_POWER",
+    "confidence": 0.1
+   },
+   "My stove takes forever to bake": {
+    "code": "TEMP_WRONG",
+    "confidence": 0.6
+   },
+   "My stove takes forever to bake since yesterday": {
+    "code": "TEMP_WRONG",
+    "confidence": 0.6
+   },
+   "My stove top burner is dead": {
     "code": "BURNER_NO_LIGHT",
     "confidence": 0.7
    },
-   "My oven top burner is dead since yesterday": {
+   "My stove top burner is dead since yesterday": {
     "code": "BURNER_NO_LIGHT",
     "confidence": 0.7
    },
-   "The range bake doesn't work": {
+   "My stove won't bake, the oven never gets hot": {
     "code": "OVEN_NO_HEAT",
-    "confidence": 0.6
+    "confidence": 0.95
    },
-   "The range bake doesn't work since yesterday": {
+   "My stove won't bake, the oven never gets hot since yesterday": {
     "code": "OVEN_NO_HEAT",
-    "confidence": 0.6
+    "confidence": 0.95
    },
    "The range burner won't light": {
     "code": "BURNER_NO_LIGHT",
@@ -1071,6 +1063,14 @@
     "code": "DOOR",
     "confidence": 0.95
    },
+   "The range has nothing coming on at all": {
+    "code": "NO_POWER",
+    "confidence": 0.8
+   },
+   "The range has nothing coming on at all since yesterday": {
+    "code": "NO_POWER",
+    "confidence": 0.8
+   },
    "The range is acting up and not working right": {
     "code": "NO_POWER",
     "confidence": 0.15
@@ -1079,13 +1079,13 @@
     "code": "NO_POWER",
     "confidence": 0.15
    },
-   "The range is broken and making a strange noise": {
+   "The range is broken and needs someone to look at it": {
     "code": "NO_POWER",
-    "confidence": 0.15
+    "confidence": 0.1
    },
-   "The range is broken and making a strange noise since yesterday": {
+   "The range is broken and needs someone to look at it since yesterday": {
     "code": "NO_POWER",
-    "confidence": 0.15
+    "confidence": 0.1
    },
    "The range is completely dead": {
     "code": "NO_POWER",
@@ -1102,14 +1102,6 @@
    "The range keeps clicking but no flame since yesterday": {
     "code": "BURNER_NO_LIGHT",
     "confidence": 0.9
-   },
-   "The range nothing comes on": {
-    "code": "NO_POWER",
-    "confidence": 0.8
-   },
-   "The range nothing comes on since yesterday": {
-    "code": "NO_POWER",
-    "confidence": 0.8
    },
    "The range oven stays cold": {
     "code": "OVEN_NO_HEAT",
@@ -1158,6 +1150,14 @@
    "The range top burner is dead since yesterday": {
     "code": "BURNER_NO_LIGHT",
     "confidence": 0.7
+   },
+   "The range won't bake, the oven never gets hot": {
+    "code": "OVEN_NO_HEAT",
+    "confidence": 0.95
+   },
+   "The range won't bake, the oven never gets hot since yesterday": {
+    "code": "OVEN_NO_HEAT",
+    "confidence": 0.95
    }
   },
   "refrigerator": {
@@ -1176,14 +1176,6 @@
    "My fridge freezer is covered in ice since yesterday": {
     "code": "FROST",
     "confidence": 0.8
-   },
-   "My fridge fridge section is getting warm": {
-    "code": "FF_WARM",
-    "confidence": 0.95
-   },
-   "My fridge fridge section is getting warm since yesterday": {
-    "code": "FF_WARM",
-    "confidence": 0.95
    },
    "My fridge has a puddle under it": {
     "code": "LEAK",
@@ -1233,13 +1225,21 @@
     "code": "NOT_COOLING",
     "confidence": 0.15
    },
-   "My fridge is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.85
+   "My fridge is broken and needs someone to look at it": {
+    "code": "NOT_COOLING",
+    "confidence": 0.1
    },
-   "My fridge is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.85
+   "My fridge is broken and needs someone to look at it since yesterday": {
+    "code": "NOT_COOLING",
+    "confidence": 0.1
+   },
+   "My fridge is getting warm inside, but the freezer still works": {
+    "code": "FF_WARM",
+    "confidence": 0.95
+   },
+   "My fridge is getting warm inside, but the freezer still works since yesterday": {
+    "code": "FF_WARM",
+    "confidence": 0.95
    },
    "My fridge is leaking water on the floor": {
     "code": "LEAK",
@@ -1345,14 +1345,6 @@
     "code": "FROST",
     "confidence": 0.8
    },
-   "The refrigerator fridge section is getting warm": {
-    "code": "FF_WARM",
-    "confidence": 0.95
-   },
-   "The refrigerator fridge section is getting warm since yesterday": {
-    "code": "FF_WARM",
-    "confidence": 0.95
-   },
    "The refrigerator has a puddle under it": {
     "code": "LEAK",
     "confidence": 0.95
@@ -1401,13 +1393,21 @@
     "code": "NOT_COOLING",
     "confidence": 0.15
    },
-   "The refrigerator is broken and making a strange noise": {
-    "code": "NOISE",
-    "confidence": 0.85
+   "The refrigerator is broken and needs someone to look at it": {
+    "code": "NOT_COOLING",
+    "confidence": 0.1
    },
-   "The refrigerator is broken and making a strange noise since yesterday": {
-    "code": "NOISE",
-    "confidence": 0.85
+   "The refrigerator is broken and needs someone to look at it since yesterday": {
+    "code": "NOT_COOLING",
+    "confidence": 0.1
+   },
+   "The refrigerator is getting warm inside, but the freezer still works": {
+    "code": "FF_WARM",
+    "confidence": 0.95
+   },
+   "The refrigerator is getting warm inside, but the freezer still works since yesterday": {
+    "code": "FF_WARM",
+    "confidence": 0.95
    },
    "The refrigerator is leaking water on the floor": {
     "code": "LEAK",
@@ -1539,13 +1539,13 @@
     "code": "NO_START",
     "confidence": 0.2
    },
-   "My washer is broken and making a strange noise": {
-    "code": "NOISE_SHAKE",
-    "confidence": 0.8
+   "My washer is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "My washer is broken and making a strange noise since yesterday": {
-    "code": "NOISE_SHAKE",
-    "confidence": 0.8
+   "My washer is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "My washer is dead, nothing happens": {
     "code": "NO_START",
@@ -1707,13 +1707,13 @@
     "code": "NO_START",
     "confidence": 0.2
    },
-   "The washing machine is broken and making a strange noise": {
-    "code": "NOISE_SHAKE",
-    "confidence": 0.8
+   "The washing machine is broken and needs someone to look at it": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
-   "The washing machine is broken and making a strange noise since yesterday": {
-    "code": "NOISE_SHAKE",
-    "confidence": 0.8
+   "The washing machine is broken and needs someone to look at it since yesterday": {
+    "code": "NO_START",
+    "confidence": 0.1
    },
    "The washing machine is dead, nothing happens": {
     "code": "NO_START",

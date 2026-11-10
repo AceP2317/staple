@@ -156,6 +156,9 @@ COLUMNS = {
     "method": "How the customer's words were read.", "agrees_booked_pct": "Readings that match the booked code.",
     "agrees_true_pct": "Readings that match the true problem, known only because the data is invented.",
     "coverage_pct": "Jobs whose every needed part is on the 3-part list built from the reading.",
+    "phrasings": "Distinct customer descriptions among these jobs. The invented customers say each problem a few ways.",
+    "stated_confidence": "The band of confidence Claude stated with its first reading, from its lower edge up to the next.",
+    "staple_then": f"What Staple does with a reading this sure: below {triage.BLEND_BELOW}, Claude asks its one question.",
     "day": "The held-back day this list is for.", "part": "The back-ordered part.",
     "ships_in_days": "Days from that day until a center can ship it.",
     "back_test": "1 on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows.",
@@ -184,6 +187,7 @@ CHECK_ABOUT = {
     "backorders": "The back-order list for every held-back day, held to the calendar. Each part must be listed on every day from a back-order's start to the day before it ships, with the days left falling by one a day, and on no other day. The forecast is scored once for each back-order that shipped inside the held-back days, and must sit within three Poisson spreads of what came. A count that does not fall, a day left out, a part still listed the day it ships, and a forecast three times too high must all fail.",
     "replay-clock": "The replay obeys the clock and the calendar. No call that came in during the day, and none moved by a breakdown, may start before that minute, read from the day's own events. No truck may take on a part no center can ship or send one back before it ships, and a part must be loaded again once it ships. A list read before 08:00 may name no call that has not come in, the buyer's list must be the back-order query's own rows for its day and count down a day at a time, and every technician with no booked calls must be named. Six planted faults must be refused.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
+    "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point, and the reason the report gives for that is measured: odds that know only the appliance must score within half a point of the shuffled ones, and the parts odds handed over for same-day calls alone must keep more than half the gain. No control may win by overbooking the day.",
@@ -252,7 +256,7 @@ WORDS_REST_ON = {"shuffled-history control": "falls back",
                  dispatch.SHUFFLED_SKILLS: "falls back",
                  dispatch.SHUFFLED_ODDS: "does not fall back",
                  "Claude answers shuffled (control)": "falls back",
-                 "Claude, asking when unsure, random replies (control)": "falls back"}
+                 triage.RANDOM_REPLIES: "falls back"}
 
 
 def kept(row):
@@ -917,10 +921,22 @@ def build_report(results, week, stamp_text, day):
                              f"{controls[name]['verdict']}: rewrite the card before publishing")
     held = [r for r in controls.values() if r["verdict"] != "falls back"]
     ai = {r["method"]: r for r in rows(results, "ai_step")}
-    claude, keywords = ai["Claude"], ai["keyword rules"]
+    claude, keywords = ai["Claude"], ai[triage.KEYWORDS]
+    bands = rows(results, "ai_calibration")
+    if not {r["staple_then"] for r in bands} <= {"runs on the code", "asks its question"}:
+        raise ValueError("the confidence query names a step the report's words do not know: rewrite the card")
+    surest, least = bands[0], bands[-1]
+    runs = [r for r in bands if r["staple_then"] == "runs on the code"]
+    spare = [r for r in bands if r not in runs and runs and r["agrees_booked_pct"] >= min(x["agrees_booked_pct"] for x in runs)]
+    cautious = "".join(f" Where it states {r['stated_confidence']} it matches on {pct(r['agrees_booked_pct'])} of "
+                       f"{r['jobs']:,} bookings, as often as the surer bands, and Staple still asks its question there."
+                       for r in spare)
+    if spare:
+        cautious += (f" Staple asks below {triage.BLEND_BELOW}, so that line is cautious on this data. It is a stated choice "
+                     "and it is not moved to fit, because it would then be tuned on the jobs it is scored on.")
+    said = f"{claude['phrasings']} distinct descriptions across {claude['jobs']:,} held-back bookings"
     shuffled_ai = next(r for m, r in ai.items() if m.startswith("Claude answers shuffled"))
-    asked = ai["Claude, asking when unsure"]
-    random_replies = next(r for m, r in ai.items() if m.startswith("Claude, asking when unsure, random"))
+    asked, random_replies = ai[triage.ASKED], ai[triage.RANDOM_REPLIES]
     booked = ai["booked code"]
     causes = rows(results, "parts_caused_reschedules")
     fill = {r["appliance"]: r for r in rows(results, "truck_fill_rate")}
@@ -956,10 +972,11 @@ def build_report(results, week, stamp_text, day):
              f"${bal['cost_a_truck_day']:.2f}.\nBalanced: {bal['parts_aboard']:.0f} parts aboard, {bal['permanent_parts']:.0f} "
              f"of them permanent, {bal['moves_a_night']} moved a night, ${bal['stock_value']:,.0f} of stock.\nFrom inventory_roi.sql."),
         tile("Customer's words read right", "booked code", pct(claude["agrees_booked_pct"]),
-             f"agreement with the booked code, against {pct(keywords['agrees_booked_pct'])} for keyword rules",
+             f"agreement with the booked code, against {pct(keywords['agrees_booked_pct'])} for a plain keyword matcher",
              f"{pct(claude['agrees_booked_pct'])} of {claude['jobs']:,} held-back bookings: Claude's code matches the booked code\n"
-             f"Keyword rules {pct(keywords['agrees_booked_pct'])}; Claude's answers shuffled (control) {pct(shuffled_ai['agrees_booked_pct'])}.\n"
-             f"Against the true problem: Claude {pct(claude['agrees_true_pct'])}, keyword rules {pct(keywords['agrees_true_pct'])}.\n"
+             f"Those bookings hold {said}, so this is a score over that many readings.\n"
+             f"A plain keyword matcher {pct(keywords['agrees_booked_pct'])}; Claude's answers shuffled (control) {pct(shuffled_ai['agrees_booked_pct'])}.\n"
+             f"Against the true problem: Claude {pct(claude['agrees_true_pct'])}, the keyword matcher {pct(keywords['agrees_true_pct'])}.\n"
              "From ai_step.sql.")])
 
     cause_bars = bars([(r["appliance"], r["parts_caused_per_100_jobs"], f"{r['parts_caused_per_100_jobs']:.1f} per 100 jobs",
@@ -995,8 +1012,14 @@ def build_report(results, week, stamp_text, day):
                      f"The 3-part list built from this reading covers {pct(r['coverage_pct'])} of {r['jobs']:,} jobs\n"
                      f"{pct(r['agrees_booked_pct'])} of bookings match the booked code; {pct(r['agrees_true_pct'])} match the true "
                      "problem, known only because the data is invented.",
-                     "lead" if r is asked else "control" if "control" in r["method"] else "")
-                    for r in (claude, asked, booked, keywords, shuffled_ai)])
+                     "lead" if r is claude else "control" if "control" in r["method"] else "")
+                    for r in (claude, asked, random_replies, booked, keywords, shuffled_ai)])
+    calibration_bars = bars([(f"stated {r['stated_confidence']}", r["agrees_booked_pct"],
+                              f"right {pct(r['agrees_booked_pct'])} · {r['staple_then']}",
+                              f"Claude said it was {r['stated_confidence']} sure: its code matched the booked code on "
+                              f"{pct(r['agrees_booked_pct'])}\n{r['jobs']:,} bookings in {r['phrasings']} distinct phrasings. "
+                              f"Against the true problem: {pct(r['agrees_true_pct'])}.\nAt this confidence Staple {r['staple_then']}.",
+                              "") for r in rows(results, "ai_calibration")])
 
     def stuck_tip(r):
         return (f"{pretty_day(r['day'])}, {r['part']}: ships in {plan.days(r['ships_in_days'])}\n"
@@ -1086,20 +1109,37 @@ def build_report(results, week, stamp_text, day):
             "sheet per truck like the one on the left."),
         card("ai_step", "Claude coding the bookings", join(
             f"{triage.MODEL_NAME} ({triage.MODEL}) reads the customer's own words and picks a problem code with a confidence. "
-            "Asking one question when it is unsure, its 3-part list covers ",
-            hv(pct(asked["coverage_pct"]), f"{pct(asked['coverage_pct'])} of jobs\nAgreeing with the booked code on {pct(asked['agrees_booked_pct'])}."),
+            "On that code alone its 3-part list covers ",
+            hv(pct(claude["coverage_pct"]), f"{pct(claude['coverage_pct'])} of jobs on Claude's code\nIts code matches the booked "
+               f"code on {pct(claude['agrees_booked_pct'])} of bookings."),
             " of jobs, against ", hv(pct(booked["coverage_pct"]), f"{pct(booked['coverage_pct'])} with the booked code\nThe code a "
                                      "call-taker picked, taken as given."), " for the booked code", q("booked code"), " and ",
-            hv(pct(keywords["coverage_pct"]), f"{pct(keywords['coverage_pct'])} for keyword rules\nThe code whose label shares the most "
-               "words with the customer's."), " for keyword rules. So Claude codes a booking about as well as a call-taker, and "
-            "far better than keyword rules. Random replies to its question drop it to ",
-            hv(pct(random_replies["coverage_pct"]), f"{pct(random_replies['coverage_pct'])} with random replies\nThe control: the "
-               "question only helps when the answer is real."),
-            ", and shuffling its answers between bookings to ",
+            hv(pct(keywords["coverage_pct"]), f"{pct(keywords['coverage_pct'])} for a plain keyword matcher\nThe code whose label "
+               "shares the most words with the customer's. It is a floor to beat, not a picture of any booking screen."),
+            " for a plain keyword matcher. These bookings describe their problems in only ",
+            hv(f"{claude['phrasings']} ways", f"{said}\nThe invented customers say each problem a few ways, so every score here "
+               "is a score over that many readings, weighted by how often each is said."),
+            ", so each figure is a score over that many readings and not over thousands of separate ones. When Claude is "
+            "unsure it asks one question. With a customer who always picks the matching answer, its list covers ",
+            hv(pct(asked["coverage_pct"]), f"{pct(asked['coverage_pct'])} with ideal replies\nAn upper bound: the customer here is "
+               "simulated and always picks the offered answer that matches the booking."),
+            ", an upper bound. With random replies, the control, it covers ",
+            hv(pct(random_replies["coverage_pct"]), f"{pct(random_replies['coverage_pct'])} with random replies\nThe control, and "
+               "the lower end: the question only helps when the answer is real."),
+            ". A real customer lands between the two. Shuffling Claude's answers between bookings drops its list to ",
             hv(pct(shuffled_ai["coverage_pct"]), f"{pct(shuffled_ai['coverage_pct'])} with shuffled answers\nThe control: the reading "
                "only helps when it belongs to the words."),
-            ". The answers are saved with the code, so these pages rebuild without a key."),
-            figure("ai_step", "Jobs whose every needed part is on the 3-part list, by how the words were read", ai_bars, results["ai_step"]),
+            ". The second chart holds Claude to the confidence it states. Where it states ", surest["stated_confidence"],
+            ", its first reading matches the booked code on ",
+            hv(pct(surest["agrees_booked_pct"]), f"{pct(surest['agrees_booked_pct'])} right at {surest['stated_confidence']}\n"
+               f"{surest['jobs']:,} bookings in {surest['phrasings']} distinct phrasings."),
+            " of bookings. Where it states ", least["stated_confidence"], ", on ",
+            hv(pct(least["agrees_booked_pct"]), f"{pct(least['agrees_booked_pct'])} right at {least['stated_confidence']}\n"
+               f"{least['jobs']:,} bookings in {least['phrasings']} distinct phrasings."),
+            "." + cautious + " The answers are saved with the code, so these pages rebuild without a key."),
+            figure("ai_step", "Jobs whose every needed part is on the 3-part list, by how the words were read", ai_bars, results["ai_step"])
+            + figure("ai_calibration", "How often Claude's first reading matches the booked code, by the confidence it stated",
+                     calibration_bars, results["ai_calibration"]),
             "let Claude code the bookings and ask its one question at the moment of booking, and keep a person on the few calls "
             "its question cannot settle."),
         card("backorder_exposure", "Back-orders to chase first", join(
@@ -1222,7 +1262,7 @@ def as_sent(template):
 
 def facts():
     """Every value the manuals quote, read from the code that uses it."""
-    cat, start = world.CATALOGUE, world.START
+    cat, start = world.CATALOG, world.START
     n_parts, n_problems = [len(cat[t][1]) for t in cat], [len(cat[t][2]) for t in cat]
     v = {"jobs": f"{world.JOBS:,}", "days": f"{world.DAYS:,}", "start": f"{start.day} {start:%b %Y}", "types": len(cat),
          "techs": world.TECHS, "test_days": world.TEST_DAYS, "seed": world.SEED, "families": world.FAMILIES_PER_TYPE,

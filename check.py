@@ -6,6 +6,7 @@ check can still fail: a check that never fails looks exactly like one that sees 
 import ast
 import atexit
 from collections import Counter, defaultdict
+import contextlib
 import datetime
 from html.parser import HTMLParser
 import io
@@ -262,8 +263,8 @@ def shared_week():
         from staple import plan, triage
         conn = shared_world()
         results_written(conn)    # the plan's buyer list reads the back-order query
-        _WORLD["followups"] = triage.load(conn)[1]
-        _WORLD["week"] = plan.build(conn)
+        answers, _WORLD["followups"] = triage.load(conn)
+        _WORLD["week"] = plan.build(conn, answers, _WORLD["followups"])
     return _WORLD["week"], _WORLD["followups"]
 
 
@@ -527,19 +528,23 @@ def backorders_check():
         require(not calibrated(actual, 3 * predicted), f"the {name} test cannot tell a forecast three times too high")
 
 
-def stand_in_api(reply):
-    """A local stand-in for the Claude API that records the request it gets and returns a canned reply."""
+@contextlib.contextmanager
+def stand_in_api(reply, status=200):
+    """A local stand-in for the Claude API, up for as long as its block runs. It records the requests it gets and
+    answers each with reply: a JSON value, raw text, or a function of the request's body that returns either."""
     import http.server
     import json
     import threading
-    seen = {}
+    seen = {"requests": 0}
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
             seen["headers"] = {k.lower(): v for k, v in self.headers.items()}
             seen["body"] = json.loads(self.rfile.read(int(self.headers["content-length"])))
-            data = json.dumps(reply).encode()
-            self.send_response(200)
+            seen["requests"] += 1
+            answer = reply(seen["body"]) if callable(reply) else reply
+            data = answer.encode() if isinstance(answer, str) else json.dumps(answer).encode()
+            self.send_response(status)
             self.send_header("content-type", "application/json")
             self.send_header("content-length", str(len(data)))
             self.end_headers()
@@ -549,8 +554,12 @@ def stand_in_api(reply):
             pass
 
     server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.handle_request, daemon=True).start()
-    return f"http://127.0.0.1:{server.server_port}/v1/messages", seen
+    threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}/v1/messages", seen
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 @check("triage")
@@ -573,15 +582,14 @@ def triage_check():
     jobs = backtest.test_jobs(conn)
     r = triage.run(conn, cache["answers"], asked["answers"])
     rows, (n_sure, sure), (n_unsure, unsure) = r["rows"], r["calibration"]["sure"], r["calibration"]["unsure"]
-    for name in ("booked code", "Claude", "Claude, top guess only", "Claude, asking when unsure",
-                 "Claude, asking when unsure, random replies (control)", "keyword rules", "no code",
-                 "Claude answers shuffled (control)"):
+    for name in ("booked code", "Claude", "Claude, top guess only", triage.ASKED, triage.RANDOM_REPLIES, triage.KEYWORDS,
+                 "no code", "Claude answers shuffled (control)"):
         row = rows[name]
         print(f"  {name}: agrees with the booked code {row['agree_booked']:.1%}, true problem "
               f"{row['agree_true']:.1%}, 3-part list covers {row['coverage']:.1%}")
-    claude, rules = rows["Claude"], rows["keyword rules"]
+    claude, rules = rows["Claude"], rows[triage.KEYWORDS]
     require(claude["agree_booked"] > rules["agree_booked"] + 0.10 and claude["coverage"] > rules["coverage"],
-            "Claude does not clearly beat the keyword rules")
+            "Claude does not clearly beat the keyword matcher")
     require(rows["Claude answers shuffled (control)"]["coverage"] <= rows["no code"]["coverage"] + 0.03,
             "shuffled answers still help: the coverage gain may not come from reading the words")
 
@@ -595,10 +603,10 @@ def triage_check():
             require(g["Claude"]["agree_booked"] >= 0.95, "Claude misreads words that do describe the problem")
     print(f"  confidence: {n_sure:,} sure answers {sure:.1%} right; {n_unsure:,} unsure answers {unsure:.1%} right")
     require(sure > unsure + 0.2, "Claude's confidence does not separate right answers from wrong ones")
-    gain = rows["Claude, asking when unsure"]["coverage"] - claude["coverage"]
-    noise = rows["Claude, asking when unsure, random replies (control)"]["coverage"] - claude["coverage"]
+    gain = rows[triage.ASKED]["coverage"] - claude["coverage"]
+    noise = rows[triage.RANDOM_REPLIES]["coverage"] - claude["coverage"]
     print(f"  follow-up asked on {r['asked']:,} bookings, the customer's problem offered on {r['settled']:,}; "
-          f"coverage {gain:+.1%} with honest replies, {noise:+.1%} with random ones")
+          f"coverage {gain:+.1%} with ideal replies, {noise:+.1%} with random ones")
     require(gain > 0 and gain > 2 * noise, "the follow-up question's gain does not come from the customer's reply")
     bad_followups = 0
     for bad in ('[{"i": 0, "question": "Leak?", "answers": [{"text": "yes", "code": "LEAK"}]}]',
@@ -613,18 +621,18 @@ def triage_check():
 
     problems = [("FF_WARM", "Fresh-food side warm"), ("LEAK", "Leaking water")]
     good = '[{"i": 0, "code": "LEAK", "confidence": 0.9}]'
-    url, seen = stand_in_api({"content": [{"type": "text", "text": good}], "stop_reason": "end_turn"})
-    got = triage.parse(triage.ask_api("a prompt", "test-key", url=url), problems, ["it drips"])
+    with stand_in_api({"content": [{"type": "text", "text": good}], "stop_reason": "end_turn"}) as (url, seen):
+        got = triage.parse(triage.ask_api("a prompt", "test-key", url=url), problems, ["it drips"])
     require(seen["headers"].get("x-api-key") == "test-key" and seen["headers"].get("anthropic-version") == triage.API_VERSION
             and seen["body"]["model"] == triage.MODEL and seen["body"]["output_config"] == {"effort": triage.EFFORT},
             "live mode does not send the documented request")
     require(got == {"it drips": {"code": "LEAK", "confidence": 0.9}}, "live mode misreads a reply")
     refused = False
-    url, _ = stand_in_api({"content": [], "stop_reason": "refusal", "stop_details": {"category": None}})
-    try:
-        triage.ask_api("a prompt", "test-key", url=url)
-    except RuntimeError:
-        refused = True
+    with stand_in_api({"content": [], "stop_reason": "refusal", "stop_details": {"category": None}}) as (url, _):
+        try:
+            triage.ask_api("a prompt", "test-key", url=url)
+        except triage.LiveError:
+            refused = True
     rejected = 0
     for bad in ('[{"i": 0, "code": "ICE", "confidence": 0.9}]', "[]", "no array here"):
         try:
@@ -1108,6 +1116,7 @@ def hand_tables(conn, stock_as_replayed=True):
     goes further: the return on today's trucks is counted again from the jobs and the stock. Pass
     stock_as_replayed=False where the stock was changed after the replay ran, and that recount is left out."""
     from datetime import date, timedelta
+    from staple import triage
 
     def pct(share):
         return None if share is None else to(100 * share, 1)
@@ -1207,11 +1216,12 @@ def hand_tables(conn, stock_as_replayed=True):
         "Claude answers shuffled (control)": control(
             "Claude reading the customer's words", list_covers, 1,
             *(read[m] for m in ("no code", "Claude", "Claude answers shuffled (control)"))),
-        "Claude, asking when unsure, random replies (control)": control(
+        triage.RANDOM_REPLIES: control(
             "Claude asking one question when unsure", list_covers, 1,
-            *(read[m] for m in ("Claude", "Claude, asking when unsure",
-                                "Claude, asking when unsure, random replies (control)"))),
+            *(read[m] for m in ("Claude", triage.ASKED, triage.RANDOM_REPLIES))),
     }
+    said = len(set(conn.execute("SELECT type, words FROM jobs WHERE split = 'test'").fetchall()))
+    sure_from = one(conn, "SELECT value FROM assumptions WHERE name = 'ai_confidence'")
     return {
         "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
         "parts_caused_reschedules": {
@@ -1229,9 +1239,16 @@ def hand_tables(conn, stock_as_replayed=True):
                 "leaked_pct": pct(cover.get(("predictor that has seen the held-back jobs (leak test)", k))),
                 "todays_trucks_pct": pct(cover.get(("today's trucks", 0)))} for k in {k for _, k in cover if k > 0}},
         "ai_step": {
-            method: {"jobs": n, "agrees_booked_pct": pct(booked), "agrees_true_pct": pct(true), "coverage_pct": pct(covered)}
+            method: {"jobs": n, "phrasings": said, "agrees_booked_pct": pct(booked), "agrees_true_pct": pct(true),
+                     "coverage_pct": pct(covered)}
             for method, n, booked, true, covered in
             conn.execute("SELECT method, jobs, agree_booked, agree_true, coverage FROM triage")},
+        "ai_calibration": {
+            f"{low:.2f} to {high:.2f}": {"phrasings": band_said, "jobs": n, "agrees_booked_pct": pct(booked),
+                                         "agrees_true_pct": pct(true),
+                                         "staple_then": "runs on the code" if low >= sure_from else "asks its question"}
+            for low, high, band_said, n, booked, true in
+            conn.execute("SELECT low, high, phrasings, jobs, agree_booked, agree_true FROM triage_calibration")},
         "dispatch_scorecard": {
             policy: {"calls": calls, "rolled": rolled, "first_visit_fix_pct": pct(fixes), "parts_missing_pct": pct(missing),
                      "drive_minutes": to(drive, 1), "moved": moved, "moved_fix_pct": pct(moved_fix),
@@ -1354,6 +1371,7 @@ def sql_metrics():
 
 # One wrong version of every metric query: the text to find, what replaces it, and what the wrong query then does.
 WRONG_QUERIES = {
+    "ai_calibration": ("c.low >= a.value", "c.low > a.value", "has Staple ask its question at the very confidence it runs on"),
     "ai_step": ("100.0 * agree_true", "100.0 * agree_booked",
                 "reports agreement with the booked code as agreement with the true problem"),
     "backorder_exposure": ("ROUND(at_risk, 0)", "ROUND(expected_stuck, 0)", "reports stuck calls as dollars at risk"),
@@ -1431,6 +1449,13 @@ def card_text(page, name):
     import html
     start = page.index(f'id="proof-{name}"')
     return html.unescape(page[start:page.index("</section>", start)])
+
+
+def changed(results, query, key, column, value):
+    """The query results with one column of one row changed, for a page built from a wrong figure."""
+    columns, rows = results[query]
+    at = columns.index(column)
+    return dict(results, **{query: (columns, [r[:at] + (value(r[at]),) + r[at + 1:] if r[0] == key else r for r in rows])})
 
 
 def figures_missing(page, results):
@@ -1549,17 +1574,12 @@ def controls_shown():
     require(not missing, f"the report does not carry the figures of: {missing}")
     require(abs(gap) <= 1.0, "the report calls the leak gap small, and it is now over a point: rewrite the card")
 
-    def changed(query, key, column, value):
-        columns, rows = results[query]
-        at = columns.index(column)
-        return dict(results, **{query: (columns, [r[:at] + (value(r[at]),) + r[at + 1:] if r[0] == key else r for r in rows])})
-
-    off_by_one = changed("inventory_roi", load.EQUAL_SPACE, "cost_a_truck_day", lambda v: v + 1)
+    off_by_one = changed(results, "inventory_roi", load.EQUAL_SPACE, "cost_a_truck_day", lambda v: v + 1)
     wrong_page = report.build_report(off_by_one, week, stamp_text, day)
     require(figures_missing(wrong_page, results) == ["the balanced truck held to today's space"],
             "control: a report whose equal-space cost is a dollar off was not caught, or the wrong card was blamed")
     odds = "Staple with shuffled-history parts odds (control)"
-    turned = changed("controls", odds, "verdict", lambda v: "falls back")
+    turned = changed(results, "controls", odds, "verdict", lambda v: "falls back")
     try:
         report.build_report(turned, week, stamp_text, day)
         stopped = False
@@ -1568,6 +1588,291 @@ def controls_shown():
     print(f"  control: a report with the equal-space cost a dollar off is refused, and a build whose query says the "
           f"parts-odds control falls back {'stops' if stopped else 'goes on'}")
     require(stopped, "control: the report was built though its words contradict the controls query")
+
+
+SECOND_SUBJECT = ("the", "a", "an", "my", "no", "nothing", "everything")    # words that open a new subject after "My dryer"
+NOW_CLAIMS = ("today" + "'s rules", "the way a booking " + "screen")       # split, so this file does not hold them itself
+
+
+def said_twice(sentence):
+    """True when a sentence says one word twice in a row, as "My oven oven won't heat up" does."""
+    words = re.findall(r"[a-z']+", sentence.lower())
+    return any(a == b for a, b in zip(words, words[1:]))
+
+
+def second_subjects(parts_list, vague):
+    """Phrasings that open a second subject after the opener, as "the drum won't spin" does after "My dryer"."""
+    return sorted(f"{appliance}: {p}" for appliance, (_, _, problems) in parts_list.items()
+                  for p in [p for _, said, _ in problems.values() for p in said] + list(vague)
+                  if p.lower().split()[0] in SECOND_SUBJECT)
+
+
+def sure_of_vague(answers, vague, line):
+    """Phrases the world files as saying nothing that Claude reads with confidence. A phrase read that surely says
+    something, so it was filed wrongly."""
+    return sorted(f"{a}: {words}" for a, table in answers.items() for words, x in table.items()
+                  if any(v in words for v in vague) and x["confidence"] >= line)
+
+
+def bands_recounted(jobs, answers, edges):
+    """The confidence bands counted again from the bookings: {lower edge: (phrasings, bookings, share matching the
+    booked code, share matching the true problem)}."""
+    found = {}
+    for j in jobs:
+        x = answers[j["type"]][j["words"]]
+        b = found.setdefault(max(edge for edge in edges if x["confidence"] >= edge), [set(), 0, 0, 0])
+        b[0].add((j["type"], j["words"]))
+        b[1] += 1
+        b[2] += x["code"] == j["problem"].split(".")[1]
+        b[3] += x["code"] == j["true"].split(".")[1]
+    return {low: (len(said), n, booked / n, true / n) for low, (said, n, booked, true) in found.items()}
+
+
+def overstated(bands):
+    """The bands in which the reading is right less often than the confidence it stated, surest first."""
+    return [low for low, (_, _, right, _) in sorted(bands.items(), reverse=True) if right < low]
+
+
+def card_words(page, name):
+    """One evidence card's words as a reader sees them, with no markup and no hover hints."""
+    import html
+    start = page.index(f'id="proof-{name}"')
+    return html.unescape(re.sub(r"<[^>]+>", "", page[start:page.index("</section>", start)]))
+
+
+def ai_card_faults(page, results, said):
+    """What the report's AI card fails to say: the count of distinct phrasings, that the score after the question is
+    an upper bound, and each confidence band with how often it was right."""
+    from staple import report, triage
+    ai = {r[0]: dict(zip(results["ai_step"][0], r)) for r in results["ai_step"][1]}
+    words, whole = card_words(page, "ai_step"), card_text(page, "ai_step")
+    faults = [] if f"in only {said} ways" in words else [f"the count of {said} distinct phrasings"]
+    if f"{report.pct(ai[triage.ASKED]['coverage_pct'])}, an upper bound" not in words:
+        faults.append("the score after the question called an upper bound")
+    for band in report.rows(results, "ai_calibration"):
+        if f"stated {band['stated_confidence']}" not in whole or f"right {report.pct(band['agrees_booked_pct'])}" not in whole:
+            faults.append(f"the band {band['stated_confidence']} with how often it was right")
+    return faults
+
+
+def matcher_claims(texts):
+    """Entries of {name: text} that present the keyword matcher as the way bookings are coded now."""
+    plain = lambda text: text.lower().replace("\u2019", "'").replace("&#x27;", "'").replace("&#39;", "'")
+    return sorted(f"{name}: '{claim}'" for name, text in texts.items() for claim in NOW_CLAIMS if claim in plain(text))
+
+
+def plan_feed_faults(source):
+    """How run.py could hand the week's plan other answers than the ones it scored: answers loaded more than once,
+    or a plan built from anything but the two names the one load filled."""
+    tree = ast.parse(source)
+
+    def calls(owner, name):
+        return [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == name and getattr(n.func.value, "id", None) == owner]
+
+    loads, builds = calls("triage", "load"), calls("plan", "build")
+    filled = [[getattr(t, "id", None) for t in a.targets[0].elts] for a in ast.walk(tree)
+              if isinstance(a, ast.Assign) and any(a.value is c for c in loads) and isinstance(a.targets[0], ast.Tuple)]
+    faults = [] if len(loads) == 1 else [f"the answers are loaded {len(loads)} times"]
+    fed = [[getattr(a, "id", None) for a in b.args[1:]] for b in builds]
+    if len(filled) != 1 or fed != filled:
+        faults.append("the week's plan is not built from the answers the run loaded")
+    return faults
+
+
+def stand_in_reader(body):
+    """The stand-in's own answers to one request, nothing like the saved ones: every description gets the last
+    problem code on the list, unsure when it says "acting up", and every question offers the first two codes."""
+    import json
+    from staple import triage
+    text = body["messages"][0]["content"]
+    codes = re.findall(r"^([A-Z0-9_]+): ", text, re.M)
+    said = re.findall(r"^(\d+)\. (.*)$", text, re.M)
+    if body["system"] == triage.FOLLOWUP_SYSTEM:
+        reply = [{"i": int(i), "question": "Which of these is it?",
+                  "answers": [{"text": c.lower(), "code": c} for c in codes[:2]]} for i, _ in said]
+    else:
+        reply = [{"i": int(i), "code": codes[-1], "confidence": 0.3 if "acting up" in words else 0.95} for i, words in said]
+    return {"content": [{"type": "text", "text": json.dumps(reply)}], "stop_reason": "end_turn"}
+
+
+def not_carried(week, answers):
+    """Calls in a week's plan whose first reading is not the one these answers hold for the customer's words."""
+    return [j["job"] for j in week["jobs"]
+            if (j["ai"]["first"], j["ai"]["first_confidence"]) != (answers[j["type"]][j["words"]]["code"],
+                                                                   answers[j["type"]][j["words"]]["confidence"])]
+
+
+@check("triage-honest")
+def triage_honest():
+    """The AI step says what it is: clean customer sentences, a stated sample, an upper bound called one, a
+    confidence held to what it states, and a live run that reaches the plan or stops in plain words."""
+    import random
+    from staple import backtest, metrics, plan, report, triage, world
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    answers, followups = triage.load(conn)
+    jobs = backtest.test_jobs(conn)
+
+    # The customer's sentences.
+    sentences = [words for _, words in conn.execute("SELECT DISTINCT type, words FROM jobs")]
+    twice, second = [s for s in sentences if said_twice(s)], second_subjects(world.CATALOG, world.VAGUE)
+    print(f"  {len(sentences)} distinct customer sentences: {len(twice)} say a word twice in a row, and {len(second)} "
+          f"phrasings open a second subject")
+    require(not twice and not second, f"a customer sentence does not read as one clause: {(twice + second)[:3]}")
+    old = {"range": (["My oven"], [], {"OVEN_NO_HEAT": ("Oven not heating", ["oven won't heat up"], {}),
+                                       "NO_POWER": ("No power", ["nothing comes on"], {})}),
+           "dryer": (["My dryer"], [], {"NO_TUMBLE": ("Drum not turning", ["the drum won't spin"], {})}),
+           "furnace": (["My furnace"], [], {"BLOWER_ONLY": ("Blower problem", ["no air coming out of the vents"], {})})}
+    require(said_twice("My oven oven won't heat up") and said_twice("My fridge fridge section is getting warm")
+            and len(second_subjects(old, [])) == 3, "control: the old phrasings pass the sentence rules")
+    print("  control: the old sentences are refused, two for a word said twice and three for a second subject")
+
+    line = triage.BLEND_BELOW
+    vague = [(a, w, x) for a, table in answers.items() for w, x in table.items() if any(v in w for v in world.VAGUE)]
+    sure = sure_of_vague(answers, world.VAGUE, line)
+    print(f"  {len(vague)} sentences use a phrase filed as saying nothing: Claude's confidence in them runs from "
+          f"{min(x['confidence'] for _, _, x in vague)} to {max(x['confidence'] for _, _, x in vague)}, against a line of {line}")
+    require(vague and not sure, f"a phrase filed as vague is read with confidence, so it says something: {sure[:3]}")
+    a, words, x = vague[0]
+    planted = dict(answers, **{a: dict(answers[a], **{words: dict(x, confidence=0.8)})})
+    require(sure_of_vague(planted, world.VAGUE, line) == [f"{a}: {words}"], "control: a vague phrase read at 0.8 was not caught")
+    print("  control: one of them read at 0.8, as the phrase about a strange noise was, is refused")
+
+    # The page: the sample, the upper bound and the confidence bands.
+    said = len({(j["type"], j["words"]) for j in jobs})
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    page = report.build_report(results, week, stamp_text, day)
+    faults = ai_card_faults(page, results, said)
+    print(f"  the report's AI card: {said} distinct phrasings behind {len(jobs):,} bookings, the score after the question "
+          f"called an upper bound, {len(results['ai_calibration'][1])} confidence bands; missing: {faults or 'nothing'}")
+    require(not faults, f"the report's AI card does not carry: {faults}")
+    require("upper bound" in triage.ASKED and "control" in triage.RANDOM_REPLIES,
+            "the rows for the follow-up question no longer say which is the upper bound and which the control")
+    top = results["ai_calibration"][1][0][0]
+    wrong = {"a count of phrasings one too high": report.build_report(
+                 changed(results, "ai_step", "Claude", "phrasings", lambda v: v + 1), week, stamp_text, day),
+             "the upper bound left unsaid": page.replace(", an upper bound", "", 1),
+             "a band's share changed": report.build_report(
+                 changed(results, "ai_calibration", top, "agrees_booked_pct", lambda v: v - 10), week, stamp_text, day)}
+    caught = {name: bool(ai_card_faults(p, results, said)) for name, p in wrong.items()}
+    print(f"  control: {sum(caught.values())} of {len(caught)} wrong AI cards refused")
+    require(all(caught.values()), f"control: a wrong AI card passed: {[n for n, c in caught.items() if not c]}")
+
+    # The confidence figure, counted again from the bookings and held to what Claude states.
+    table = {low: (n_said, n, booked, true) for low, n_said, n, booked, true in
+             conn.execute("SELECT low, phrasings, jobs, agree_booked, agree_true FROM triage_calibration")}
+    bands = bands_recounted(jobs, answers, triage.BANDS)
+    require(set(table) == set(bands) and all(table[low][:2] == bands[low][:2] and abs(table[low][2] - bands[low][2]) < 1e-9
+                                             and abs(table[low][3] - bands[low][3]) < 1e-9 for low in bands),
+            "the confidence table does not match a recount from the bookings")
+    require(sum(b[1] for b in bands.values()) == len(jobs) and sum(b[0] for b in bands.values()) == said,
+            "the confidence bands do not hold every booking and every phrasing once")
+    lowest = min(bands)
+    upper = {low: min([edge for edge in triage.BANDS if edge > low], default=1.0) for low in bands}
+    ceiling = upper[lowest]
+    for low in sorted(bands, reverse=True):
+        print(f"  stated {low:.2f} to {upper[low]:.2f}: {bands[low][1]:,} bookings in {bands[low][0]} phrasings, "
+              f"right {bands[low][2]:.1%}")
+    require(not overstated(bands), f"Claude is right less often than it states in the bands from {overstated(bands)}")
+    require(bands[lowest][2] < ceiling, "Claude is right in its least sure band as often as a sure reading, so its doubt tells nothing")
+    rng, dealt = random.Random(7), {}
+    for a, readings in answers.items():
+        values = list(readings.values())
+        rng.shuffle(values)
+        dealt[a] = dict(zip(readings, values))
+    broken = bands_recounted(jobs, dealt, triage.BANDS)
+    print(f"  control: with the answers shuffled between sentences, the surest band is right {broken[max(broken)][2]:.1%} "
+          f"and {len(overstated(broken))} of {len(broken)} bands overstate")
+    require(max(broken) in overstated(broken), "control: shuffled answers still pass the confidence test")
+
+    # No public words present the keyword matcher as how bookings are coded now.
+    texts = {}
+    for p in public_files():
+        if report.PUBLISHED not in p.parents:    # the published copy is held to a fresh build by the report check
+            try:
+                texts[p.relative_to(ROOT).as_posix()] = p.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, FileNotFoundError):
+                pass
+    texts.update({f"a fresh {report.FILES[kind]}": text for kind, text in report.build(results, week, stamp_text, day).items()})
+    claims = matcher_claims(texts)
+    print(f"  {len(texts)} public files and fresh pages: {len(claims)} present the keyword matcher as how bookings are coded now")
+    require(not claims, f"the keyword matcher is presented as how bookings are coded now: {claims[:3]}")
+    old_words = {"the old code note": NOW_CLAIMS[0].capitalize() + ": the code whose label shares the most words",
+                 "the old manual": f"It is compared with keyword rules, {NOW_CLAIMS[1]} matches words"}
+    require(len(matcher_claims(old_words)) == 2, "control: the old sentences about the matcher pass")
+    print("  control: the two old sentences that did are refused")
+
+    # A live run: its answers reach the week's plan, and each way it can fail stops in one plain sentence.
+    with stand_in_api(stand_in_reader) as (url, seen):
+        live, questions = triage.ask_live(conn, "test-key", url)
+    differ = sum(live[a][w] != answers[a][w] for a in live for w in live[a])
+    live_week = plan.build(conn, live, questions)
+    asked = sum(d["ai"]["asked"] for d in live_week["days"])
+    lost = not_carried(live_week, live)
+    print(f"  a live run against a local stand-in: {seen['requests']} requests, {differ} of {sum(len(t) for t in live.values())} "
+          f"answers unlike the saved ones; of the plan's {len(live_week['jobs']):,} calls, {len(lost)} run on another reading, "
+          f"and {asked} got the stand-in's question")
+    require(differ and not lost and asked, "the week's plan does not run on the answers a live run brought back")
+    require(not_carried(week, live), "control: a plan built from the saved answers passes as built from the live ones")
+    try:
+        plan.build(conn)
+        loads_own = True
+    except TypeError:
+        loads_own = False
+    source = (ROOT / "run.py").read_text(encoding="utf-8")
+    feed = plan_feed_faults(source)
+    require(not loads_own and not feed, f"the plan can still run on answers the run did not score: {feed or 'it loads its own'}")
+    twice_loaded = source.replace("plan.build(conn, answers, followups)", "plan.build(conn, *triage.load(conn))")
+    require(twice_loaded != source and len(plan_feed_faults(twice_loaded)) == 2,
+            "control: a run that loads the saved answers again for the plan passes")
+    print("  control: a plan built from the saved answers, and a run that loads them a second time, are refused; "
+          "the plan no longer loads answers of its own")
+
+    def stop(reply, status=200, down=False):
+        """The sentence a live run stops on when the API answers with reply, or None when it goes through."""
+        with stand_in_api(reply, status) as (url, _):
+            if not down:
+                try:
+                    triage.ask_live(conn, "test-key", url)
+                except SystemExit as halt:
+                    return str(halt.code)
+                return None
+        try:    # the stand-in is gone by now, so nothing answers at its address
+            triage.ask_live(conn, "test-key", url)
+        except SystemExit as halt:
+            return str(halt.code)
+        return None
+
+    text = lambda said, why="end_turn": {"content": [{"type": "text", "text": said}], "stop_reason": why}
+    stops = {"a rejected key": (stop({"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}, 401),
+                                "ANTHROPIC_API_KEY"),
+             "a reply that is not JSON": (stop("<html>Bad gateway</html>"), "not JSON"),
+             "a malformed answer": (stop(text("[]")), "agreed form"),
+             "a reply cut short": (stop(text("[", "max_tokens")), "cut off"),
+             "an API that cannot be reached": (stop(text("[]"), down=True), "could not be reached")}
+    for name, (halt, _) in stops.items():
+        print(f"  {name}: {halt}")
+    plain = {name: bool(halt) and halt.startswith("--live stopped: ") and "\n" not in halt and len(halt) < 300 and needle in halt
+             for name, (halt, needle) in stops.items()}
+    require(all(plain.values()), f"a failed live run does not stop on one plain sentence naming its cause: "
+                                 f"{[n for n, ok in plain.items() if not ok]}")
+    key = os.environ.pop("ANTHROPIC_API_KEY", None)    # taken out, never read: the run below must stop before any request
+    try:
+        triage.load(conn, live=True)
+        keyless = None
+    except SystemExit as halt:
+        keyless = str(halt.code)
+    finally:
+        if key is not None:
+            os.environ["ANTHROPIC_API_KEY"] = key
+    print(f"  with no key set: {keyless}")
+    require(keyless and "ANTHROPIC_API_KEY" in keyless, "a live run with no key does not say which key it needs")
+    require(stop(stand_in_reader) is None, "control: a live run with good replies also stops")
+    print(f"  control: {len(stops)} of {len(stops)} failures stop on one sentence, and good replies go through")
 
 
 class Hints(HTMLParser):

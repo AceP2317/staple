@@ -44,7 +44,7 @@ WITH tests (shown_order, control, gain_tested, measure, places, without_it, with
   SELECT 7, 'Claude, asking when unsure, random replies (control)', 'Claude asking one question when unsure',
          'jobs the 3-part list covers, %', 1,
          100.0 * MAX(CASE WHEN method = 'Claude' THEN coverage END),
-         100.0 * MAX(CASE WHEN method = 'Claude, asking when unsure' THEN coverage END),
+         100.0 * MAX(CASE WHEN method = 'Claude, asking when unsure, ideal replies (upper bound)' THEN coverage END),
          100.0 * MAX(CASE WHEN method = 'Claude, asking when unsure, random replies (control)' THEN coverage END)
   FROM triage
 ),

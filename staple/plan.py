@@ -277,10 +277,9 @@ def opens_on(d):
     return bool(gave & set(m["sick"])) and bool(gave & set(m["broken"]))
 
 
-def build(conn, answers=None, followups=None):
-    """The week, replayed under the Staple rule and the nearest-technician baseline, with every day shaped."""
-    if answers is None:
-        answers, followups = triage.load(conn)
+def build(conn, answers, followups):
+    """The week, replayed under the Staple rule and the nearest-technician baseline, with every day shaped. Claude's
+    answers and questions are handed in and never loaded here, so the plan runs on the answers the run scored."""
     raw, first = week_jobs(conn)
     jobs = recode(raw, answers, followups)
     seed = dispatch.SEED + first
