@@ -9,6 +9,7 @@ import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
+SHUFFLE_SEED = 7       # seeds the shuffled-history control
 PULL = 20
 
 
@@ -20,7 +21,7 @@ class Cell:
 
 
 class Predictor:
-    def __init__(self, conn, pull=PULL, shuffled=False, seed=0, leaked=False):
+    def __init__(self, conn, pull=PULL, shuffled=False, seed=SHUFFLE_SEED, leaked=False):
         """leaked puts the held-back jobs, answers included, into the history. Only the leak test uses it: it
         measures how much the hold-out is worth, and no method that is scored may be built this way."""
         self.pull = pull

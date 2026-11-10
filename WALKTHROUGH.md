@@ -59,7 +59,7 @@ replay's own record of the most recent week, so every route and load on it is on
   the cost of moving and holding it. That is the same netting a planner does, demand against stock with a
   carrying cost. The module also marks where each carry-list part would come from, and flags a booking
   likely to need a part nobody nearby holds.
-- `staple/backorders.py` ranks every part the centers cannot ship by the second visits it puts at risk before
+- `staple/backorders.py` ranks every part the centers cannot ship by the repeat visits it puts at risk before
   it ships: an expedite list ordered by exposure. Which booking will need a stuck part cannot be known in
   advance, but how many will can, so the action is fleet-wide. A back-order starts on one day and ships on
   another, so the list is made again for every held-back day and a part drops off the day it ships. Each
@@ -89,7 +89,7 @@ replay's own record of the most recent week, so every route and load on it is on
 
 - `staple/plan.py` turns the most recent week of held-back days into the plan the report shows. It recodes
   each booking with Claude's reading of the customer's words, asking the saved follow-up question where
-  Claude was unsure. It replays the week under Staple's rule and under the current way, seeded so the sick
+  Claude was unsure. It replays the week under Staple's rule and under the current rules, seeded so the sick
   calls and breakdowns are the ones the full replay met on the same days, and records every route, load and
   move as the replay makes it. It then shapes each day into what people act on: a load sheet per truck, the
   calls to warn or rebook, the back-orders to chase, and every call a sick call or breakdown moved. Nothing
@@ -119,6 +119,8 @@ replay's own record of the most recent week, so every route and load on it is on
 - `sql/metrics/backorder_exposure.sql`: the buyer's list for every held-back day. Each row is a part no center
   can ship that day, with its forecast calls and stuck calls before it ships and what the held-back days then
   brought. The plan's buyer items quote these rows.
+- `sql/metrics/backorder_flag.sql`: the back-order flag on single bookings, scored on the held-back days:
+  how many it marked, how many of those were stuck, and the forecast of the count.
 - `sql/metrics/ai_step.sql`: each reading of the customer's words, its agreement with the booked code and the
   true problem, and the coverage of the list it leads to. It also counts the distinct phrasings the bookings
   hold, which is the real size of the sample.
@@ -131,8 +133,8 @@ replay's own record of the most recent week, so every route and load on it is on
 - `staple/report.py` builds the four pages from the query results, the week's plan and the code's own
   constants. The report is one screen: the plan on the left, its proof on the right, each scrolling on its
   own. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
-  it. The manuals quote every constant, prompt, query and check straight from the code, so they cannot
-  disagree with what ran.
+  it. The manual and the methods page quote every number, prompt, query and check straight from the code, so
+  they cannot disagree with what ran, and a check refuses a numeral typed into either.
 - `staple/pages/house.css` is the look: colors as named tokens, light and dark, the hover marker and the
   phone layout.
 - `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, moves the chart's crosshair, and runs the
@@ -141,9 +143,9 @@ replay's own record of the most recent week, so every route and load on it is on
   as it ran, and on a phone the plan or the proof. Every day is already in the page; it only shows and hides.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the
   code goes.
-- `staple/pages/method.html` is the methods manual's text: every formula, rule, prompt and check, filled the
+- `staple/pages/method.html` is the methods page's text: every formula, rule, prompt and check, filled the
   same way.
-- `staple/examples.py` holds one worked example for each section of the methods manual that computes a figure:
+- `staple/examples.py` holds one worked example for each section of the methods page that computes a figure:
   plain words, small made-up inputs, the steps worked by hand, and the same answer from the engine's own function.
   The manual prints the engine's answer, and `check.py examples` refuses one that disagrees with the hand answer.
 - `staple/pages/languages.html` is the code languages page's text: what Staple is written in, where each part

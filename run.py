@@ -37,6 +37,9 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")    # a piped run on Windows would otherwise garble the stamp's middle dot
     report.notes_in_plain_words()
+    unknown = [a for a in sys.argv[1:] if a not in ("--live", "--pages", "--card")]
+    if unknown:
+        sys.exit(f"run.py does not know {', '.join(unknown)}; it takes --live, --pages or --card, or nothing")
     if "--card" in sys.argv[1:]:
         return card()
     started = time.perf_counter()
@@ -46,7 +49,7 @@ def main():
     print(f"world: {jobs:,} made-up repair jobs written to {db.DB_PATH}")
     bt = backtest.run(conn)
     k = backtest.SHOWN_K
-    print(f"back-test on {bt['jobs']:,} held-back jobs, first-visit coverage with {k} parts on the list:")
+    print(f"back-test on {bt['jobs']:,} held-back jobs, coverage with {k} parts on the list:")
     for name, row in bt["coverage"].items():
         print(f"  {name:<56} {row[k]:.1%}")
     print(f"  {'today' + chr(39) + 's trucks':<56} {bt['today']:.1%}")
@@ -57,7 +60,7 @@ def main():
               *ld["moves"].values()]:
         label = r["policy"] + (f", {r['k']} per job" if r["policy"] in (load.TOP_UP, load.LISTS_ONLY) else "")
         print(f"  {label}: covers {r['coverage']:.1%}, {r['parts']:.0f} parts, "
-              f"${r['value']:,.0f} of stock held, costs ${r['total']:,.0f} a day")
+              f"${r['value']:,.0f} of stock held, costs ${r['total']:,.2f} a truck-day")
     print(f"  the top-up pays while a repeat visit costs more than ${ld['break_even']:.2f}")
     av = ld["availability"]
     print(f"  {av['blocked']:,} jobs needed a part no truck nearby holds; the odds predicted {av['expected']:.0f}; "
@@ -88,17 +91,18 @@ def main():
     dp = dispatch.run(conn)
     print("dispatch replay of every held-back day, with the same made-up sick calls, breakdowns and priority changes:")
     for name, r in dp.items():
-        print(f"  {name:<52} first-visit fix {r['fixes_per_call']:.1%} of calls, {r['drive_per_call']:.0f} drive "
-              f"minutes a call, ${r['cost_per_call']:.0f} a call")
+        print(f"  {name:<52} first-time fix {r['fixes_per_call']:.1%} of calls, {r['drive_per_call']:.1f} drive "
+              f"minutes a call, ${r['cost_per_call']:.2f} a call")
     found = metrics.run(conn)
     print(f"metrics: {len(found)} SQL files in sql/metrics/, each result written to out/metrics/<name>.csv")
     week = plan.build(conn, answers, followups)
-    print(f"the week's plan, {plan.WEEK} days coded by Claude and replayed; first-visit fix against the nearest technician:")
+    print(f"the week's plan, {plan.WEEK} days coded by Claude and replayed; first-time fix against the nearest technician:")
     for d in week["days"]:
         o, b, m = d["ours"], d["base"], d["morning"]
         print(f"  {d['day']}: {o['fixes'] / o['calls']:.1%} against {b['fixes'] / b['calls']:.1%}; Claude asked "
-              f"{d['ai']['asked']} of {d['ai']['coded']}; {len(m['sick'])} sick, {len(m['broken'])} breakdowns, "
-              f"{len(m['moved'])} calls moved; {len(d['todo'])} to-do items")
+              f"{d['ai']['asked']} of {d['ai']['coded']}; {len(m['sick']) or 'none'} sick, "
+              f"{plan.counted(len(m['broken']), 'breakdown')}, {plan.counted(len(m['moved']), 'call')} moved; "
+              f"{len(d['todo'])} to-do items")
     for folder in [db.OUT] + ([report.PUBLISHED] if "--pages" in sys.argv[1:] else []):
         for warning in report.write(found, week, folder):
             print(f"  WARN build stamp: {warning}")

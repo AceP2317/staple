@@ -14,7 +14,7 @@ FALLS_BACK = 0.25   # a control falls back when it keeps less than this share of
 
 
 def assumptions():
-    rows = [("repeat_visit", load.REPEAT_VISIT, "dollars for a second visit because the first did not fix it"),
+    rows = [("repeat_visit", load.REPEAT_VISIT, "dollars for a repeat visit because the first did not fix it"),
             ("move", load.MOVE, "dollars to put one part on a truck overnight, or take one off"),
             ("falls_back", FALLS_BACK, "share of a gain below which a control counts as fallen back"),
             ("carry_list_quoted", load.SHOWN_K, "parts on the carry list the report quotes"),

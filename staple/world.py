@@ -15,6 +15,11 @@ JOBS = 160_000                   # about five calls per technician per working d
 MISDESCRIBED = 0.10              # customer describes a different problem than the real one
 RANDOM_FAILURE = 0.08            # the failed part follows no pattern at all
 VAGUE_WORDS = 0.08               # customer gives words that fit no single problem
+NO_PART = 0.07                   # share of jobs fixed by an adjustment, with no part fitted
+ONE_PART_UNTIL = 0.80            # a job whose draw falls under this needs one part; above it, two
+WEAK_PART = 4                    # how many times likelier a family's weak part fails, where the problem can need it
+FURNACE_WINTER, FURNACE_SUMMER = 3.0, 0.3     # a furnace call's weight in the cold and the warm months; 1 otherwise
+WINTER, SUMMER = (11, 12, 1, 2), (6, 7, 8)    # the months those weights apply
 
 # type -> (openers, parts, problems). A part is (name, cost $, size, locked).
 # A problem is code -> (label, phrasings, {part name: weight}).
@@ -184,13 +189,36 @@ for _appliance, _rare in RARE.items():
         for _code, _weight in _where.items():
             CATALOG[_appliance][2][_code][2][_name] = _weight
 
+SHARED_NAMES = {n for n in {n for t in CATALOG for n, *_ in CATALOG[t][1]}
+                if sum(any(n == m for m, *_ in CATALOG[t][1]) for t in CATALOG) > 1}
+
+
+def part_name(part):
+    """A part as people read it: its appliance goes in front where another appliance has a part of the same name."""
+    appliance, name = part.split("/", 1)
+    return f"{appliance} {name}" if name in SHARED_NAMES else name
+
+
 VAGUE = ["is acting up and not working right", "is broken and needs someone to look at it", "stopped working properly"]
 DETAILS = ["", " since yesterday"]
 FAMILY_PREFIX = {"refrigerator": "RF", "washer": "WM", "dryer": "DR", "dishwasher": "DW", "range": "RG", "furnace": "FN"}
 FAMILIES_PER_TYPE = 10
 RARE_FAMILIES = 2               # the newest families, introduced recently, so their history is thin
-ZONES = [(x, y) for y in range(3) for x in range(4)]   # 12 zones, 15 km apart
+GRID = (4, 3)                    # zones across and down
+ZONE_MILES = 9.0                 # between the centers of two neighboring zones
+INSIDE_ZONE = 12.0               # drive minutes between two calls in one zone
+BETWEEN_ZONES = 10.0             # drive minutes between two zones, before the distance is added
+MINUTES_A_MILE = 2.0
+ZONES = [(x, y) for y in range(GRID[1]) for x in range(GRID[0])]
+CENTERS = [("North center", 1), ("South center", 10)]   # each distribution center and the zone it sits in
 TECHS = 30
+LEVELS = {"junior": (25, 0.78, 1.20), "mid": (45, 0.86, 1.00), "senior": (30, 0.92, 0.90)}   # weight, success rate, repair-time multiplier
+SPECIALIST = 0.4                 # chance a technician is a specialist
+SPECIALIST_TYPES = (2, 3)        # a specialist covers this many appliance types
+SPECIALIST_RATE, SPECIALIST_TIME = 0.05, 0.8   # added to a specialist's success rate, and multiplying their repair time
+RATE_SPREAD, TIME_SPREAD = 0.03, 0.05          # how far each appliance moves a technician's rate and repair time
+TOP_RATE = 0.98                  # no success rate passes this
+MID_CERTIFIED = 0.5              # chance a mid-level technician is certified; every senior is
 CAPACITY = 90                    # truck space units
 STOCK_FILL = 0.9                 # today's trucks are kept 90% full; the rest is room for special orders
 BACKORDER_STARTS = 0.01          # chance a day that a part the centers stock goes on back-order (made up)
@@ -212,12 +240,12 @@ def customer_words(rng, appliance, openers, phrasings):
 def pick_parts(rng, weights, weak_part):
     """One or two parts for a job; the family's weak part fails more often where it can fail at all."""
     names = list(weights)
-    w = [weights[n] * (4 if n == weak_part else 1) for n in names]
+    w = [weights[n] * (WEAK_PART if n == weak_part else 1) for n in names]
     roll = rng.random()
-    if roll < 0.07:
+    if roll < NO_PART:
         return []                                   # an adjustment, no part fitted
     first = rng.choices(names, w)[0]
-    if roll < 0.80 or len(names) == 1:
+    if roll < ONE_PART_UNTIL or len(names) == 1:
         return [first]
     rest = [n for n in names if n != first]
     return [first, rng.choices(rest, [weights[n] for n in rest])[0]]
@@ -248,7 +276,7 @@ def build(conn, seed=SEED):
             conn.execute("INSERT INTO families VALUES (?,?,?,?)",
                          (fam, appliance, part_id(appliance, weak), str(START + dt.timedelta(days=first_day))))
 
-    conn.executemany("INSERT INTO zones VALUES (?,?,?)", [(i, x * 15.0, y * 15.0) for i, (x, y) in enumerate(ZONES)])
+    conn.executemany("INSERT INTO zones VALUES (?,?,?)", [(i, x * ZONE_MILES, y * ZONE_MILES) for i, (x, y) in enumerate(ZONES)])
 
     techs = _build_techs(conn, rng)
     jobs, job_parts = [], []
@@ -291,8 +319,8 @@ def _schema_path():
 
 
 def _season_pick(rng, month):
-    """Furnace calls triple in winter and nearly vanish in summer; everything else is steady."""
-    furnace = 3.0 if month in (11, 12, 1, 2) else 0.3 if month in (6, 7, 8) else 1.0
+    """A furnace call weighs more in winter and far less in summer; every other type is steady."""
+    furnace = FURNACE_WINTER if month in WINTER else FURNACE_SUMMER if month in SUMMER else 1.0
     types = list(CATALOG)
     return rng.choices(types, [furnace if t == "furnace" else 1.0 for t in types])[0]
 
@@ -303,21 +331,21 @@ def _family_pick(rng, families, appliance, day):
 
 
 def _build_techs(conn, rng):
-    """30 technicians who differ in level, range and skill. Each drives one truck."""
-    levels = {"junior": (0.78, 1.20), "mid": (0.86, 1.00), "senior": (0.92, 0.90)}
+    """The technicians, who differ in level, range and skill. Each drives one truck."""
     national_top = _national_top_parts()
     techs = {}
     for i in range(1, TECHS + 1):
         tech = f"T{i:02d}"
-        level = rng.choices(list(levels), [25, 45, 30])[0]
-        profile = "specialist" if rng.random() < 0.4 else "generalist"
-        types = rng.sample(list(CATALOG), rng.choice([2, 3])) if profile == "specialist" else list(CATALOG)
-        certified = int(level == "senior" or (level == "mid" and rng.random() < 0.5))
-        base_rate, base_speed = levels[level]
+        level = rng.choices(list(LEVELS), [weight for weight, _, _ in LEVELS.values()])[0]
+        profile = "specialist" if rng.random() < SPECIALIST else "generalist"
+        types = rng.sample(list(CATALOG), rng.choice(list(SPECIALIST_TYPES))) if profile == "specialist" else list(CATALOG)
+        certified = int(level == "senior" or (level == "mid" and rng.random() < MID_CERTIFIED))
+        _, base_rate, base_speed = LEVELS[level]
         skills = {}
         for t in types:
-            rate = min(0.98, base_rate + (0.05 if profile == "specialist" else 0) + rng.uniform(-0.03, 0.03))
-            speed = base_speed * (0.8 if profile == "specialist" else 1.0) * rng.uniform(0.95, 1.05)
+            rate = min(TOP_RATE, base_rate + (SPECIALIST_RATE if profile == "specialist" else 0)
+                       + rng.uniform(-RATE_SPREAD, RATE_SPREAD))
+            speed = base_speed * (SPECIALIST_TIME if profile == "specialist" else 1.0) * rng.uniform(1 - TIME_SPREAD, 1 + TIME_SPREAD)
             skills[t] = (round(rate, 3), round(speed, 3))
         stock, space = {}, 0
         # Today's policy: fill the truck to STOCK_FILL with each type's most-used parts, one rank at a time.
@@ -361,17 +389,17 @@ def _history_tech(rng, techs, appliance, zone):
 
 
 def travel_minutes(zone_a, zone_b):
-    """Zone-to-zone drive time: 12 minutes inside a zone; between zones, 10 minutes plus 1.2 per km between centers."""
+    """Zone-to-zone drive time: a fixed time inside a zone; between zones, a fixed time plus the miles between their centers."""
     if zone_a == zone_b:
-        return 12.0
+        return INSIDE_ZONE
     (xa, ya), (xb, yb) = ZONES[zone_a], ZONES[zone_b]
-    return 10.0 + 1.2 * 15.0 * math.hypot(xa - xb, ya - yb)
+    return BETWEEN_ZONES + MINUTES_A_MILE * ZONE_MILES * math.hypot(xa - xb, ya - yb)
 
 
 def _build_centers(conn, rng):
-    """Two distribution centers restock trucks between workdays. Across the held-back days a part now and then
+    """The distribution centers restock trucks between workdays. Across the held-back days a part now and then
     goes on back-order: no center can ship it from the day that starts until the day it ships."""
-    conn.executemany("INSERT INTO centers VALUES (?,?)", [("North center", 1), ("South center", 10)])
+    conn.executemany("INSERT INTO centers VALUES (?,?)", CENTERS)
     rows = []
     for appliance, (_, parts, _) in CATALOG.items():
         for n, *_ in parts:

@@ -3,7 +3,7 @@
 Plans a repair fleet's next day: which technician takes each call, what each truck carries, and what people
 do before 08:00.
 
-**[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods and logic](https://acep2317.github.io/staple/method.html)
+**[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods page](https://acep2317.github.io/staple/method.html)
 
 Every figure in this repository comes from repair history I invented. The method is real and the results
 are not. On real history, the same back-test is the first thing I would run.
@@ -11,7 +11,7 @@ are not. On real history, the same back-test is the first thing I would run.
 ## The problem
 
 A technician who arrives without the right part cannot finish the repair, and the customer waits for a
-second visit. Two decisions set that up the night before: what each truck carries, and which technician
+repeat visit. Two decisions set that up the night before: what each truck carries, and which technician
 takes each call. When the stock lives on the trucks, those are one decision, so Staple scores them together.
 
 ## What it does
@@ -19,29 +19,29 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 - **Plans tomorrow, and says what to do.** The live report opens on one invented day's plan beside its proof.
   The plan holds a to-do list for the parts room, the call center, dispatch and the buyer; every technician's
   route on a map and a board, as planned at night and as the day ran after a sick call and a breakdown; and
-  each truck's load sheet. The proof holds that day against the current way, and the evidence from every
+  each truck's load sheet. The proof holds that day against the current rules, and the evidence from every
   held-back day. A day picker covers the most recent week.
 - **Predicts the parts.** For a booked repair, it ranks the parts most likely to fix it by counting what
   fixed past jobs on the same model family and problem. Where a family's history is thin, it leans on the
   wider appliance group.
 - **Loads the truck.** Each night it builds every truck's load from tomorrow's booked calls. A part stays
-  aboard only while the second visits it saves outweigh the space and money it ties up.
+  aboard only while the repeat visits it saves outweigh the space and money it ties up.
 - **Marks where each part comes from.** On this truck, from a distribution center overnight, on another
   truck nearby, back-ordered, or locked to a certified technician. A booking likely to need a part nobody
   nearby holds gets flagged before the visit.
-- **Ranks the back-orders.** Each part the centers cannot ship, by the second visits it puts at risk before
+- **Ranks the back-orders.** Each part the centers cannot ship, by the repeat visits it puts at risk before
   it ships. The list is made again each day: the days left count down, and a part drops off the day it ships.
 - **Reads the customer's words.** Claude Haiku 5.5 (`claude-haiku-5-5`) turns what the customer said into a
   problem code with a confidence, and asks one short follow-up question when it is unsure. The week's plan
   runs on its codes. Its answers ship cached in the repository, so a run needs no key.
 - **Sends the call.** It replays every held-back day with sick calls, breakdowns and priority changes. Each
-  call goes to the technician with the lowest expected cost: drive and repair time, plus a second visit
+  call goes to the technician with the lowest expected cost: drive and repair time, plus a repeat visit
   times the chance that technician's skill or truck fails the job. It learns each technician's success rate
   from the earlier jobs.
 - **Measures it in SQL.** First-time fix, parts-caused reschedules, truck fill rate, slow truck stock,
-  inventory ROI, the carry-list curve, back-order exposure, the dispatch scorecard, the AI step's scores and
+  inventory ROI, the carry-list curve, back-order exposure and the flag's record, the dispatch scorecard, the AI step's scores and
   its confidence, and every control's result are plain queries in [`sql/metrics/`](sql/metrics/). Every
-  number on the report comes from one of them.
+  figure on the report's evidence cards comes from one of them, and the plan is the dispatch replay's own record.
 
 ## How it is kept honest
 
@@ -60,7 +60,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 12 SQL files hold the tables and the 11 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 13 SQL files hold the tables and the 12 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
 Python 3.12 or newer is the only requirement, and nothing is installed. It is tested on Python 3.12 and 3.14.
 
@@ -78,7 +78,7 @@ Then open `out/index.html` in a browser.
 ## On real history
 
 I would run the same back-test first: learn from all but the last three months, score those three, and
-keep only the gains whose controls fall back. Then a one-region pilot against the current way of loading
+keep only the gains whose controls fall back. Then a one-region pilot against how that region loads
 trucks, measured on first-time fix and parts-caused reschedules.
 
 ## What a real system must also handle

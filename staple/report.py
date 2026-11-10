@@ -1,7 +1,7 @@
-"""Four static pages: the report (index.html), its instruction manual, its methods manual and its code languages page.
+"""Four static pages: the report (index.html), its instruction manual, its methods page and its code languages page.
 
-Every figure on the report comes from a query in sql/metrics/, and every constant the manuals quote is read
-from the code that uses it, so no page can state a number the code does not. The pages load nothing from the
+Every figure on an evidence card comes from a query in sql/metrics/, the plan is the dispatch replay's own
+record, and every number the manual and the methods page quote is read from the code that uses it. The pages load nothing from the
 network, carry a build stamp read from git, label every chart as made-up data, and give nearly every element a
 hover hint with the data behind it.
 """
@@ -26,7 +26,7 @@ PAGES = Path(__file__).resolve().parent / "pages"
 FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html", "languages": "languages.html"}
 PUBLISHED = ROOT / "docs"      # the copy the repository serves as its web page; `python run.py --pages` writes it
 NO_HISTORY = "a copy with no saved history"   # what the stamp says where git cannot answer, such as a downloaded zip
-STAMP_RE = (r"(?:Build [1-9]\d* · )?[1-9]\d? (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} "
+STAMP_RE = (r"(?:Build [1-9]\d* · )?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [1-9]\d?, \d{4} "
             r"· [0-9a-f]{7,12}\+?")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 WEIGHT_LIMIT = 2_000_000    # bytes a published page may weigh: what a phone should load for one page
@@ -42,7 +42,7 @@ FORMATS = {"json": "Data files (JSON)", "md": "Written notes (Markdown)", "png":
 LANGUAGES_JSON = "languages.json"   # the counts and sentence, published beside the pages for the sites that quote them
 PLACES = (   # where code runs, each with the languages that run there; `check.py languages` refuses a language in none
     ("browser", "In your browser", ("HTML", "CSS", "JavaScript"),
-     "When you open a page, your browser draws it and runs its two scripts. Each page carries its own styles and "
+     "When you open a page, your browser draws it and runs its scripts. Each page carries its own styles and "
      "scripts, so it fetches nothing from any other site."),
     ("builder", "On the builder's computer", ("Python", "SQL", "Bash"),
      "Whoever builds Staple runs it here: python run.py invents the history and writes every result and page, python "
@@ -55,7 +55,7 @@ PLACES = (   # where code runs, each with the languages that run there; `check.p
      "own code runs there."),
     ("anthropic", "On Anthropic's computers", (),
      f"{triage.MODEL_NAME} read every customer description once and wrote each follow-up question. Staple sends it the "
-     "prompts the methods manual prints word for word, and none of Staple's code runs there. The answers are saved in "
+     "prompts the methods page prints word for word, and none of Staple's code runs there. The answers are saved in "
      "the data folder, so the pages rebuild without a key; python run.py --live asks the Claude API again with your "
      "own key."))
 LANGUAGE_ABOUT = {   # what each language is, then what it does in this build
@@ -87,12 +87,12 @@ PROGRAMS = {   # every program the code starts, as `check.py languages` finds it
 e = html.escape
 
 GLOSSARY = {
-    "first-visit fix": "A repair finished on the technician's first visit: every part on the truck, and a repair that takes.",
+    "first-time fix": "A repair finished on the technician's first visit: every needed part was on the truck, and the repair held.",
     "carry list": "The parts a booked call is likeliest to need, ranked by the predictor. Its length is how many parts are on it.",
     "coverage": "The share of jobs whose every needed part was on the list or the truck. One missing part fails the whole job.",
     "held-back days": f"The last {world.TEST_DAYS} days of history. Methods learn from the days before and are scored on these.",
     "truck-day": "One technician's truck on one day: its load, its jobs and its costs.",
-    "repeat visit": f"A second truck roll because the first visit did not fix the job, costed at ${load.REPEAT_VISIT:.0f} (made up).",
+    "repeat visit": f"Another visit to a job the first visit did not fix, priced at ${load.REPEAT_VISIT:.0f} (made up).",
     "holding cost": f"The yearly cost of money tied up in truck stock: {load.HOLDING_RATE:.0%} of its value (made up).",
     "control": "A method run again with one link in its data broken, such as its history shuffled. A control that "
                "scores as well as the method shows the gain does not come from that link.",
@@ -107,14 +107,17 @@ GLOSSARY = {
     "locked part": "A part that may ride only on a certified technician's truck.",
     "follow-up question": f"The one question Claude asks when it is less than {triage.BLEND_BELOW:.0%} sure of the problem, "
                           "with a few answers for the customer to pick from. Made once by the model and saved.",
-    "first-visit chance": "The plan's chance a call is fixed on the first visit: the chance its truck holds every part the "
+    "first-time fix chance": "The plan's chance a call is fixed on the first visit: the chance its truck holds every part the "
                           "call needs, times the technician's success rate on that appliance.",
     "load sheet": "One truck's list for the parts room tonight: each part to put on, take off or keep, with its worth and "
                   "the booked calls behind it.",
     "worth": f"What a part is worth carrying tomorrow: each booked call's chance of needing it times a ${load.REPEAT_VISIT:.0f} "
              f"repeat visit, plus a share for unplanned calls, less its holding cost. A ${load.MOVE:.0f} move counts against "
              "it when it is not aboard, and for it when it is.",
-    "current way": "The comparison on the plan: the nearest qualified technician, driving today's fixed truck stock.",
+    "current rules": "What the invented fleet does now, and what every gain is measured against: each call goes to the "
+                     "nearest qualified technician, driving today's fixed truck stock.",
+    "call": "One repair visit to make. It starts as a booking, the customer's request in their own words, and once "
+            "made it is a job in the history.",
 }
 COLUMNS = {
     "appliance": "The appliance type.", "jobs": "Jobs counted.", "repeat_visits": "Jobs not fixed on the first visit.",
@@ -148,11 +151,11 @@ COLUMNS = {
                      "worse than where the method started.",
     "verdict": f"Falls back when the control keeps under {metrics.FALLS_BACK:.0%} of the gain.",
     "calls": "Held-back calls.", "rolled": "Calls rolled to tomorrow; each counts as not fixed.",
-    "first_visit_fix_pct": "Expected first-visit fixes per call, a rolled call counting zero.",
+    "first_time_fix_pct": "Expected first-time fixes per call, a rolled call counting zero.",
     "parts_missing_pct": "Visits where a needed part was not on the truck.",
     "drive_minutes": "Drive minutes per call served.", "moved": "Calls moved to another truck by a sick day or breakdown.",
-    "moved_fix_pct": "First-visit fixes among the moved calls.",
-    "cost_per_call": f"Minutes at ${dispatch.MINUTE:.0f}, plus second visits at ${load.REPEAT_VISIT:.0f}, per call served.",
+    "moved_fix_pct": "First-time fixes among the moved calls.",
+    "cost_per_call": f"Minutes at ${dispatch.MINUTE:.0f}, plus repeat visits at ${load.REPEAT_VISIT:.0f}, per call served.",
     "method": "How the customer's words were read.", "agrees_booked_pct": "Readings that match the booked code.",
     "agrees_true_pct": "Readings that match the true problem, known only because the data is invented.",
     "coverage_pct": "Jobs whose every needed part is on the 3-part list built from the reading.",
@@ -168,12 +171,20 @@ COLUMNS = {
     "expected_stuck": "Of those, calls forecast to have no truck nearby holding one.",
     "dollars_at_risk": f"Expected stuck calls times ${load.REPEAT_VISIT:.0f}.",
     "actual_calls": "Calls the held-back days then brought.", "actual_stuck": "Of those, calls no truck nearby could cover.",
+    "bookings": "Held-back bookings scored.",
+    "forecast_stuck": "The sum, over every booking, of its odds of needing a part no center can ship and no truck nearby holds.",
+    "were_stuck": "Bookings that did need such a part.",
+    "flagged": f"Bookings whose odds of needing such a part reach {load.BACKORDER_FLAG:.0%}, the flag's level.",
+    "flagged_and_stuck": "Flagged bookings that did need such a part.",
+    "flags_right_pct": "The share of flagged bookings that did need such a part.",
 }
 MARK_HELP = {
     "needs a certified technician": ("The part is locked and this technician is not certified.", "Send a certified technician."),
-    "on this truck": ("The technician's own truck holds it.", "Nothing."),
+    "aboard": ("The technician's own truck holds it.", "Nothing."),
     "from a center overnight": ("A center can load it before the visit.", "Load it tonight."),
-    "on another truck nearby": (f"A truck based within {load.NEARBY_MINUTES} minutes holds it.", "Hand it over, or send that truck."),
+    "on a truck nearby": (f"A truck based within {load.NEARBY_MINUTES} minutes holds it.", "Hand it over, or send that truck."),
+    "at a center, not loaded": ("A center holds it, and tonight's load left it off this truck.",
+                                "Nothing: its odds did not earn the space. It can be loaded for another night."),
     "back-ordered": ("No center can ship it in time and no truck nearby holds it.", "Expedite, source elsewhere, or move a spare."),
 }
 CHECK_ABOUT = {
@@ -188,6 +199,7 @@ CHECK_ABOUT = {
     "replay-clock": "The replay obeys the clock and the calendar. No call that came in during the day, and none moved by a breakdown, may start before that minute, read from the day's own events. No truck may take on a part no center can ship or send one back before it ships, and a part must be loaded again once it ships. A list read before 08:00 may name no call that has not come in, the buyer's list must be the back-order query's own rows for its day and count down a day at a time, and every technician with no booked calls must be named. Six planted faults must be refused.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
+    "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point, and the reason the report gives for that is measured: odds that know only the appliance must score within half a point of the shuffled ones, and the parts odds handed over for same-day calls alone must keep more than half the gain. No control may win by overbooking the day.",
@@ -239,8 +251,42 @@ def pct(v):
     return f"{v:.1f}%"
 
 
-def money(v):
-    return f"${v:,.2f}" if v < 100 else f"${v:,.0f}"
+SICK_AT = plan.clock(dispatch.SICK_BY)    # the hour sick calls are known, as the pages write it
+PYTHON = (3, 12)                          # the oldest Python the checks have run on
+
+
+def dollars(v):
+    """A price or a stock value, which are whole dollars."""
+    return f"${v:,.0f}"
+
+
+def cents(v):
+    """A rate or an expected amount, such as the cost a call, always to the cent."""
+    return f"${v:,.2f}"
+
+
+def gap(x, y, places):
+    """The difference of two figures as the page shows them, so a reader can check the three against each other."""
+    return round(round(x, places) - round(y, places), places)
+
+
+def fewer(saved):
+    """How a day's repeat visits compare with the current rules, in words that hold for a gain, a tie and a loss."""
+    if saved > 0:
+        return f"{saved:.1f} fewer repeat visits than the current rules"
+    if saved < 0:
+        return f"{-saved:.1f} more repeat visits than the current rules"
+    return "as many repeat visits as the current rules"
+
+
+def some(v):
+    """A whole count inside a sentence, with none said in words."""
+    return f"{v:.0f}" if round(v) else "none"
+
+
+def places(values):
+    """The decimal places one table column shows: the most any of its numbers needs, so a column reads at one precision."""
+    return max((len(repr(v).split(".")[1]) for v in values if isinstance(v, float) and v != int(v)), default=0)
 
 
 def rows(results, name):
@@ -285,9 +331,9 @@ def git_answer(root, *args):
 
 
 def pretty_day(day):
-    """2026-11-06 written as 6 Nov 2026."""
+    """2026-11-06 written as Nov 6, 2026."""
     year, month, date = day.split("-")
-    return f"{int(date)} {MONTHS[int(month) - 1]} {year}"
+    return f"{MONTHS[int(month) - 1]} {int(date)}, {year}"
 
 
 def stamp(root=ROOT):
@@ -333,18 +379,24 @@ def figure(name, title, chart, result, row_tip=None, shown=None):
     """A chart and the table under it. shown, when given, is the part of the query's rows the table prints."""
     columns, every = result
     data = every if shown is None else shown
-    scope = (f"{len(data)} rows from sql/metrics/{name}.sql." if shown is None else
+    scope = (f"{plan.counted(len(data), 'row')} from sql/metrics/{name}.sql." if shown is None else
              f"{len(data)} of the {len(every):,} rows sql/metrics/{name}.sql returns: this week's days.")
     exact = ("exactly as" if shown is None else "this week's days, as")
     head = "".join(f'<th{tipattr(c + chr(10) + COLUMNS[c])}>{e(c).replace("_", "_<wbr>")}</th>' for c in columns)
+    at = [places([r[i] for r in data]) for i in range(len(columns))]
+
+    def cell(i, v):
+        return f"{v:.{at[i]}f}" if isinstance(v, float) else str(v)
     body = "".join("<tr>" + "".join(
-        f'<td{tipattr(row_tip(dict(zip(columns, r))))}><span class="hv">{e(str(v))}</span></td>' if i == 0 and row_tip
-        else f"<td>{e(str(v))}</td>" for i, v in enumerate(r)) + "</tr>" for r in data)
+        f'<td{tipattr(row_tip(dict(zip(columns, r))))}><span class="hv">{e(cell(i, v))}</span></td>' if i == 0 and row_tip
+        else f"<td>{e(cell(i, v))}</td>" for i, v in enumerate(r)) + "</tr>" for r in data)
+    numbers = (f"Show the numbers\nThe {plan.counted(len(data), 'row')} {'this chart is drawn from' if chart else 'of this table'}, "
+               f"{exact} sql/metrics/{name}.sql returns {'it' if len(data) == 1 else 'them'}.")
     madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}. No real company, customer, part or "
               "technician. The method is real; this figure is not.")
     return (f'<figure><figcaption><span class="fig-title"{tipattr(title + chr(10) + about(name) + chr(10) + scope)}>'
             f'{e(title)}</span> <span class="madeup"{tipattr(madeup)}>made-up data</span></figcaption>{chart}'
-            f'<details{"" if chart else " open"}><summary{tipattr(f"Show the numbers{chr(10)}The {len(data)} rows this chart is drawn from, {exact} sql/metrics/{name}.sql returns them.")}>'
+            f'<details{"" if chart else " open"}><summary{tipattr(numbers)}>'
             f'Show the numbers</summary><div class="scroll"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody>'
             f'</table></div></details></figure>')
 
@@ -387,7 +439,7 @@ def curve(points, jobs):
     keys = "".join(f'<span class="key"{tipattr(n + chr(10) + t)}><i style="background:var({c})"></i>{e(n)}</span>'
                    for _, n, c, t in series)
     return (f'<div class="legend">{keys}</div><svg viewBox="0 0 {w} {h}" tabindex="0" data-curve="{e(json.dumps(data))}" '
-            f'aria-label="First-visit coverage against carry-list length; the table below holds every value">{"".join(svg)}</svg>')
+            f'aria-label="Coverage against carry-list length; the table below holds every value">{"".join(svg)}</svg>')
 
 
 def stamp_line(stamp_text, day):
@@ -396,8 +448,8 @@ def stamp_line(stamp_text, day):
             f'{e(day or "unknown")}</span></p>')
 
 
-NAV = {"report": ("Instruction Manual", "manual.html", "Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you."),
-       "method": ("Methods and logic", "method.html", "Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks."),
+NAV = {"report": ("Instruction manual", "manual.html", "Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you."),
+       "method": ("Methods page", "method.html", "Opens the methods page in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks."),
        "languages": ("Code languages", "languages.html", "Opens the code languages page in a new tab: what Staple is written in, where each part runs, and every program it starts."),
        "back": ("Back to the report", "index.html", "Returns to the report.")}
 
@@ -429,8 +481,8 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
             f'<title>{e(title)}</title>{head}<style>{css}</style><script>{remembered}</script></head><body{app}><header class="band"><div class="band-in"><div>'
             f'<h1{tipattr(h1_tip)}>{e("Staple" if kind == "report" else title)}</h1><p class="lede">{e(lede)}</p>{stamp_line(stamp_text, day)}</div>'
             f'<nav class="actions">{nav}</nav></div></header><main>{body}'
-            f'<footer>{e(written_in("these pages"))} Nothing is installed beyond Python. Every number comes from the queries in '
-            f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}. '
+            f'<footer>{e(written_in("these pages"))} Nothing is installed beyond Python. Every figure in the evidence comes from the queries in '
+            f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}, and the plan is the record the dispatch replay kept. '
             f'Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div>'
             f'<script>{js}</script></body></html>\n')
 
@@ -569,7 +621,7 @@ def card_fingerprint():
 
 
 def day_name(day):
-    return dt.date.fromisoformat(day).strftime("%a %d %b").replace(" 0", " ")
+    return dt.date.fromisoformat(day).strftime("%a, %b %d").replace(" 0", " ")
 
 
 def chance_class(c):
@@ -587,24 +639,24 @@ def ai_line(c):
 
 def call_tip(c, ctx):
     rate = ctx.crew.belief[(c["tech"], c["type"])][0]
-    why = (f"Why {c['tech']}: lowest expected cost; next best {c['runner']}, ${c['gap']:.0f} more."
+    why = (f"Why {c['tech']}: lowest expected cost; next best {c['runner']}, {cents(c['gap']) + ' more' if round(c['gap'], 2) else 'at the same cost'}."
            if c["runner"] else f"Why {c['tech']}: the only one with room.")
     return "\n".join([
         f"Call {c['job']} · {plan.clock(c['start'])}–{plan.clock(c['end'])} · zone {c['zone'] + 1}"
         + (" · urgent" if c["priority"] == 1 else ""),
         f"{c['type'].capitalize()}: “{c['words']}”", ai_line(c),
         "Parts: " + "; ".join(f"{p['name']} {p['odds']:.0%} {p['where']}" for p in c["parts"]) + ".",
-        f"First-visit chance {c['chance']:.0%} ({c['tech']} fixes {rate:.0%} of {c['type']}s).", why])
+        f"First-time fix chance {c['chance']:.0%} ({c['tech']} fixes {rate:.0%} of {c['type']}s).", why])
 
 
 def ran_tip(c, moved):
     lines = [f"Call {c['job']} as the day ran · {plan.clock(c['start'])}–{plan.clock(c['end'])} · {c['tech']}",
-             f"{c['type'].capitalize()}: {c['problem']}. First-visit chance {c['chance']:.0%}.",
-             "Every likely part was aboard." if c["covered"] else "A needed part was not aboard: a second visit."]
+             f"{c['type'].capitalize()}: {c['problem']}. First-time fix chance {c['chance']:.0%}.",
+             "Every needed part was aboard." if c["covered"] else "A needed part was not aboard: a repeat visit."]
     if c["job"] in moved:
         m = moved[c["job"]]
         why = "called out sick" if m["why"] == "sick" else "broke down"
-        lines.append(f"Moved from {m['from']}, who {why}. First-visit chance {m['before']:.0%} on the planned truck, "
+        lines.append(f"Moved from {m['from']}, who {why}. First-time fix chance {m['before']:.0%} on the planned truck, "
                      f"{m['after']:.0%} on this one." if m["before"] is not None else f"Moved from {m['from']}, who {why}.")
     if c["unplanned"]:
         lines.append("Added on the day, so no night plan saw it.")
@@ -641,15 +693,20 @@ def board(d, ctx, view):
             gave = sum(x["from"] == tech for x in m["moved"])
             if tech in m["sick"]:
                 kind = " sick"
-                blocks.append(f'<span class="lane-note"{tipattr(f"{tech} called out sick at 07:00" + chr(10) + f"The night plan and the loads were already made. {gave} calls planned for {tech} moved to other trucks, which could use only the parts they already carried.")}>'
-                              f'called out sick at 07:00 · {gave} calls moved</span>')
+                sick_tip = (f"{tech} called out sick at {SICK_AT}\nThe night plan and the loads were already made. "
+                            + (f"{plan.counted(gave, 'call').capitalize()} planned for {tech} moved to other trucks, which could "
+                               f"use only the parts they already carried." if gave else f"{tech} had no calls planned, so none moved."))
+                blocks.append(f'<span class="lane-note"{tipattr(sick_tip)}>'
+                              f'called out sick at {SICK_AT} · {plan.counted(gave, "call")} moved</span>')
             if tech in m["broken"]:
                 kind, when = " broken", m["broken"][tech]
                 broke_tip = (f"Truck {info['truck']} broke down at {plan.clock(when)}\n"
-                             f"Its {m['stranded'][tech]} parts are stranded for the day. {gave} later calls moved to other trucks.")
+                             + (f"Its stock, {plan.counted(m['stranded'][tech], 'part')}, is stranded for the day. "
+                                if m["stranded"][tech] else "")
+                             + f"{plan.counted(gave, 'later call').capitalize()} moved to other trucks.")
                 blocks.append(f'<span class="dead" style="left:{at(when)}"></span><span class="brk" style="left:{at(when)}"'
                               f'{tipattr(broke_tip)}>'
-                              f'&#9888; broke down {plan.clock(when)} · {gave} moved</span>')
+                              f'&#9888; broke down {plan.clock(when)} · {some(gave)} moved</span>')
         rows.append(f'<div class="row{kind}" data-tech="{tech}"><span class="who"{tipattr(tip)}>{tech}</span>'
                     f'<span class="lane">{"".join(blocks)}</span></div>')
     return (f'<div class="board v-{view}"><div class="row axis"><span></span><span class="lane ticks">{ticks}</span></div>'
@@ -697,7 +754,8 @@ def route_map(d, ctx, centers):
                 stops.append(f'<text class="brk-map" x="{x + 5:.0f}" y="{y - 4:.0f}">&#9888;</text>')
             layers[view].append(f'<g class="rt" data-tech="{tech}"><polyline points="{line}"/>{"".join(stops)}'
                                 f'<circle class="home" cx="{hx:.0f}" cy="{hy:.0f}" r="2.5"/></g>')
-    tip = ("Routes, zone to zone\nTwelve zones 15 km apart; the squares are the two distribution centers. Every truck's "
+    tip = (f"Routes, zone to zone\n{len(world.ZONES)} zones {world.ZONE_MILES:g} miles apart; the squares are the "
+           f"{len(world.CENTERS)} distribution centers. Every truck's "
            "route is drawn faint and the chosen one bold, with its stops numbered. A stop sits inside its zone; drive "
            "times run zone to zone, not on roads.")
     return (f'<svg class="map" viewBox="0 0 400 300"{tipattr(tip)} aria-label="Map of the twelve zones and every truck route">'
@@ -715,13 +773,13 @@ def sheet_html(d, tech, ctx, shown):
             return "no call needs it" if r["worth"] <= 0 else "outranked for space"
         reasons = [f"call {j} {p:.0%}" for j, p in r["calls"]]
         if r["spare"] >= 0.5:
-            reasons.append(f"spare for unplanned calls {money(r['spare'])}")
+            reasons.append(f"spare for unplanned calls {cents(r['spare'])}")
         return ", ".join(reasons) or "spare for unplanned calls"
     head = "".join(f"<th{tipattr(t + chr(10) + h)}>{e(t)}</th>" for t, h in (
         ("Do", "Tonight, at the center."), ("Part", "With its made-up cost."), ("Worth", "Dollars, tomorrow."),
         ("Why", "The calls behind it.")))
-    body = "".join(f'<tr class="{r["status"].replace(" ", "-")}"><td>{e(r["status"])}</td><td>{e(r["name"])} ({money(r["cost"])})</td>'
-                   f'<td>{money(r["worth"])}</td><td>{e(why(r))}</td></tr>' for r in moves)
+    body = "".join(f'<tr class="{r["status"].replace(" ", "-")}"><td>{e(r["status"])}</td><td>{e(r["name"])} ({dollars(r["cost"])})</td>'
+                   f'<td>{cents(r["worth"])}</td><td>{e(why(r))}</td></tr>' for r in moves)
     needed = [r["name"] for r in keep if r["calls"]]
     spare = Counter(ctx.kind[r["part"]] for r in keep if not r["calls"])
     aboard = (f"{len(keep)} parts. For tomorrow's calls: {e(', '.join(needed)) or 'none'}. Stock for unplanned calls: "
@@ -729,9 +787,9 @@ def sheet_html(d, tech, ctx, shown):
     title = f"Truck {info['truck']} · {tech}, {info['level']} {info['profile']}" + (", certified" if info["certified"] else "")
     table = f'<table class="load"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>' if moves else "<p>No change to the load tonight.</p>"
     return (f'<div class="sheet" data-sheet="{tech}"{"" if shown else " hidden"}><h4>{e(title)}</h4>'
-            f'<p class="sub">{s["space"]} of {s["capacity"]} space units · {money(s["value"])} of stock aboard · put on '
+            f'<p class="sub">{s["space"]} of {s["capacity"]} space units · {dollars(s["value"])} of stock aboard · put on '
             f'{sum(r["status"] == "put on" for r in rows)}, take off {sum(r["status"] == "take off" for r in rows)}, keep {len(keep)}</p>'
-            f'{table}<p class="keep"><strong>Keep aboard:</strong> {aboard}.</p><p class="sub">{len(calls)} calls tomorrow; '
+            f'{table}<p class="keep"><strong>Keep aboard:</strong> {aboard}.</p><p class="sub">{plan.counted(len(calls), "call").capitalize()} tomorrow; '
             f'the board and the map show the route.</p></div>')
 
 
@@ -761,14 +819,17 @@ def ai_panel(d, ctx):
                      f'<span class="conf"><i style="width:{100 * ai["first_confidence"]:.0f}%"></i></span> {ai["first_confidence"]:.0%}</p>'
                      f'<p class="asked">It asked: &ldquo;{e(ai["question"])}&rdquo;</p>'
                      f'<ul class="opts">{opts}</ul><p class="then">{e(then)} · {e(where)}</p>{parts}</div>')
+    left = a["asked"] - a["settled"]
     tip = (f"AI at booking\n{triage.MODEL_NAME} ({triage.MODEL}) read every booking's own words and picked the problem code "
            f"this plan runs on. Below {triage.BLEND_BELOW:.0%} sure, it asked the customer one question. Its answers were "
            "made once by the model and saved with the code, so this page calls no model and holds no key.")
     return (f'<section class="panel ai-panel"><h3{tipattr(tip)}>AI at booking: Claude coded all {a["coded"]} bookings{q("follow-up question")}</h3>'
-            f'<p>{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more were coded at once. {a["asked"]} were unsure, so Claude '
-            f'asked each customer one question: {a["settled"]} answers settled the code, and {a["asked"] - a["settled"]} go to '
-            f'the call center. Each unsure call is below, and wears a yellow corner on the board.</p>'
-            f'<div class="asks">{"".join(cards)}</div></section>')
+            f'<p>{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more were coded at once. '
+            + (f'{a["asked"]} {"was" if a["asked"] == 1 else "were"} unsure, so Claude asked each customer one question: '
+               f'{plan.counted(a["settled"], "answer")} settled the code, and {some(left)} {"goes" if left == 1 else "go"} to '
+               f'the call center. Each unsure call is below, and wears a yellow corner on the board.</p>' if a["asked"] else
+               'None were unsure, so Claude asked no customer a question.</p>')
+            + f'<div class="asks">{"".join(cards)}</div></section>')
 
 
 def todo_panel(d):
@@ -792,43 +853,47 @@ def morning_panel(d, ctx):
 
     def moves(tech, chance):
         return "".join(f'<li>call {x["job"]} &rarr; {x["to"] or "rolled to tomorrow"}'
-                       + (f', first-visit chance {x["before"]:.0%} &rarr; {x["after"]:.0%}' if chance and x["to"] and x["before"] is not None else "")
+                       + (f', first-time fix chance {x["before"]:.0%} &rarr; {x["after"]:.0%}' if chance and x["to"] and x["before"] is not None else "")
                        + "</li>" for x in m["moved"] if x["from"] == tech)
     for tech in m["sick"]:
         n = sum(x["from"] == tech for x in m["moved"])
-        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(f"{tech} called out sick at 07:00" + chr(10) + "The night plan and the loads were already made, so each call moved by the same rule to a truck that could take it, using only the parts that truck carried. Click to see it on the board.")}>'
-                     f'<strong>{tech} called out sick at 07:00</strong>: {n} calls moved<ul>{moves(tech, True)}</ul></li>')
+        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(f"{tech} called out sick at {SICK_AT}" + chr(10) + "The night plan and the loads were already made, so each call moved by the same rule to a truck that could take it, using only the parts that truck carried. Click to see it on the board.")}>'
+                     f'<strong>{tech} called out sick at {SICK_AT}</strong>: {plan.counted(n, "call")} moved<ul>{moves(tech, True)}</ul></li>')
     for tech, when in m["broken"].items():
         n = sum(x["from"] == tech for x in m["moved"])
         broke_tip = (f"Truck {ctx.techs[tech]['truck']} broke down at {plan.clock(when)}\n"
-                     f"{m['stranded'][tech]} parts stranded with it. The calls it had not reached moved to other trucks. "
+                     f"{plan.counted(m['stranded'][tech], 'part').capitalize()} stranded with it. The calls it had not reached moved to other trucks. "
                      "Click to see it on the board.")
         items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(broke_tip)}>'
                      f'<strong>Truck {ctx.techs[tech]["truck"]} ({tech}) broke down at {plan.clock(when)}</strong>: '
-                     f'{m["stranded"][tech]} parts stranded, {n} calls moved<ul>{moves(tech, True)}</ul></li>')
+                     f'{plan.counted(m["stranded"][tech], "part")} stranded, {plan.counted(n, "call")} moved<ul>{moves(tech, True)}</ul></li>')
     if not m["sick"] and not m["broken"]:
         items.append("<li>No sick calls and no breakdowns on this day.</li>")
     up = sum(p == 1 for _, p in m["changed"].values())
-    items.append(f'<li>{len(m["changed"])} calls changed priority on the day, {up} of them escalated to urgent (&#9650; on the board).</li>')
-    tip = ("07:00 and after\nWhat changed after the plan was made: sick calls at 07:00, breakdowns during the day and "
+    items.append(f'<li>{plan.counted(len(m["changed"]), "call").capitalize()} changed priority on the day'
+                 + (f', {up if up else "none"} of them escalated to urgent (&#9650; on the board)' if m["changed"] else "") + ".</li>")
+    tip = (f"{SICK_AT} and after\nWhat changed after the plan was made: sick calls at {SICK_AT}, breakdowns during the day and "
            "priority changes. Switch the board to As the day ran to see each call move.")
-    return f'<section class="panel"><h3{tipattr(tip)}>07:00 and after: what changed</h3><ul class="morning">{"".join(items)}</ul></section>'
+    return f'<section class="panel"><h3{tipattr(tip)}>{SICK_AT} and after: what changed</h3><ul class="morning">{"".join(items)}</ul></section>'
 
 
 def summary_tiles(d):
     o, b = d["ours"], d["base"]
-    saved = (b["served"] - b["fixes"]) - (o["served"] - o["fixes"])
+    saved = gap(b["served"] - b["fixes"], o["served"] - o["fixes"], 1)
+    rolled, theirs = int(o["rolled"]), int(b["rolled"])
     return "".join([
-        tile("Booked calls", "rolled call", f"{int(o['calls'])}", f"on {len(d['trucks'])} trucks; {int(o['rolled'])} rolled",
-             f"{int(o['calls'])} calls booked for {day_name(d['day'])}\nAll invented. {int(o['rolled'])} could not fit any route "
-             f"and roll to tomorrow, against {int(b['rolled'])} for the current way."),
-        tile("Fixed on the first visit", "first-visit fix", f"{100 * o['fixes'] / o['calls']:.1f}%",
-             f"against {100 * b['fixes'] / b['calls']:.1f}% the current way",
-             f"{o['fixes']:.0f} of {int(o['calls'])} calls expected fixed first time\nThe current way, the nearest technician on "
+        tile("Booked calls", "rolled call", f"{int(o['calls'])}", f"on {len(d['trucks'])} trucks; {rolled if rolled else 'none'} rolled",
+             f"{int(o['calls'])} calls booked for {day_name(d['day'])}\nAll invented. "
+             + (f"{rolled} could not fit any route and {'rolls' if rolled == 1 else 'roll'} to tomorrow" if rolled else
+                "Every one fits a route")
+             + f"; under the current rules {plan.counted(theirs, 'call')} {'rolls' if theirs == 1 else 'roll'}."),
+        tile("Fixed on the first visit", "first-time fix", f"{100 * o['fixes'] / o['calls']:.1f}%",
+             f"against {100 * b['fixes'] / b['calls']:.1f}% under the current rules",
+             f"{o['fixes']:.0f} of {int(o['calls'])} calls expected fixed first time\nThe current rules, the nearest technician on "
              f"today's fixed stock: {b['fixes']:.0f}. Same calls, same sick calls and breakdowns, both on Claude's codes."),
-        tile("Second visits avoided", "repeat visit", f"{saved:.0f}", f"at a made-up {money(load.REPEAT_VISIT)} each",
-             f"{saved:.1f} fewer second visits than the current way\nCost a call {money(o['cost'] / o['served'])} against "
-             f"{money(b['cost'] / b['served'])}."),
+        tile("Repeat visits avoided", "repeat visit", f"{saved:.1f}", f"at a made-up {dollars(load.REPEAT_VISIT)} each",
+             f"Expected: {fewer(saved)}\nCost a call {cents(o['cost'] / o['served'])} "
+             f"against {cents(b['cost'] / b['served'])}."),
         tile("Parts moved tonight", "load sheet", f"{d['moves']}", "put on or taken off at the centers",
              f"{d['moves']} parts moved overnight across the fleet\nA truck keeps a part only while it is worth more than its "
              "space, its holding cost and a move.")])
@@ -836,11 +901,11 @@ def summary_tiles(d):
 
 def day_section(d, ctx, centers, shown, chosen):
     views = (("night", "Plan at night", "Routes and loads as planned the night before, from the booked calls."),
-             ("ran", "As the day ran", "After the 07:00 sick calls, the breakdowns, the calls added on the day and the priority changes."))
+             ("ran", "As the day ran", f"After the {SICK_AT} sick calls, the breakdowns, the calls added on the day and the priority changes."))
     pick = "".join(f'<button class="vbtn{" on" if v == "night" else ""}" data-view="{v}"{tipattr(t + chr(10) + h)}>{t}</button>' for v, t, h in views)
     legend = ('<p class="legend-line"' + tipattr("Reading the board\nEach block is a call, from its start to its end. Its shade is "
-              "the plan's first-visit chance. Marks show what Claude asked, what moved, what was added and what went wrong.")
-              + '>First-visit chance: <span class="sw c1"></span>under 50% <span class="sw c2"></span>50% <span class="sw c3"></span>70% '
+              "the plan's first-time fix chance. Marks show what Claude asked, what moved, what was added and what went wrong.")
+              + '>First-time fix chance: <span class="sw c1"></span>under 50% <span class="sw c2"></span>50% <span class="sw c3"></span>70% '
               '<span class="sw c4"></span>80% <span class="sw c5"></span>90%+ · <span class="sw ai-sw"></span>Claude asked · '
               '<span class="sw moved-sw"></span>moved · <span class="sw unpl-sw"></span>added on the day · '
               '<span class="sw miss-sw"></span>part missing · &#9650; escalated</p>')
@@ -860,29 +925,34 @@ def day_section(d, ctx, centers, shown, chosen):
 def day_proof(d, shown):
     o, b = d["ours"], d["base"]
 
-    def diff(x, y, fmt):
-        return ("+" if x >= y else "−") + (f"{100 * abs(x - y):.1f} points" if fmt is share else fmt(abs(x - y)))
+    def diff(x, y, n, fmt):
+        """The difference of the two figures as shown, so the row adds up on the page."""
+        d = gap(x, y, n)
+        if not d:
+            return "no difference"
+        return ("+" if d > 0 else "−") + (f"{abs(d):.1f} points" if fmt is share else fmt(abs(d)))
 
     def share(v):
-        return f"{100 * v:.1f}%"
-    rows = [("Fixed on the first visit", o["fixes"] / o["calls"], b["fixes"] / b["calls"], share),
-            ("Second visits", o["served"] - o["fixes"], b["served"] - b["fixes"], lambda v: f"{v:.0f}"),
-            ("Drive minutes a call", o["drive"] / o["served"], b["drive"] / b["served"], lambda v: f"{v:.1f}"),
-            ("Cost a call", o["cost"] / o["served"], b["cost"] / b["served"], money),
-            ("Calls rolled to tomorrow", o["rolled"], b["rolled"], lambda v: f"{v:.0f}")]
+        return f"{v:.1f}%"
+    rows = [("Fixed on the first visit", 100 * o["fixes"] / o["calls"], 100 * b["fixes"] / b["calls"], 1, share),
+            ("Repeat visits expected", o["served"] - o["fixes"], b["served"] - b["fixes"], 1, lambda v: f"{v:.1f}"),
+            ("Drive minutes a call", o["drive"] / o["served"], b["drive"] / b["served"], 1, lambda v: f"{v:.1f}"),
+            ("Cost a call", o["cost"] / o["served"], b["cost"] / b["served"], 2, cents),
+            ("Calls rolled to tomorrow", o["rolled"], b["rolled"], 0, lambda v: f"{v:.0f}")]
     head = "".join(f"<th{tipattr(t + chr(10) + h)}>{e(t)}</th>" for t, h in (
         ("Measure", "What is compared."), ("Staple", "This plan: Claude's codes, the skills-and-parts dispatch rule and balanced loads."),
-        ("Current way", "The nearest qualified technician on today's fixed truck stock, with the same calls and surprises."),
-        ("Difference", "Staple against the current way.")))
-    body = "".join(f"<tr><td>{e(n)}</td><td>{f(x)}</td><td>{f(y)}</td><td>{diff(x, y, f)}</td></tr>" for n, x, y, f in rows)
-    saved = (b["served"] - b["fixes"]) - (o["served"] - o["fixes"])
-    tip = (f"{day_name(d['day'])}, against the current way\nBoth replays of this day run on Claude's codes, with the same sick "
+        ("Current rules", "The nearest qualified technician on today's fixed truck stock, with the same calls and surprises."),
+        ("Difference", "Staple against the current rules.")))
+    body = "".join(f"<tr><td>{e(name)}</td><td>{f(x)}</td><td>{f(y)}</td><td>{diff(x, y, n, f)}</td></tr>"
+                   for name, x, y, n, f in rows)
+    saved = gap(b["served"] - b["fixes"], o["served"] - o["fixes"], 1)
+    tip = (f"{day_name(d['day'])}, against the current rules\nBoth replays of this day run on Claude's codes, with the same sick "
            "calls, breakdowns and calls added on the day.")
     return (f'<div class="card day-proof" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
-            f'{e(day_name(d["day"]))}, against the current way</h3><p class="sub">Both on Claude\'s codes, with the same surprises.</p>'
+            f'{e(day_name(d["day"]))}, against the current rules</h3><p class="sub">Both on Claude\'s codes, with the same surprises.</p>'
             f'<table class="cmp"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
-            f'<p class="do"><strong>What it means:</strong> on this invented day the plan avoids {saved:.0f} second visits. '
-            f'That is the method\'s gain on invented data, not a result: the same comparison on real history is the first '
+            f'<p class="do"><strong>What it means:</strong> on this invented day the plan expects {fewer(saved)}. '
+            f'That is how the method does on invented data, not a result: the same comparison on real history is the first '
             f'thing to run.</p></div>')
 
 
@@ -952,24 +1022,25 @@ def build_report(results, week, stamp_text, day):
     chosen = receivers.most_common(1)[0][0] if receivers else next(i["tech"] for i in od["todo"] if i["tech"])
 
     tiles = "".join([
-        tile("Fixed on the first visit", "first-visit fix", pct(ours["first_visit_fix_pct"]),
-             f"from {pct(now['first_visit_fix_pct'])} sending the nearest technician on today's stock",
-             f"{pct(ours['first_visit_fix_pct'])} of {calls:,} held-back calls fixed on the first visit\n"
-             f"Nearest technician, today's stock {pct(now['first_visit_fix_pct'])}; nearest, balanced loads "
-             f"{pct(loaded['first_visit_fix_pct'])}; skills only {pct(skills['first_visit_fix_pct'])}; parts only "
-             f"{pct(parts_only['first_visit_fix_pct'])}.\nA rolled call counts as not fixed; {ours['rolled']} were rolled.\n"
+        tile("Fixed on the first visit", "first-time fix", pct(ours["first_time_fix_pct"]),
+             f"from {pct(now['first_time_fix_pct'])} sending the nearest technician on today's stock",
+             f"{pct(ours['first_time_fix_pct'])} of {calls:,} held-back calls fixed on the first visit\n"
+             f"Nearest technician, today's stock {pct(now['first_time_fix_pct'])}; nearest, balanced loads "
+             f"{pct(loaded['first_time_fix_pct'])}; skills only {pct(skills['first_time_fix_pct'])}; parts only "
+             f"{pct(parts_only['first_time_fix_pct'])}.\nA rolled call counts as not fixed; {counted(ours['rolled'], 'call')} "
+             f"{'was' if ours['rolled'] == 1 else 'were'} rolled.\n"
              "From dispatch_scorecard.sql."),
-        tile("Cost a call", "repeat visit", f"${ours['cost_per_call']:.2f}",
-             f"from ${now['cost_per_call']:.2f}: minutes at ${dispatch.MINUTE:.0f}, second visits at ${R:.0f}, both made up",
-             f"${ours['cost_per_call']:.2f} a call, against ${now['cost_per_call']:.2f} today\n"
-             f"Drive {ours['drive_minutes']} minutes a call against {now['drive_minutes']}. Second visits at ${R:.0f} for "
-             f"the {100 - ours['first_visit_fix_pct']:.1f}% not fixed first time, against {100 - now['first_visit_fix_pct']:.1f}%.\n"
+        tile("Cost a call", "repeat visit", f"{cents(ours['cost_per_call'])}",
+             f"from {cents(now['cost_per_call'])}: minutes at ${dispatch.MINUTE:.0f}, repeat visits at ${R:.0f}, both made up",
+             f"{cents(ours['cost_per_call'])} a call, against {cents(now['cost_per_call'])} today\n"
+             f"Drive {ours['drive_minutes']} minutes a call against {now['drive_minutes']}. Repeat visits at ${R:.0f} for "
+             f"the {100 - ours['first_time_fix_pct']:.1f}% not fixed first time, against {100 - now['first_time_fix_pct']:.1f}%.\n"
              f"Minutes at ${dispatch.MINUTE:.0f} each. Both rates are made up.\nFrom dispatch_scorecard.sql."),
         tile("Jobs the truck covers", "coverage", pct(bal["covered_pct"]),
-             f"from {pct(fixed['covered_pct'])}, at ${bal['cost_a_truck_day']:.0f} a truck-day against ${fixed['cost_a_truck_day']:.0f}",
+             f"from {pct(fixed['covered_pct'])}, at {cents(bal['cost_a_truck_day'])} a truck-day against {cents(fixed['cost_a_truck_day'])}",
              f"{pct(bal['covered_pct'])} of jobs had every needed part aboard the balanced truck\n"
-             f"Today's trucks {pct(fixed['covered_pct'])} at ${fixed['cost_a_truck_day']:.2f} a truck-day; balanced "
-             f"${bal['cost_a_truck_day']:.2f}.\nBalanced: {bal['parts_aboard']:.0f} parts aboard, {bal['permanent_parts']:.0f} "
+             f"Today's trucks {pct(fixed['covered_pct'])} at {cents(fixed['cost_a_truck_day'])} a truck-day; balanced "
+             f"{cents(bal['cost_a_truck_day'])}.\nBalanced: {bal['parts_aboard']:.0f} parts aboard, {some(bal['permanent_parts'])} "
              f"of them permanent, {bal['moves_a_night']} moved a night, ${bal['stock_value']:,.0f} of stock.\nFrom inventory_roi.sql."),
         tile("Customer's words read right", "booked code", pct(claude["agrees_booked_pct"]),
              f"agreement with the booked code, against {pct(keywords['agrees_booked_pct'])} for a plain keyword matcher",
@@ -986,10 +1057,10 @@ def build_report(results, week, stamp_text, day):
                         f"part lines aboard, {pct(fill[r['appliance']]['job_fill_pct'])} of jobs with every line aboard "
                         "(truck_fill_rate.sql).", "lead" if r is worst else "") for r in causes])
     load_bars = bars([(r["policy"] + (f", {r['parts_per_job']} per job" if r["policy"] in (load.TOP_UP, load.LISTS_ONLY) else ""),
-                       r["cost_a_truck_day"], f"${r['cost_a_truck_day']:.0f} · covers {pct(r['covered_pct'])}",
-                       f"${r['cost_a_truck_day']:.2f} a truck-day, covering {pct(r['covered_pct'])} of jobs\n"
+                       r["cost_a_truck_day"], f"{cents(r['cost_a_truck_day'])} · covers {pct(r['covered_pct'])}",
+                       f"{cents(r['cost_a_truck_day'])} a truck-day, covering {pct(r['covered_pct'])} of jobs\n"
                        f"Repeat visits ${r['repeat_cost']:.2f} + parts moved ${r['handling_cost']:.2f} + holding ${r['holding_cost']:.2f}.\n"
-                       f"{r['parts_aboard']:.0f} parts aboard ({r['permanent_parts']:.0f} permanent), {r['moves_a_night']} moved a night, "
+                       f"{r['parts_aboard']:.0f} parts aboard ({some(r['permanent_parts'])} permanent), {r['moves_a_night']} moved a night, "
                        f"${r['stock_value']:,.0f} of stock; ROI {r['roi']:.0f} dollars a year per dollar held.",
                        "lead" if r is bal else "control" if "shuffled" in r["policy"] else "")
                       for r in sorted(best.values(), key=lambda r: r["cost_a_truck_day"])])
@@ -1000,13 +1071,22 @@ def build_report(results, week, stamp_text, day):
                           + (f"The control keeps {r['gain_kept_pct']:.0f}% of the gain." if r["gain_kept_pct"] > 0 else
                              "The control lands at or below where the method started, so it keeps none of the gain."),
                           "" if r["verdict"] == "falls back" else "lead") for r in controls.values()])
-    dispatch_bars = bars([(r["policy"], r["first_visit_fix_pct"], f"{pct(r['first_visit_fix_pct'])} · ${r['cost_per_call']:.0f} a call",
-                           f"{pct(r['first_visit_fix_pct'])} fixed on the first visit, ${r['cost_per_call']:.2f} a call\n"
+    def against(r):
+        """One policy against the current rules, in points and cents, with a tie said in words."""
+        if r["policy"] == now["policy"]:
+            return ""
+        points = gap(r["first_time_fix_pct"], now["first_time_fix_pct"], 1)
+        money = gap(r["cost_per_call"], now["cost_per_call"], 2)
+        return ("\nAgainst the nearest technician on today's stock: "
+                + (f"{'+' if points > 0 else '−'}{abs(points):.1f} points" if points else "the same share fixed") + ", "
+                + (f"{'+' if money > 0 else '−'}{cents(abs(money))} a call" if money else "the same cost a call") + ".")
+
+    dispatch_bars = bars([(r["policy"], r["first_time_fix_pct"], f"{pct(r['first_time_fix_pct'])} · {cents(r['cost_per_call'])} a call",
+                           f"{pct(r['first_time_fix_pct'])} fixed on the first visit, {cents(r['cost_per_call'])} a call\n"
                            f"Drive {r['drive_minutes']} minutes a call; a part missing on {pct(r['parts_missing_pct'])} of visits; "
-                           f"{r['rolled']} of {r['calls']:,} calls rolled.\n{r['moved']} calls moved by sick days and breakdowns, "
-                           f"fixed first time {pct(r['moved_fix_pct'])}.\nAgainst the nearest technician on today's stock: "
-                           f"{r['first_visit_fix_pct'] - now['first_visit_fix_pct']:+.1f} points, "
-                           f"{r['cost_per_call'] - now['cost_per_call']:+.2f} dollars a call.",
+                           f"{some(r['rolled'])} of {r['calls']:,} calls rolled.\n{r['moved']} calls moved by sick days and breakdowns, "
+                           f"fixed first time {pct(r['moved_fix_pct'])}."
+                           + against(r),
                            "lead" if r is ours else "control" if "control" in r["policy"] else "") for r in disp.values()])
     ai_bars = bars([(r["method"], r["coverage_pct"], f"list covers {pct(r['coverage_pct'])} · agrees {pct(r['agrees_booked_pct'])}",
                      f"The 3-part list built from this reading covers {pct(r['coverage_pct'])} of {r['jobs']:,} jobs\n"
@@ -1024,12 +1104,14 @@ def build_report(results, week, stamp_text, day):
     def stuck_tip(r):
         return (f"{pretty_day(r['day'])}, {r['part']}: ships in {plan.days(r['ships_in_days'])}\n"
                 f"{counted(r['trucks_holding'], 'truck')} {'stocks' if r['trucks_holding'] == 1 else 'stock'} one; "
-                f"{counted(r['open_zones'], 'zone')} with "
-                f"no holder within {load.NEARBY_MINUTES} minutes.\nForecast {r['expected_calls']} calls, {r['expected_stuck']} with no "
-                f"truck nearby: ${r['dollars_at_risk']:,.0f} at risk.\nBefore it shipped, the held-back days brought {r['actual_calls']} calls, "
-                f"{r['actual_stuck']} stuck.")
+                + (f"{counted(r['open_zones'], 'zone')} with no holder within {load.NEARBY_MINUTES} minutes." if r["open_zones"]
+                   else f"every zone has a holder within {load.NEARBY_MINUTES} minutes.")
+                + f"\nForecast {r['expected_calls']} calls, {r['expected_stuck']} with no "
+                f"truck nearby: ${r['dollars_at_risk']:,.0f} at risk.\nBefore it shipped, the held-back days brought {plan.counted(r['actual_calls'], 'call')}"
+                + (f", {r['actual_stuck'] if r['actual_stuck'] else 'none'} stuck." if r["actual_calls"] else "."))
 
     scored = [r for r in stuck if r["back_test"]]    # each back-order once, where every call that came is counted
+    flag = rows(results, "backorder_flag")[0]
     exp_calls, exp_stuck = sum(r["expected_calls"] for r in scored), sum(r["expected_stuck"] for r in scored)
     act_calls, act_stuck = sum(r["actual_calls"] for r in scored), sum(r["actual_stuck"] for r in scored)
     this_week = {d["day"] for d in week["days"]}
@@ -1043,25 +1125,25 @@ def build_report(results, week, stamp_text, day):
     proof = [
         card("dispatch_scorecard", "Who takes the call", join(
             "Every held-back day replayed with the same made-up sick calls, breakdowns and priority changes. Staple sends "
-            "each call to the technician with the lowest expected cost: drive and repair minutes, plus a second visit times the "
+            "each call to the technician with the lowest expected cost: drive and repair minutes, plus a repeat visit times the "
             "chance that technician's skill or truck fails it, placing first the call with most to lose", q("regret insertion"),
             ". Shuffling the technicians' skills drops it to ",
-            hv(pct(shuffled_skills["first_visit_fix_pct"]), f"{pct(shuffled_skills['first_visit_fix_pct'])} with shuffled skills\n"
-               f"Each technician read another's success rate and speed; ${shuffled_skills['cost_per_call']:.2f} a call."),
+            hv(pct(shuffled_skills["first_time_fix_pct"]), f"{pct(shuffled_skills['first_time_fix_pct'])} with shuffled skills\n"
+               f"Each technician read another's success rate and speed; {cents(shuffled_skills['cost_per_call'])} a call."),
             ", below the parts-only rule's ",
-            hv(pct(parts_only["first_visit_fix_pct"]), f"{pct(parts_only['first_visit_fix_pct'])} on parts alone\nEvery technician "
-               f"taken as average; ${parts_only['cost_per_call']:.2f} a call."),
-            ", so the gain comes from knowing who is good at what. Shuffling the history behind the parts odds it "
+            hv(pct(parts_only["first_time_fix_pct"]), f"{pct(parts_only['first_time_fix_pct'])} on parts alone\nEvery technician "
+               f"taken as average; {cents(parts_only['cost_per_call'])} a call."),
+            ", so what skills add to that rule comes from knowing who is good at what. Shuffling the history behind the parts odds it "
             "reads leaves it at ",
-            hv(pct(shuffled_odds["first_visit_fix_pct"]), f"{pct(shuffled_odds['first_visit_fix_pct'])} with shuffled-history parts odds\n"
-               f"Against {pct(skills['first_visit_fix_pct'])} with no parts judgment at all. The control keeps "
+            hv(pct(shuffled_odds["first_time_fix_pct"]), f"{pct(shuffled_odds['first_time_fix_pct'])} with shuffled-history parts odds\n"
+               f"Against {pct(skills['first_time_fix_pct'])} with no parts judgment at all. The control keeps "
                f"{kept(controls[dispatch.SHUFFLED_ODDS])} of that gain: it {controls[dispatch.SHUFFLED_ODDS]['verdict']}."),
             ", so that control does not fall back. The parts judgment earns most of its gain during the day, by sending a "
             "call that comes in or is moved to a truck already loaded for that appliance. That needs only what each "
             "appliance usually needs, which the shuffle keeps. Calls moved by a sick day or a breakdown were fixed first time ",
             hv(pct(ours["moved_fix_pct"]), f"{pct(ours['moved_fix_pct'])} of {ours['moved']} moved calls fixed first time\n"
                f"The nearest technician on today's stock, facing the same surprises: {pct(now['moved_fix_pct'])} of {now['moved']}."),
-            f" of the time, against {pct(now['moved_fix_pct'])} for the current way. A rolled call", q("rolled call"),
+            f" of the time, against {pct(now['moved_fix_pct'])} for the current rules. A rolled call", q("rolled call"),
             " counts as not fixed."),
             figure("dispatch_scorecard", "Calls fixed on the first visit, with a rolled call counted as not fixed", dispatch_bars,
                    results["dispatch_scorecard"]),
@@ -1070,23 +1152,23 @@ def build_report(results, week, stamp_text, day):
         card("inventory_roi", "What to load tonight", join(
             "Each night the balanced truck ranks every part by its worth", q("worth"), " per unit of space. It covers ",
             hv(pct(bal["covered_pct"]), f"{pct(bal['covered_pct'])} of jobs covered\nAgainst {pct(fixed['covered_pct'])} on today's trucks."),
-            " of jobs for ", hv(f"${bal['cost_a_truck_day']:.0f} a truck-day", f"${bal['cost_a_truck_day']:.2f} a truck-day\nRepeat "
+            " of jobs for ", hv(f"{cents(bal['cost_a_truck_day'])} a truck-day", f"{cents(bal['cost_a_truck_day'])} a truck-day\nRepeat "
                                f"${bal['repeat_cost']:.2f}, moves ${bal['handling_cost']:.2f}, holding ${bal['holding_cost']:.2f}."),
             q("truck-day"), f", against {pct(fixed['covered_pct'])} and ",
-            hv(f"${fixed['cost_a_truck_day']:.0f}", f"${fixed['cost_a_truck_day']:.2f} a truck-day on today's stock\nRepeat "
+            hv(f"{cents(fixed['cost_a_truck_day'])}", f"{cents(fixed['cost_a_truck_day'])} a truck-day on today's stock\nRepeat "
                f"${fixed['repeat_cost']:.2f}, moves ${fixed['handling_cost']:.2f}, holding ${fixed['holding_cost']:.2f}."),
             " for today's fixed stock, while holding ",
             hv(f"${bal['stock_value']:,.0f}", f"${bal['stock_value']:,.0f} of stock on the balanced truck\n{bal['parts_aboard']:.0f} parts, "
-               f"{bal['permanent_parts']:.0f} of them aboard nearly every day."),
+               f"{some(bal['permanent_parts'])} of them aboard nearly every day."),
             f" against ${fixed['stock_value']:,.0f}. Three tests of that gain follow. Loaded from shuffled history, the control",
             q("control"), ", it still covers ",
             hv(pct(shuffled_load["covered_pct"]), f"{pct(shuffled_load['covered_pct'])} of jobs, loaded from shuffled history\n"
-               f"${shuffled_load['cost_a_truck_day']:.2f} a truck-day. The shuffle keeps what each appliance usually needs "
+               f"{cents(shuffled_load['cost_a_truck_day'])} a truck-day. The shuffle keeps what each appliance usually needs "
                "and breaks every link to model family and problem."),
-            f" for ${shuffled_load['cost_a_truck_day']:.0f} and keeps ",
+            f" for {cents(shuffled_load['cost_a_truck_day'])} and keeps ",
             hv(kept(controls[load.CONTROL_BALANCED]), f"{kept(controls[load.CONTROL_BALANCED])} of the saving kept\n"
-               f"${fixed['cost_a_truck_day']:.2f} on today's stock, ${bal['cost_a_truck_day']:.2f} balanced, "
-               f"${shuffled_load['cost_a_truck_day']:.2f} from shuffled history: it {controls[load.CONTROL_BALANCED]['verdict']}.\n"
+               f"{cents(fixed['cost_a_truck_day'])} on today's stock, {cents(bal['cost_a_truck_day'])} balanced, "
+               f"{cents(shuffled_load['cost_a_truck_day'])} from shuffled history: it {controls[load.CONTROL_BALANCED]['verdict']}.\n"
                "From controls.sql."),
             " of the saving. So that share comes from loading each truck for the appliances it will meet tomorrow, and "
             "the rest from the predictor's odds for each model family and problem. The balanced truck also fills ",
@@ -1094,15 +1176,15 @@ def build_report(results, week, stamp_text, day):
                f"Today's stock uses {fixed['space_used']}."),
             f" of space where today's stock uses {fixed['space_used']:.0f}; held to today's space it covers ",
             hv(pct(equal["covered_pct"]), f"{pct(equal['covered_pct'])} of jobs in the space today's stock uses\n"
-               f"${equal['cost_a_truck_day']:.2f} a truck-day on {equal['space_used']} units, against "
-               f"${bal['cost_a_truck_day']:.2f} with the whole truck."),
-            f" for ${equal['cost_a_truck_day']:.0f}. And the saving leans on the made-up ${load.MOVE:.0f} for moving one part: ",
-            Raw(", ".join(f"at ${m:.0f} it costs " + hv(f"${r['cost_a_truck_day']:.0f}",
-                          f"${r['cost_a_truck_day']:.2f} a truck-day when one move costs ${m:.0f}\nIt covers "
+               f"{cents(equal['cost_a_truck_day'])} a truck-day on {equal['space_used']} units, against "
+               f"{cents(bal['cost_a_truck_day'])} with the whole truck."),
+            f" for {cents(equal['cost_a_truck_day'])}. And the saving leans on the made-up ${load.MOVE:.0f} for moving one part: ",
+            Raw(", ".join(f"at ${m:.0f} it costs " + hv(f"{cents(r['cost_a_truck_day'])}",
+                          f"{cents(r['cost_a_truck_day'])} a truck-day when one move costs ${m:.0f}\nIt covers "
                           f"{pct(r['covered_pct'])} of jobs and moves {r['moves_a_night']} parts a night, against "
                           f"{bal['moves_a_night']} at ${load.MOVE:.0f}.") for m, r in priced)),
             (", each still under" if all(r["cost_a_truck_day"] < fixed["cost_a_truck_day"] for _, r in priced)
-             else ", no longer all under"), f" today's ${fixed['cost_a_truck_day']:.0f}."),
+             else ", no longer all under"), f" today's {cents(fixed['cost_a_truck_day'])}."),
             figure("inventory_roi", "Cost a truck-day: repeat visits, parts moved overnight, and money tied up", load_bars,
                    results["inventory_roi"]),
             "switch the overnight load from a fixed stock list to tomorrow's booked calls, so the parts room works from a load "
@@ -1147,13 +1229,22 @@ def build_report(results, week, stamp_text, day):
             "the days left count down, and a part drops off the day it ships. For each stuck part the list forecasts the "
             "calls that will need it before it ships, from training history only, and how many have no truck nearby "
             f"holding one. Across the {len(scored)} back-orders that shipped inside the held-back days it expected ",
-            hv(f"{exp_calls:.0f} calls and {exp_stuck:.0f} stuck", f"{exp_calls:.1f} calls, {exp_stuck:.1f} stuck\n"
+            hv(f"{exp_calls:.1f} calls and {exp_stuck:.1f} stuck", f"{exp_calls:.1f} calls, {exp_stuck:.1f} stuck\n"
                f"${sum(r['dollars_at_risk'] for r in scored):,.0f} at risk across {len(scored)} back-orders, each scored "
                "on the first day it was listed."),
             "; the days then brought ", hv(f"{act_calls} and {act_stuck}", f"{act_calls} calls, {act_stuck} stuck\nCounted on the "
-                                         "held-back days, which the forecast never saw."), "."),
+                                         "held-back days, which the forecast never saw."),
+            f". A single booking is flagged when its odds of needing a stuck part reach {load.BACKORDER_FLAG:.0%}. Of "
+            f"{flag['bookings']:,} held-back bookings, ",
+            hv(f"{flag['flagged']} were flagged and {flag['flagged_and_stuck']} of those were stuck",
+               f"{pct(flag['flags_right_pct'])} of flags marked a booking that was stuck\n{flag['were_stuck']} bookings were stuck "
+               f"in all, against a forecast of {flag['forecast_stuck']}."),
+            ". So the count can be forecast and the single booking cannot: a flag is a reason to warn a customer, never a "
+            "prediction for that call."),
             figure("backorder_exposure", "Back-ordered parts on each day of this week, by repeat-visit dollars at risk", "",
-                   results["backorder_exposure"], row_tip=stuck_tip, shown=stuck_week),
+                   results["backorder_exposure"], row_tip=stuck_tip, shown=stuck_week)
+            + figure("backorder_flag", "The back-order flag on single bookings, scored on the held-back days", "",
+                     results["backorder_flag"]),
             "expedite from the top of this list, and move spares toward the zones where no truck holds one."),
         card("carry_list_curve", "Which parts to carry", join(
             "The predictor ranks parts by how often they fixed the same model family and problem, and leans", q("lean"),
@@ -1182,10 +1273,10 @@ def build_report(results, week, stamp_text, day):
             f"{worst['appliance'].capitalize()}s are worst: ",
             hv(f"{worst['parts_caused_per_100_jobs']:.0f} of every 100", f"{worst['parts_caused']:,} of {worst['jobs']:,} "
                f"{worst['appliance']} jobs\nOnly {pct(fill[worst['appliance']]['line_fill_pct'])} of the part lines they need "
-               "are on the truck."), f" {worst['appliance']} jobs need a second visit because a part was not on board."),
+               "are on the truck."), f" {worst['appliance']} jobs need a repeat visit because a part was not on board."),
             figure("parts_caused_reschedules", "Repeat visits caused by a missing part, per 100 jobs", cause_bars,
                    results["parts_caused_reschedules"]),
-            f"start the pilot on {worst['appliance']}s, where a missing part costs the most second visits."),
+            f"start the pilot on {worst['appliance']}s, where a missing part costs the most repeat visits."),
         card("controls", "Each gain against its control", join(
             "A control", q("control"), " is a method run again with one link in its data broken. Where the gain goes "
             f"with the link, it came from the link. {len(controls) - len(held)} of these {len(controls)} controls fall back, "
@@ -1206,10 +1297,10 @@ def build_report(results, week, stamp_text, day):
              '<li><strong>Back-test on its own history.</strong> The same replay on real calls, parts and technicians, before '
              'any truck changes. If the gains vanish there, it stops here.</li>'
              '<li><strong>Pilot one region.</strong> Load and dispatch one region by this plan for six weeks against a matched '
-             'region left as it is, and compare first-visit fix, parts-caused repeat visits and stock value.</li>'
+             'region left as it is, and compare first-time fix, parts-caused repeat visits and stock value.</li>'
              '<li><strong>Roll out region by region.</strong> Each region goes live only after the one before it beat its match.</li></ol></section>')
     limits = ('<section class="card"><h3' + tipattr("What this shows, and what it does not\nThe instruction manual's last sections "
-              "list every limit; the methods manual names each shortcut and its upgrade.") + '>What this shows, and what it does not</h3>'
+              "list every limit; the methods page names each shortcut and its upgrade.") + '>What this shows, and what it does not</h3>'
               f'<p>The plan on the left runs on Claude\'s codes for one invented week. The evidence above runs on the call-taker\'s '
               f'booked codes for all {world.TEST_DAYS} held-back days, so it measures the planning apart from the reading. Every '
               f'result reproduces from one seed, and each gain is shown beside a control that breaks the link it should come '
@@ -1240,7 +1331,7 @@ def build_report(results, week, stamp_text, day):
     week_tip = (f"Day\nThe most recent {plan.WEEK} held-back days, not hand-picked. The page opens on the most recent day with "
                 "a sick call and a breakdown that both moved calls. &#10010; marks a sick call, &#9888; a breakdown.")
     sides = "".join(f'<button class="side-btn{" on" if s == "plan" else ""}" data-side="{s}"{tipattr(t + chr(10) + h)}>{t}</button>'
-                    for s, t, h in (("plan", "Plan", "What to do tonight."), ("proof", "Proof", "Why the plan beats the current way.")))
+                    for s, t, h in (("plan", "Plan", "What to do tonight."), ("proof", "Proof", "Why the plan beats the current rules.")))
     intro = (f'<div class="intro"><ol class="how">{steps}</ol><div class="pickers"><span class="pick-label"{tipattr(html.unescape(week_tip))}>'
              f'Day</span>{"".join(dbtn)}<span class="invented"{tipattr(madeup)}>every name and figure is invented; the method is real</span>'
              f'<span class="sides">{sides}</span></div></div>')
@@ -1251,7 +1342,7 @@ def build_report(results, week, stamp_text, day):
              + "".join(tech_card(t, ctx, t == chosen) for t in ctx.crew.techs) + across + "".join(proof) + adopt + limits)
     body = (f'{intro}<div class="panes"><div class="pane plan-pane"><p class="pane-label">The plan · one invented week, '
             f'on Claude\'s codes</p>{left}</div><div class="pane proof-pane"><p class="pane-label">The proof · why it beats '
-            f'the current way</p>{right}</div></div>')
+            f'the current rules</p>{right}</div></div>')
     return shell("report", "Staple report", LEDE, body, stamp_text, day, chosen)
 
 
@@ -1260,18 +1351,30 @@ def as_sent(template):
     return template.replace("{{", "{").replace("}}", "}")
 
 
+def listed(values, word):
+    """Values as a sentence lists them: 25, 45 and 30."""
+    values = [str(v) for v in values]
+    return f"{', '.join(values[:-1])} {word} {values[-1]}"
+
+
+def months(numbers):
+    """A run of months by name: November to February."""
+    name = lambda m: dt.date(2000, m, 1).strftime("%B")
+    return f"{name(numbers[0])} to {name(numbers[-1])}"
+
+
 def facts():
     """Every value the manuals quote, read from the code that uses it."""
     cat, start = world.CATALOG, world.START
     n_parts, n_problems = [len(cat[t][1]) for t in cat], [len(cat[t][2]) for t in cat]
-    v = {"jobs": f"{world.JOBS:,}", "days": f"{world.DAYS:,}", "start": f"{start.day} {start:%b %Y}", "types": len(cat),
+    v = {"jobs": f"{world.JOBS:,}", "days": f"{world.DAYS:,}", "start": f"{start:%b} {start.day}, {start.year}", "types": len(cat),
          "techs": world.TECHS, "test_days": world.TEST_DAYS, "seed": world.SEED, "families": world.FAMILIES_PER_TYPE,
          "rare_families": world.RARE_FAMILIES, "misdescribed": f"{world.MISDESCRIBED:.0%}", "random_failure": f"{world.RANDOM_FAILURE:.0%}",
          "vague": f"{world.VAGUE_WORDS:.0%}", "capacity": world.CAPACITY, "stock_fill": f"{world.STOCK_FILL:.0%}",
          "zones": len(world.ZONES), "parts_min": min(n_parts), "parts_max": max(n_parts), "problems_min": min(n_problems),
          "problems_max": max(n_problems), "pull": predict.PULL, "shown_k": load.SHOWN_K, "ks": f"{min(load.KS)} to {max(load.KS)}",
          "repeat_visit": f"${load.REPEAT_VISIT:.0f}", "move": f"${load.MOVE:.0f}", "holding_rate": f"{load.HOLDING_RATE:.0%}",
-         "unplanned": f"{load.UNPLANNED:.0%}", "nearby": load.NEARBY_MINUTES, "lean_tolerance": f"${load.LEAN_TOLERANCE:.0f}",
+         "unplanned": f"{load.UNPLANNED:.0%}", "nearby": load.NEARBY_MINUTES, "lean_tolerance": cents(load.LEAN_TOLERANCE),
          "permanent": f"{load.PERMANENT:.0%}", "backorder_flag": f"{load.BACKORDER_FLAG:.0%}", "model": triage.MODEL,
          "effort": triage.EFFORT, "api_version": triage.API_VERSION, "blend_below": triage.BLEND_BELOW, "day": dispatch.DAY,
          "minute": f"${dispatch.MINUTE:.0f}", "skill_pull": dispatch.SKILL_PULL, "sick": f"{dispatch.SICK:.0%}", "breakdown": f"{dispatch.BREAKDOWN:.0%}",
@@ -1283,7 +1386,23 @@ def facts():
          "behind": f"{plan.BEHIND:.0%}", "backorder_starts": f"{world.BACKORDER_STARTS:.0%}",
          "backorder_days": f"{world.BACKORDER_DAYS[0]} to {world.BACKORDER_DAYS[1]}",
          "same_day_until": plan.clock(dispatch.SAME_DAY_UNTIL), "buyer_items": plan.BUYER_ITEMS,
-         "falls_back": f"{metrics.FALLS_BACK:.0%}", "move_steps": ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS)}
+         "falls_back": f"{metrics.FALLS_BACK:.0%}", "move_steps": ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS),
+         "furnace_winter": f"{world.FURNACE_WINTER:g}", "furnace_summer": f"{world.FURNACE_SUMMER:g}",
+         "winter_months": months(world.WINTER), "summer_months": months(world.SUMMER), "weak_part": world.WEAK_PART,
+         "no_part": world.NO_PART, "one_part": f"{world.ONE_PART_UNTIL - world.NO_PART:.2f}",
+         "levels": listed(list(world.LEVELS), "or"), "level_weights": listed([w for w, _, _ in world.LEVELS.values()], "and"),
+         "level_rates": listed([r for _, r, _ in world.LEVELS.values()], "or"),
+         "level_times": listed([f"{t:.2f}" for _, _, t in world.LEVELS.values()], "or"), "specialist": world.SPECIALIST,
+         "specialist_types": listed(world.SPECIALIST_TYPES, "or"), "specialist_rate": world.SPECIALIST_RATE,
+         "specialist_time": world.SPECIALIST_TIME, "rate_spread": world.RATE_SPREAD, "time_spread": f"{world.TIME_SPREAD:.0%}",
+         "top_rate": world.TOP_RATE, "mid_certified": world.MID_CERTIFIED, "grid": f"{world.GRID[0]} by {world.GRID[1]}",
+         "zone_miles": f"{world.ZONE_MILES:g}", "inside_zone": f"{world.INSIDE_ZONE:g}", "between_zones": f"{world.BETWEEN_ZONES:g}",
+         "minutes_a_mile": f"{world.MINUTES_A_MILE:g}", "centers": len(world.CENTERS), "shuffle_seed": predict.SHUFFLE_SEED,
+         "unplanned_seed": load.UNPLANNED_SEED, "dispatch_seed": dispatch.SEED, "skills_seed": dispatch.SKILLS_SEED,
+         "answer_seed": triage.SHUFFLE_SEED, "id_length": triage.ID_LENGTH, "day_start": plan.clock(0),
+         "day_end": plan.clock(dispatch.DAY), "sick_by": SICK_AT, "breaks_from": plan.clock(dispatch.BREAKS_BETWEEN[0]),
+         "breaks_to": plan.clock(dispatch.BREAKS_BETWEEN[1]), "max_k": max(load.KS),
+         "queries": len(list(metrics.SQL.glob("*.sql"))), "python": ".".join(map(str, PYTHON))}
     return {k: Raw(e(str(x))) for k, x in v.items()}
 
 
@@ -1292,14 +1411,14 @@ def thresholds():
     items = [("Held-back days", f"{world.TEST_DAYS} days", "The back-test's hold-out.", design, "principles", None),
              ("Pull toward wider groups", f"{predict.PULL} jobs", "How far thin history leans on the wider level.", "design choice; check.py backtest measures its effect", "predictor", "ex-predictor"),
              ("Carry list quoted", f"{load.SHOWN_K} parts", "The list length the report quotes.", design, "backtest", "ex-backtest"),
-             ("Repeat visit", f"${load.REPEAT_VISIT:.0f}", "A second truck roll.", made, "loads", None),
+             ("Repeat visit", f"${load.REPEAT_VISIT:.0f}", "Another visit to a job the first visit did not fix.", made, "loads", None),
              ("Moving a part", f"${load.MOVE:.0f}", "Loading or unloading one part overnight.", made, "loads", None),
              ("Higher move prices replayed", ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS), "Other prices for one move, each replayed to show how far the balanced truck's saving leans on that price.", made, "loads", None),
              ("A control falls back", f"under {metrics.FALLS_BACK:.0%} of the gain kept", "A control keeping less than this share of the gain it tests counts as fallen back.", design, "principles", None),
              ("Holding rate", f"{load.HOLDING_RATE:.0%} a year", "Cost of money tied up in stock.", made, "loads", None),
              ("Unplanned share", f"{load.UNPLANNED:.0%}", "Calls added or moved on the day.", made, "loads", None),
              ("Nearby", f"{load.NEARBY_MINUTES} minutes", "Another truck counts as nearby within this drive.", design, "availability", None),
-             ("List-length tolerance", f"${load.LEAN_TOLERANCE:.0f} a truck-day", "The shortest list within this of the cheapest is chosen.", design, "loads", "ex-loads"),
+             ("List-length tolerance", f"{cents(load.LEAN_TOLERANCE)} a truck-day", "The shortest list within this of the cheapest is chosen.", design, "loads", "ex-loads"),
              ("Permanent", f"{load.PERMANENT:.0%} of days", "A part aboard this often counts as permanent.", design, "loads", None),
              ("Back-order flag", f"{load.BACKORDER_FLAG:.0%} odds", "A booking at this chance of needing a stuck part is flagged.", made, "availability", "ex-availability"),
              ("Truck space", f"{world.CAPACITY} units", "Space on one truck.", made, "world", None),
@@ -1317,7 +1436,7 @@ def thresholds():
              ("Priority change", f"{dispatch.ESCALATE:.0%} up, {dispatch.EASE:.0%} down", "Chance a call escalates or eases on the day.", made, "dispatch", None)]
     items += [(f"Repair time, {t}", f"{m} minutes", "An average technician's time on this appliance.", made, "dispatch", None) for t, m in dispatch.REPAIR.items()]
     def rule(name, section, example):
-        tip = (f"{name}\nOpens the methods manual in a new tab at "
+        tip = (f"{name}\nOpens the methods page in a new tab at "
                + ("the worked example of this rule." if example else "the section that uses this value."))
         return (f'<a href="{FILES["method"]}#{example or section}" target="_blank" rel="noopener"{tipattr(tip)}>'
                 f'{e(name)}</a>')
@@ -1375,7 +1494,7 @@ def fill_in(template, values):
 def build_manuals(stamp_text, day):
     v = facts()
     v["sample_q"] = Raw(tipattr(SAMPLE_Q))
-    v["MARKS"] = Raw("".join(f"<tr><td>{e(m)}</td><td>{e(MARK_HELP[m][0])}</td><td>{e(MARK_HELP[m][1])}</td></tr>" for m in load.MARKS))
+    v["MARKS"] = Raw("".join(f"<tr><td>{e(m)}</td><td>{e(MARK_HELP[m][0])}</td><td>{e(MARK_HELP[m][1])}</td></tr>" for m in plan.WHERE))
     v["MARK_ORDER"] = Raw("".join(f"<li><strong>{e(m)}</strong>: {e(MARK_HELP[m][0])}</li>" for m in load.MARKS))
     v["THRESHOLDS"] = thresholds()
     v["GLOSSARY"] = Raw("<dl>" + "".join(f'<dt id="{slug(t)}"><strong>{e(t)}</strong></dt><dd>{e(d)}</dd>'
@@ -1384,7 +1503,7 @@ def build_manuals(stamp_text, day):
     v.update({f"EX_{x.section}": example_html(x) for x in examples.EXAMPLES})
     manual = shell("manual", "Staple instruction manual", "What each figure means, how to read it, and what it cannot tell you.",
                    fill_in("manual.html", v), stamp_text, day)
-    method = shell("method", "Staple methods manual", "Every formula, rule, prompt, query and check behind the report.",
+    method = shell("method", "Staple methods page", "Every formula, rule, prompt, query and check behind the report.",
                    fill_in("method.html", v), stamp_text, day)
     return manual, method
 

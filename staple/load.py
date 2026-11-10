@@ -18,10 +18,11 @@ from staple.backtest import test_jobs
 from staple.predict import Predictor
 from staple.world import travel_minutes
 
-REPEAT_VISIT = 165.0   # a second truck roll because a part was missing (made up)
+REPEAT_VISIT = 165.0   # a repeat visit because a part was missing (made up)
 MOVE = 2.0             # putting one part on a truck at the center overnight, or taking one off (made up)
 MOVE_STEPS = (5.0, 10.0, 20.0)   # higher prices for one move, replayed to show how far the saving leans on MOVE
 HOLDING_RATE = 0.25    # yearly cost of money tied up in truck stock, as a share of its value (made up)
+UNPLANNED_SEED = 2026  # seeds which held-back calls are marked unplanned
 UNPLANNED = 0.15       # share of calls added or moved the same day (made up until the dispatch replay measures it)
 NEARBY_MINUTES = 30    # another truck is nearby when it is based within this drive of the job
 LEAN_TOLERANCE = 2.0   # dollars a truck-day: the shortest list costing within this of the cheapest is recommended
@@ -33,7 +34,7 @@ TODAY, EVERYTHING, BALANCED = "today's trucks", "every part that fits for the da
 TOP_UP, LISTS_ONLY = "today's stock plus the day's lists", "the day's lists only"
 CONTROL, CONTROL_BALANCED = "top-up from shuffled history", "balanced from shuffled history"
 EQUAL_SPACE = "balanced truck, held to the space today's stock uses"
-MARKS = ("needs a certified technician", "on this truck", "from a center overnight", "on another truck nearby",
+MARKS = ("needs a certified technician", "aboard", "from a center overnight", "on a truck nearby",
          "back-ordered")   # in the order mark() tries them: a part gets the first that holds
 
 
@@ -81,7 +82,7 @@ def at_move(move):
     return f"balanced truck, a move priced at ${move:.0f}"
 
 
-def mark_unplanned(jobs, seed=2026):
+def mark_unplanned(jobs, seed=UNPLANNED_SEED):
     rng = random.Random(seed)
     for j in jobs:
         j["unplanned"] = rng.random() < UNPLANNED
@@ -238,9 +239,9 @@ def mark(fleet, tech, zone, part, stuck=()):
     """Where one carry-list part would come from for this job's technician: the first of MARKS that holds. stuck
     is the parts no center can ship on the job's day."""
     holds = {"needs a certified technician": lambda: part in fleet.locked and tech not in fleet.certified,
-             "on this truck": lambda: part in fleet.stock[tech],
+             "aboard": lambda: part in fleet.stock[tech],
              "from a center overnight": lambda: part not in stuck,
-             "on another truck nearby": lambda: any(o != tech and part in s and travel_minutes(fleet.home[o], zone)
+             "on a truck nearby": lambda: any(o != tech and part in s and travel_minutes(fleet.home[o], zone)
                                                     <= NEARBY_MINUTES for o, s in fleet.stock.items()),
              "back-ordered": lambda: True}
     return next(m for m in MARKS if holds[m]())
@@ -295,7 +296,7 @@ def run(conn):
     mark_unplanned(jobs)
     fleet, real = Fleet(conn), Predictor(conn)
     lists, surprise = ranked_lists(real, jobs), surprise_value(conn, real)
-    shuffled = ranked_lists(Predictor(conn, shuffled=True, seed=7), jobs)
+    shuffled = ranked_lists(Predictor(conn, shuffled=True), jobs)
     every = max(len(v) for v in lists.values())
     rows = replay(fleet, jobs, policies(fleet, lists, shuffled, surprise, every))
     for move in MOVE_STEPS:

@@ -338,7 +338,7 @@ def control():
     for k in range(1, 7):
         shuffled, base, real = (cov[m][k] for m in ("shuffled-history control", "national top parts", "predictor"))
         require(abs(shuffled - base) <= 0.03, f"with {k} parts the shuffled control sits {shuffled - base:+.1%} "
-                                              "from the baseline: the gain may be an artefact")
+                                              "from the baseline: the gain may be an artifact")
         require(real - shuffled > 0.05 or k >= 6, f"with {k} parts the predictor barely beats its own control")
     print(f"  shuffled history scores {cov['shuffled-history control'][3]:.1%} with 3 parts against the "
           f"baseline's {cov['national top parts'][3]:.1%}: the gain comes from the history's links, not the method")
@@ -670,7 +670,7 @@ def dispatch_check():
     conn = shared_world()
     out = dispatch.run(conn)
     for name, r in out.items():
-        print(f"  {name}: first-visit fix {r['fixes_per_call']:.1%} of calls; parts missing {r['parts_missing']:.1%}; "
+        print(f"  {name}: first-time fix {r['fixes_per_call']:.1%} of calls; parts missing {r['parts_missing']:.1%}; "
               f"{r['rolled']} rolled to tomorrow; {r['drive_per_call']:.1f} drive minutes a call; ${r['cost_per_call']:.2f} a call")
     today, loaded, skills, parts, staple = (out[name] for name, *_ in dispatch.POLICIES)
     print(f"  {staple['sick']} sick days and {staple['broken']} breakdowns moved {staple['moved']} calls; "
@@ -716,7 +716,7 @@ def dispatch_control():
     base, parts, staple = (out[n] for n in ("nearest technician, balanced loads", "parts only, balanced loads",
                                             "Staple: skills and parts, balanced loads"))
     skills_off, odds_off = out[dispatch.SHUFFLED_SKILLS], out[dispatch.SHUFFLED_ODDS]
-    print(f"  first-visit fix a call: nearest {base['fixes_per_call']:.1%}, parts only {parts['fixes_per_call']:.1%}, "
+    print(f"  first-time fix a call: nearest {base['fixes_per_call']:.1%}, parts only {parts['fixes_per_call']:.1%}, "
           f"Staple {staple['fixes_per_call']:.1%}")
     print(f"  shuffled skills {skills_off['fixes_per_call']:.1%}: the skill gain over parts only "
           f"({staple['fixes_per_call'] - parts['fixes_per_call']:+.1%}) becomes "
@@ -784,9 +784,9 @@ def dispatch_blind():
     tech, kind = pair = min(crew.skill)
     keep = "SELECT job FROM jobs WHERE split = 'train' AND parts_on_truck = 1 AND tech = ? AND type = ? ORDER BY job LIMIT 5"
     thin.execute(f"DELETE FROM jobs WHERE split = 'train' AND tech = ? AND type = ? AND job NOT IN ({keep})", pair + pair)
-    own = thin.execute("SELECT COUNT(*), SUM(first_visit_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
+    own = thin.execute("SELECT COUNT(*), SUM(first_time_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
                        "AND tech = ? AND type = ?", pair).fetchone()
-    group = thin.execute("SELECT COUNT(*), SUM(first_visit_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
+    group = thin.execute("SELECT COUNT(*), SUM(first_time_fix) FROM jobs WHERE split = 'train' AND parts_on_truck = 1 "
                          "AND type = ?", (kind,)).fetchone()
     by_hand = (own[1] + dispatch.SKILL_PULL * group[1] / group[0]) / (own[0] + dispatch.SKILL_PULL)
     got = dispatch.Crew(thin).belief[pair][0]
@@ -823,7 +823,7 @@ def dispatch_blind():
     rewritten = sqlite3.connect(":memory:")
     conn.backup(rewritten)
     best = max(crew.belief, key=lambda k: (crew.belief[k][0], k))
-    rewritten.execute("UPDATE jobs SET first_visit_fix = 0 WHERE split = 'train' AND tech = ? AND type = ?", best)
+    rewritten.execute("UPDATE jobs SET first_time_fix = 0 WHERE split = 'train' AND tech = ? AND type = ?", best)
     misled = dispatch.Crew(rewritten)
     rewritten.close()
     moved = dispatch.replay(conn, jobs, "skills and parts", "balanced", misled, record=True)
@@ -1016,7 +1016,7 @@ def plan_check():
     for d in week["days"]:
         o, b, m, a = d["ours"], d["base"], d["morning"], d["ai"]
         owners = Counter(i["owner"] for i in d["todo"])
-        print(f"  {d['day']}: {int(o['calls'])} calls; first-visit fix {o['fixes'] / o['calls']:.1%} against "
+        print(f"  {d['day']}: {int(o['calls'])} calls; first-time fix {o['fixes'] / o['calls']:.1%} against "
               f"{b['fixes'] / b['calls']:.1%} for the nearest technician on today's stock; Claude asked {a['asked']}, "
               f"settled {a['settled']}; sick {m['sick'] or 'none'}, breakdowns "
               f"{ {t: plan.clock(at) for t, at in m['broken'].items()} or 'none'}, {len(m['moved'])} calls moved; "
@@ -1124,7 +1124,7 @@ def hand_tables(conn, stock_as_replayed=True):
     def of(part, whole):
         return pct(part / whole) if whole else None    # SQL gives NULL for a share of nothing
 
-    jobs = conn.execute("SELECT job, day, type, tech, parts_on_truck, first_visit_fix FROM jobs").fetchall()
+    jobs = conn.execute("SELECT job, day, type, tech, parts_on_truck, first_time_fix FROM jobs").fetchall()
     needed = defaultdict(set)
     for job, part in conn.execute("SELECT job, part FROM job_parts"):
         needed[job].add(part)
@@ -1221,6 +1221,7 @@ def hand_tables(conn, stock_as_replayed=True):
             *(read[m] for m in ("Claude", triage.ASKED, triage.RANDOM_REPLIES))),
     }
     said = len(set(conn.execute("SELECT type, words FROM jobs WHERE split = 'test'").fetchall()))
+    flag = dict(conn.execute("SELECT measure, value FROM availability WHERE kind = 'jobs'"))
     sure_from = one(conn, "SELECT value FROM assumptions WHERE name = 'ai_confidence'")
     return {
         "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
@@ -1243,6 +1244,10 @@ def hand_tables(conn, stock_as_replayed=True):
                      "coverage_pct": pct(covered)}
             for method, n, booked, true, covered in
             conn.execute("SELECT method, jobs, agree_booked, agree_true, coverage FROM triage")},
+        "backorder_flag": {
+            int(flag["jobs"]): {"forecast_stuck": to(flag["expected"], 1), "were_stuck": int(flag["blocked"]),
+                                "flagged": int(flag["flagged"]), "flagged_and_stuck": int(flag["caught"]),
+                                "flags_right_pct": of(flag["caught"], flag["flagged"])}},
         "ai_calibration": {
             f"{low:.2f} to {high:.2f}": {"phrasings": band_said, "jobs": n, "agrees_booked_pct": pct(booked),
                                          "agrees_true_pct": pct(true),
@@ -1250,7 +1255,7 @@ def hand_tables(conn, stock_as_replayed=True):
             for low, high, band_said, n, booked, true in
             conn.execute("SELECT low, high, phrasings, jobs, agree_booked, agree_true FROM triage_calibration")},
         "dispatch_scorecard": {
-            policy: {"calls": calls, "rolled": rolled, "first_visit_fix_pct": pct(fixes), "parts_missing_pct": pct(missing),
+            policy: {"calls": calls, "rolled": rolled, "first_time_fix_pct": pct(fixes), "parts_missing_pct": pct(missing),
                      "drive_minutes": to(drive, 1), "moved": moved, "moved_fix_pct": pct(moved_fix),
                      "cost_per_call": to(dollars, 2)}
             for policy, calls, rolled, fixes, missing, drive, moved, moved_fix, dollars in
@@ -1342,7 +1347,7 @@ def sql_metrics():
                                             JOIN job_parts jp ON jp.part = s.part JOIN jobs j ON j.job = jp.job AND j.tech = t.tech
                                             ORDER BY t.truck, s.part LIMIT 1""").fetchone()
         other = one(copy, "SELECT MAX(truck) FROM trucks")
-        copy.execute("UPDATE jobs SET first_visit_fix = 0 WHERE substr(day, 1, 7) = ?", (first,))
+        copy.execute("UPDATE jobs SET first_time_fix = 0 WHERE substr(day, 1, 7) = ?", (first,))
         copy.execute("DELETE FROM truck_stock WHERE truck = ? AND part = ?", (truck, part))
         # Every technician's jobs have needed every real part at some point, so the unused part is a new one.
         copy.execute("INSERT INTO parts VALUES ('washer/planted part', 'washer', 'planted part', 50, 1, 0)")
@@ -1375,10 +1380,11 @@ WRONG_QUERIES = {
     "ai_step": ("100.0 * agree_true", "100.0 * agree_booked",
                 "reports agreement with the booked code as agreement with the true problem"),
     "backorder_exposure": ("ROUND(at_risk, 0)", "ROUND(expected_stuck, 0)", "reports stuck calls as dollars at risk"),
+    "backorder_flag": ("measure = 'blocked'", "measure = 'flagged'", "reports the flagged bookings as the stuck ones"),
     "carry_list_curve": ("WHERE k > 0", "WHERE k > 1", "drops the one-part carry list"),
     "dispatch_scorecard": ("100.0 * fixes_per_call", "100.0 * moved_fix_rate",
                            "reports the moved calls' fix rate as every call's"),
-    "first_time_fix": ("AVG(first_visit_fix)", "AVG(parts_on_truck)", "counts a visit with its parts aboard as a fix"),
+    "first_time_fix": ("AVG(first_time_fix)", "AVG(parts_on_truck)", "counts a visit with its parts aboard as a fix"),
     "controls": ("< a.value", ">= a.value", "calls a control that kept its gain fallen back, and one that lost it kept"),
     "inventory_roi": ("l.saved * a.value", "l.coverage * l.jobs * a.value",
                       "counts a job that needed no part as a repeat visit the stock avoided"),
@@ -1476,7 +1482,7 @@ def figures_missing(page, results):
         "the balanced truck held to today's space": ("inventory_roi", [covers(equal), cost(equal)]),
         "the balanced truck at each higher move price": ("inventory_roi", [cost(loads[(load.at_move(m), 0)]) for m in load.MOVE_STEPS]),
         "the leak test": ("carry_list_curve", [report.pct(curve[load.SHOWN_K]["leaked_pct"])]),
-        "the parts-odds control": ("dispatch_scorecard", [report.pct(scores[odds]["first_visit_fix_pct"]),
+        "the parts-odds control": ("dispatch_scorecard", [report.pct(scores[odds]["first_time_fix_pct"]),
                                                           report.kept(controls[odds])]),
     }
     want.update({f"the control '{name}'": ("controls", [name, row["verdict"], f"{row['without_it']} without it",
@@ -1875,6 +1881,223 @@ def triage_honest():
     print(f"  control: {len(stops)} of {len(stops)} failures stop on one sentence, and good replies go through")
 
 
+ALLOWED_NUMERALS = ("SHA-256", "per 100 jobs")    # a name and a unit, neither a figure the code holds
+# Forms an American reader would not write, split so this file does not hold them itself.
+ABROAD = [a + b for a, b in (("col", "our"), ("cent", "re"), ("per ", "cent"), ("catalog", "ue"), ("arte", "fact"), ("lic", "ence"),
+                             ("behav", "iour"), ("fav", "our"), ("neighb", "our"), ("organ", "is"), ("recogn", "is"),
+                             ("analy", "se"), ("optim", "is"), ("priorit", "is"), ("summar", "is"), ("travel", "l"),
+                             ("model", "l"), ("label", "l"), ("cancel", "led"), ("program", "me"), ("kilo", "met"),
+                             ("lit", "re"), ("judg", "ement"), ("whil", "st"), ("among", "st"), ("dear", "er"), ("cost", "ed"),
+                             ("gr", "ey"))]
+OLD_NAMES = {"first-" + "visit fix": "first-time fix", "first-" + "visit chance": "first-time fix chance",
+             "second " + "visit": "repeat visit", "second truck " + "roll": "repeat visit", "the current " + "way": "the current rules",
+             "methods " + "manual": "methods page", "Methods and " + "logic": "Methods page", "Instruction " + "Manual": "Instruction manual"}
+FALSE_EVERY = ("Every number on the report comes " + "from", "every constant in these " + "manuals", "Every control here falls " + "back")
+MONTHS = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
+COUNTED = "calls|trucks|parts|jobs|visits|technicians|bookings|days|moves|items|zones|routes|answers|minutes"
+
+
+def typed_numerals(template):
+    """Numerals typed into a page template. A formula, a code name and a placeholder are not typed figures."""
+    text = re.sub(r"<(code|pre|var)\b[^>]*>.*?</\1>", " ", template, flags=re.S)
+    text = re.sub(r"\{\{\w+\}\}|<[^>]+>|&#?\w+;", " ", text)
+    for allowed in ALLOWED_NUMERALS:
+        text = text.replace(allowed, " ")
+    return re.findall(r"[^\s(]*\d[^\s),;]*", text)
+
+
+def abroad(texts):
+    """Entries of {name: text} that hold a British form, a metric distance or a day-first date."""
+    hits = []
+    for name, text in texts.items():
+        found = sorted(set(m.group(0).lower() for m in re.finditer(r"\b(?:" + "|".join(ABROAD) + r")\w*|\bkm\b", text, re.I)))
+        found += sorted(set(re.findall(rf"\b\d{{1,2}} (?:{MONTHS})\b", text)))
+        hits += [f"{name}: {word}" for word in found]
+    return hits
+
+
+def old_names(texts):
+    """Entries of {name: text} that call a thing by a name the pages have dropped."""
+    return sorted(f"{name}: '{old}' for {new}" for name, text in texts.items() for old, new in OLD_NAMES.items() if old in text)
+
+
+def page_words(page):
+    """A page as a reader meets it: its words and its hover hints, with the markup out."""
+    import html
+    hints = " ".join(re.findall(r'data-tip="([^"]*)"', page))
+    return html.unescape(re.sub(r"<script\b.*?</script>|<style\b.*?</style>|<[^>]+>", " ", page, flags=re.S) + " " + hints)
+
+
+def figure_of(cell):
+    """The number in one table cell and the decimal places it shows, or None for a cell that holds no number."""
+    m = re.search(r"\d[\d,]*(?:\.(\d+))?", cell)
+    if not m:
+        return None
+    return float(m.group(0).replace(",", "")), len(m.group(1) or "")
+
+
+def comparisons(page):
+    """The tables that set two figures beside their difference: one for each day of the week."""
+    return [t for t in re.findall(r'<table class="cmp">.*?</table>', page, flags=re.S) if ">Difference</th>" in t]
+
+
+def comparison_faults(page):
+    """Rows of the day's comparison whose difference is not the difference of the two figures beside it, whose
+    three figures are not shown at one precision, or whose tie is shown as a number and not in words."""
+    faults = []
+    for table in comparisons(page):
+        for row in re.findall(r"<tr>(.*?)</tr>", table.split("<tbody>")[1], flags=re.S):
+            name, ours, theirs, diff = [re.sub(r"<[^>]+>", "", c) for c in re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.S)]
+            (x, px), (y, py) = figure_of(ours), figure_of(theirs)
+            d, pd = (0.0, px) if diff == "no difference" else figure_of(diff)
+            signed = -d if diff.startswith("−") else d
+            if not px == py == pd:
+                faults.append(f"{name}: {ours}, {theirs} and {diff} are not at one precision")
+            elif abs(round(x - y, px) - signed) > 1e-9:
+                faults.append(f"{name}: {ours} less {theirs} is not {diff}")
+            elif not d and diff != "no difference":
+                faults.append(f"{name}: a tie is shown as {diff}")
+    return faults
+
+
+def column_faults(page):
+    """Columns of the tables under the charts whose numbers are shown at more than one precision."""
+    faults = []
+    for figure in re.findall(r"<figure>.*?</figure>", page, flags=re.S):
+        title = re.sub(r"<[^>]+>", "", re.search(r'<span class="fig-title"[^>]*>(.*?)</span>', figure, flags=re.S).group(1))
+        heads = [re.sub(r"<[^>]+>", "", h) for h in re.findall(r"<th[^>]*>(.*?)</th>", figure, flags=re.S)]
+        rows = [[re.sub(r"<[^>]+>", "", c) for c in re.findall(r"<td[^>]*>(.*?)</td>", r, flags=re.S)]
+                for r in re.findall(r"<tr>(.*?)</tr>", figure.split("<tbody>")[1], flags=re.S)]
+        for i, head in enumerate(heads):
+            shown = {len(c.split(".")[1]) if "." in c else 0 for c in (r[i] for r in rows) if re.fullmatch(r"-?\d+(\.\d+)?", c)}
+            if len(shown) > 1:
+                faults.append(f"{title}, {head}: {sorted(shown)} decimal places in one column")
+    return faults
+
+
+def bare_part_names(page, parts_list):
+    """Uses of a part name that more than one appliance has, with no appliance in front of it. Names are matched
+    whole and longest first, so "oven door gasket" is not read as a bare "door gasket"."""
+    from staple import world
+    names = sorted({n for _, parts, _ in parts_list.values() for n, *_ in parts}, key=len, reverse=True)
+    words, bare = page_words(page), []
+    for m in re.finditer("|".join(map(re.escape, names)), words):
+        before = words[max(0, m.start() - 16):m.start()]
+        if m.group(0) in world.SHARED_NAMES and not any(before.endswith(a + " ") or before.endswith(a + "/") for a in parts_list):
+            bare.append(f"{m.group(0)} after '{before[-12:].strip()}'")
+    return bare
+
+
+def copy_faults(texts):
+    """What reader-facing words get wrong beyond spelling and names: a count of one with a plural, a cost a call
+    or a truck-day shown short of the cent, and a sentence that claims every figure or every control."""
+    faults = []
+    for name, text in texts.items():
+        faults += [f"{name}: '{m.group(0)}'" for m in re.finditer(rf"(?<![\d.,$])\b1 (?:{COUNTED})\b", text)]
+        faults += [f"{name}: '{m.group(0)}'" for m in re.finditer(r"\$[\d,]+(?:\.\d)?(?![\d.])\s+a\s+(?:call|truck-day)\b", text)]
+        faults += [f"{name}: '{claim}'" for claim in FALSE_EVERY if claim in text]
+    return faults
+
+
+@check("wording")
+def wording():
+    """The words match the code: no numeral typed into a template, American forms, one name for each thing,
+    differences that match the figures beside them, one precision in a column, and part names with their appliance."""
+    from staple import metrics, report, world
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    pages = report.build(results, week, stamp_text, day)
+    page = pages["report"]
+
+    # No numeral is typed into a template: every figure on the manual and the methods page comes from the code.
+    templates = {p.name: p.read_text(encoding="utf-8") for p in sorted(report.PAGES.glob("*.html"))}
+    typed = {name: typed_numerals(text) for name, text in templates.items()}
+    filled = sum(len(re.findall(r"\{\{\w+\}\}", text)) for text in templates.values())
+    print(f"  {len(templates)} page templates: {filled} values read from the code, {sum(map(len, typed.values()))} numerals typed in")
+    require(not any(typed.values()), f"a numeral is typed into a template: { {n: t[:4] for n, t in typed.items() if t} }")
+    require(typed_numerals("<p>Level weights 25, 45 and 30, and a <code>P = 0</code> run with {{seed}}.</p>") == ["25", "45", "30"],
+            "control: three numerals typed into a sentence were not all caught, or a formula was")
+    print("  control: three numerals typed into a sentence are refused, and a formula and a placeholder are not")
+
+    # American forms, in every public file but the published copy, and in the pages as built.
+    texts = {}
+    for p in public_files():
+        if report.PUBLISHED not in p.parents:    # the published copy is held to a fresh build by the report check
+            try:
+                texts[p.relative_to(ROOT).as_posix()] = p.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, FileNotFoundError):
+                pass
+    built = {f"a fresh {report.FILES[kind]}": page_words(text) for kind, text in pages.items()}
+    foreign = abroad({**texts, **built})
+    print(f"  {len(texts)} public files and {len(built)} fresh pages: {len(foreign)} British forms, metric distances or day-first dates")
+    require(not foreign, f"a public file is not in American form: {foreign[:5]}")
+    planted = abroad({"planted": ABROAD[1].capitalize() + "d on a " + ABROAD[0] + ", 15 k" + "m away, on 28 " + "Oct."})
+    require(len(planted) == 4, f"control: a sentence with four foreign forms gave {planted}")
+    print("  control: a sentence with two British words, a metric distance and a day-first date is refused four times")
+
+    # One name for each thing, and no sentence that claims every figure or every control, in the words a reader meets.
+    copy = {**built, **{name: text for name, text in texts.items() if name.endswith(".md")}}
+    renamed, wrong = old_names(copy), copy_faults(copy)
+    rates = sum(len(re.findall(r"\$[\d,]+\.\d\d\s+a\s+(?:call|truck-day)\b", text)) for text in copy.values())
+    print(f"  {len(copy)} pages and notes: {len(renamed)} dropped names, {len(wrong)} plural slips, rates short of the cent "
+          f"or false 'every' sentences; {rates:,} costs a call or a truck-day are shown to the cent")
+    require(rates, "no cost a call or a truck-day was found on the pages, so the rule for one was not exercised")
+    require(not renamed, f"a thing is called by a dropped name: {renamed[:4]}")
+    require(not wrong, f"the copy has a plural slip, a rate short of the cent or a false 'every' sentence: {wrong[:4]}")
+    slip = {"planted": f"1 calls tomorrow, {next(iter(OLD_NAMES))} of 85%. {FALSE_EVERY[0]} one of them. It took 21 calls, "
+                       "at $122 a call and $104.3 a truck-day against $121.87 a call."}
+    require(len(old_names(slip)) == 1 and len(copy_faults(slip)) == 4, "control: a planted dropped name, plural slip, short rate or 'every' sentence passed")
+    print("  control: a dropped name, '1 calls', '$122 a call', '$104.3 a truck-day' and a false 'every' sentence are refused, "
+          "and '21 calls' and '$121.87 a call' are not")
+
+    # The day's comparison adds up on the page, and each column under a chart reads at one precision.
+    rows = sum(t.count("<tr>") - 1 for t in comparisons(page))
+    adds, columns = comparison_faults(page), column_faults(page)
+    print(f"  {rows} rows of the day's comparison: {len(adds)} whose difference is not that of the figures beside it; "
+          f"{page.count('<figure>')} tables under charts: {len(columns)} columns at mixed precision")
+    require(rows and not adds, f"a comparison does not add up as shown: {adds[:3]}")
+    require(not columns, f"a table column mixes precisions: {columns[:3]}")
+    first = comparisons(page)[0]
+    cell = re.findall(r"<td[^>]*>(.*?)</td>", first, flags=re.S)[3]
+    bent = page.replace(first, first.replace(f"<td>{cell}</td>", f"<td>{cell[0]}99.9 points</td>", 1), 1)
+    require(bent != page and comparison_faults(bent), "control: a difference changed on the page passed")
+    hidden = page.replace(first, first.replace(f"<td>{cell}</td>", "<td>no difference</td>", 1), 1)
+    require(hidden != page and comparison_faults(hidden), "control: a real difference written as no difference passed")
+    tie = next((t for t in comparisons(page) if "<td>no difference</td>" in t), None)
+    require(tie, "no day of this week has a tie, so the rule for one was not exercised")
+    require(comparison_faults(page.replace(tie, tie.replace("<td>no difference</td>", "<td>+0</td>", 1), 1)),
+            "control: a tie shown as +0 passed")
+    holder = next(f for f in re.findall(r"<figure>.*?</figure>", page, flags=re.S) if re.search(r"<td>\d+\.\d0</td>", f))
+    money = re.search(r"<td>(\d+\.\d)0</td>", holder)
+    short = page.replace(holder, holder.replace(money.group(0), f"<td>{money.group(1)}</td>", 1), 1)
+    require(short != page and column_faults(short), "control: a cell shown at another precision than its column passed")
+    print("  control: a difference changed on the page, a real one written as no difference, a tie shown as +0, "
+          "and a cell with its last zero dropped, are refused")
+
+    # A part name more than one appliance has carries its appliance.
+    bare = bare_part_names(page, world.CATALOG)
+    shown = sum(len(re.findall(re.escape(n), page_words(page))) for n in world.SHARED_NAMES)
+    print(f"  {len(world.SHARED_NAMES)} part names belong to more than one appliance; of {shown:,} uses on the report, "
+          f"{len(bare)} come without the appliance")
+    require(shown and not bare, f"a shared part name is shown without its appliance: {bare[:3]}")
+    name = next(n for n in sorted(world.SHARED_NAMES) if f"dryer {n}" in page)
+    require(bare_part_names(page.replace(f"dryer {name}", name, 1), world.CATALOG),
+            "control: a shared part name with its appliance taken off passed")
+    print(f"  control: '{name}' with its appliance taken off once is refused")
+
+    # The back-order forecast the card quotes is the sum of the rows the query marks for the back-test.
+    cols, data = results["backorder_exposure"]
+    scored = [dict(zip(cols, r)) for r in data if r[cols.index("back_test")]]
+    calls, stuck = sum(r["expected_calls"] for r in scored), sum(r["expected_stuck"] for r in scored)
+    quoted = f"{calls:.1f} calls and {stuck:.1f} stuck"
+    print(f"  the back-order card quotes {quoted}, the sums over the {len(scored)} rows scored")
+    require(quoted in card_words(page, "backorder_exposure"), "the back-order card does not quote the forecast its rows add up to")
+
+
 class Hints(HTMLParser):
     """Every element a reader would hover that carries no hint. A dotted value may borrow its cell's hint;
     everything else must carry its own, because the hover layer shows the innermost hint it finds."""
@@ -2080,11 +2303,11 @@ def stamp_check():
         bare.mkdir()
         commit = scratch_history(repo)
         commit("run.py", "2026-09-01T12:00:00-04:00")
-        code = commit("staple/x.py", "2026-10-02T23:30:00-04:00")    # already 3 Oct in UTC: the day is the change's own
-        expected = f"Build 2 · 2 Oct 2026 · {code[:7]}"
+        code = commit("staple/x.py", "2026-10-02T23:30:00-04:00")    # already Oct 3 in UTC: the day is the change's own
+        expected = f"Build 2 · Oct 2, 2026 · {code[:7]}"
         text, day, pattern, warned = report.stamp(repo)
         print(f"  a scratch history of two changes is stamped \"{text}\", results last changed {day}")
-        require(text == expected and day == "2 Oct 2026" and not warned, f"expected \"{expected}\" and 2 Oct 2026 with no warning")
+        require(text == expected and day == "Oct 2, 2026" and not warned, f"expected \"{expected}\" and Oct 2, 2026 with no warning")
         require(pattern == report.STAMP_RE and re.fullmatch(report.STAMP_RE, text), "the stamp does not fit its own pattern")
 
         commit("docs/index.html", "2026-10-05T09:00:00-04:00")
@@ -2092,7 +2315,7 @@ def stamp_check():
         print("  committing only the published copy leaves the stamp as it was")
         third = commit("check.py", "2026-10-06T09:00:00-04:00")
         moved = report.stamp(repo)
-        require(moved[0] == f"Build 4 · 6 Oct 2026 · {third[:7]}" and moved[1] == "2 Oct 2026",
+        require(moved[0] == f"Build 4 · Oct 6, 2026 · {third[:7]}" and moved[1] == "Oct 2, 2026",
                 f"control: a change outside the published copy should move the stamp and leave the results day, got {moved[:2]}")
         print(f"  control: a change outside the published copy moves it to \"{moved[0]}\"; the results day stays {moved[1]}")
 
@@ -2106,7 +2329,7 @@ def stamp_check():
 
         (repo / ".git" / "shallow").write_text(third + "\n", encoding="utf-8")
         cut = report.stamp(repo)
-        require(cut[0] == f"6 Oct 2026 · {third[:7]}+" and cut[3] and re.fullmatch(report.STAMP_RE, cut[0]),
+        require(cut[0] == f"Oct 6, 2026 · {third[:7]}+" and cut[3] and re.fullmatch(report.STAMP_RE, cut[0]),
                 f"a copy holding part of its history should carry no build number and say why, got {cut[0]!r}")
         print(f"  a copy holding part of its history is stamped \"{cut[0]}\" and warns")
 
@@ -2119,11 +2342,11 @@ def stamp_check():
     print(f"  this repository: \"{here[0]}\", results last changed {here[1]}" + "".join(f"; warning: {w}" for w in here[3]))
     require(here[0] == report.NO_HISTORY or re.fullmatch(report.STAMP_RE, here[0]), "this repository's stamp fits no known shape")
 
-    one, _ = report.build_manuals("Build 1 · 1 Sep 2026 · abcdef1", "1 Sep 2026")
-    two, _ = report.build_manuals("Build 9 · 9 Oct 2026 · 1234567+", "9 Oct 2026")
+    one, _ = report.build_manuals("Build 1 · Sep 1, 2026 · abcdef1", "Sep 1, 2026")
+    two, _ = report.build_manuals("Build 9 · Oct 9, 2026 · 1234567+", "Oct 9, 2026")
     require(one != two and without_stamp(one) == without_stamp(two),
             "two builds that differ only in their stamps do not compare equal once the stamps are emptied")
-    said = one.replace("</main>", f"<p>{report.NO_HISTORY}</p><p>Build 1 · 1 Sep 2026 · abcdef1</p></main>", 1)
+    said = one.replace("</main>", f"<p>{report.NO_HISTORY}</p><p>Build 1 · Sep 1, 2026 · abcdef1</p></main>", 1)
     require(without_stamp(said) != without_stamp(one), "control: a stamp's words in a sentence elsewhere were emptied too")
     print("  two builds differing only in their stamps compare equal once the stamps are emptied; "
           "control: the same words in a sentence elsewhere are left alone, so that page still differs")
@@ -2151,7 +2374,7 @@ def report_check():
         page = pages["report"]
         ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
         figure = f"{ours[3]:.1f}%"
-        require(figure in page, "the page does not show the dispatch scorecard's own first-visit figure")
+        require(figure in page, "the page does not show the dispatch scorecard's own first-time fix figure")
         shows = opening_faults(page)
         print(f"  the page opens on {week['open']}: {'; '.join(shows) or 'a sick row, a broken-down truck and moved calls on its board'}")
         require(not shows, f"the opening day does not show its morning: {shows}")
@@ -2263,10 +2486,10 @@ def data():
         print(f"  furnace share of calls: winter {winter:.1%}, summer {summer:.1%}")
         require(winter > 3 * summer, "furnace calls do not follow the seasons")
 
-        ftf = one(a, "SELECT AVG(first_visit_fix) FROM jobs")
+        ftf = one(a, "SELECT AVG(first_time_fix) FROM jobs")
         parts_caused = one(a, "SELECT AVG(parts_on_truck = 0) FROM jobs")
-        print(f"  today's made-up first-visit fix {ftf:.1%}; parts missing on {parts_caused:.1%} of visits")
-        require(0.4 < ftf < 0.85, "today's first-visit fix rate is implausible")
+        print(f"  today's made-up first-time fix {ftf:.1%}; parts missing on {parts_caused:.1%} of visits")
+        require(0.4 < ftf < 0.85, "today's first-time fix rate is implausible")
         a.close()
 
 

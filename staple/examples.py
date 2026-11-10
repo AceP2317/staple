@@ -60,7 +60,7 @@ CARRY = {1: ("drain pump", "door lock", "drive belt"), 2: ("door lock", "drain p
          5: ("door lock", "drain pump", "drive belt")}
 TOTALS = ((1, 150.00), (2, 131.50), (3, 130.20), (4, 129.80))
 RANKED = (("drain pump", 0.62), ("drive belt", 0.20), ("door lock", 0.07), ("shock absorbers", 0.04))
-MARKED = {"drain pump": "on this truck", "drive belt": "from a center overnight", "door lock": "back-ordered",
+MARKED = {"drain pump": "aboard", "drive belt": "from a center overnight", "door lock": "back-ordered",
           "shock absorbers": "back-ordered"}
 ANSWER = {"code": "NO_HEAT", "confidence": 0.55}
 FOLLOWUP = {"question": "Does the furnace not come on at all, or does it run and blow cold air?",
@@ -115,8 +115,8 @@ EXAMPLES = (
         2, lambda: load.lean([{"policy": load.TOP_UP, "k": k, "total": t} for k, t in TOTALS], load.TOP_UP)["k"],
         lambda v: f"{v} parts per booked call", "load.lean",
         f"For each list policy, with total(k) its cost a truck-day at list length k and a tolerance of "
-        f"${load.LEAN_TOLERANCE:.0f}:",
-        f"chosen k = the shortest k with total(k) ≤ min over k' of total(k') + ${load.LEAN_TOLERANCE:.0f}"),
+        f"${load.LEAN_TOLERANCE:.2f}:",
+        f"chosen k = the shortest k with total(k) ≤ min over k' of total(k') + ${load.LEAN_TOLERANCE:.2f}"),
     Example(
         "availability", "flagging one booking",
         "Whether one booking is flagged as likely to need a part that no center can ship in time and no truck nearby "
@@ -184,7 +184,7 @@ EXAMPLES = (
         f"skills and parts: cost = minutes · ${dispatch.MINUTE:.0f} + (1 − cover · r̂) · R\n"
         "cover = 1 − min(1, Σ_(p not available to t) o_j(p))"),
     Example(
-        "plan", "one call's first-visit chance",
+        "plan", "one call's first-time fix chance",
         "The plan's chance that one washer call is fixed on the first visit by the truck loaded for it tonight.",
         (("Input", "Value"),
          (("Parts loaded tonight, with the call's odds of needing each",

@@ -10,7 +10,7 @@ for it before the minute it reached them. At day's end a route that runs past 17
 lowest-priority calls to tomorrow.
 
 Staple's rule sends each call to the technician whose expected cost is lowest: drive and repair minutes,
-plus a second visit times the chance this technician fails, from their success rate on the appliance and
+plus a repeat visit times the chance this technician fails, from their success rate on the appliance and
 whether their truck can carry the parts. The baseline sends the nearest qualified technician.
 
 The dispatcher learns each technician's success rate from the training history. The rates the made-up world
@@ -29,8 +29,11 @@ REPAIR = {"refrigerator": 75, "washer": 60, "dryer": 50, "dishwasher": 55, "rang
 MINUTE = 1.0             # dollars for one minute of a technician and truck (made up)
 SICK, BREAKDOWN, ESCALATE, EASE = 0.03, 0.02, 0.05, 0.05   # daily chances, made up
 SAME_DAY_UNTIL = 240     # an unplanned call comes in within this many minutes of 08:00; later ones book for tomorrow (made up)
+SICK_BY = -60            # sick calls are known by this minute, counted from 08:00: an hour before the day starts
+BREAKS_BETWEEN = (120, 360)   # a truck that breaks down does so at a minute drawn between these, counted from 08:00 (made up)
 URGENT = {"refrigerator.NOT_COOLING", "refrigerator.FF_WARM", "furnace.NO_HEAT", "furnace.NO_START"}
 SEED = 2026              # seeds the day's surprises: day d of the replayed days draws from SEED + d
+SKILLS_SEED = 5          # seeds the shuffle of technicians' skills in the skills control
 SKILL_PULL = 20          # jobs at the appliance's average rate mixed into each technician's own (design choice)
 LOW = {"refrigerator.NOISE", "dryer.NOISE", "furnace.NOISE", "range.DOOR", "washer.NOISE_SHAKE"}
 
@@ -41,7 +44,7 @@ def learned_rates(conn, pairs):
     skill. It is pulled toward the appliance's own rate by SKILL_PULL jobs, so a technician with few visits is
     taken as near average until their own record says otherwise."""
     seen = {(tech, kind): (n, fixes) for tech, kind, n, fixes in conn.execute(
-        "SELECT tech, type, COUNT(*), SUM(first_visit_fix) FROM jobs "
+        "SELECT tech, type, COUNT(*), SUM(first_time_fix) FROM jobs "
         "WHERE split = 'train' AND parts_on_truck = 1 GROUP BY tech, type")}
     visits, fixes = Counter(), Counter()
     for (_, kind), (n, fixed) in seen.items():
@@ -90,7 +93,7 @@ def events(day_jobs, techs, seed):
     which calls change priority, and the minute each unplanned call comes in."""
     rng = random.Random(seed)
     sick = {t for t in techs if rng.random() < SICK}
-    broken = {t: rng.uniform(120, 360) for t in techs if rng.random() < BREAKDOWN}
+    broken = {t: rng.uniform(*BREAKS_BETWEEN) for t in techs if rng.random() < BREAKDOWN}
     changed = {}
     for j in day_jobs:
         roll = rng.random()
@@ -298,7 +301,7 @@ SHUFFLED_SKILLS = "Staple with shuffled skills (control)"
 SHUFFLED_ODDS = "Staple with shuffled-history parts odds (control)"
 
 
-def run(conn, control_seed=5):
+def run(conn, control_seed=SKILLS_SEED):
     """Every dispatch policy over the whole held-back period, written to dispatch. It takes no job list, so no
     caller can leave the table holding a subset; replay() runs one policy on any jobs and writes nothing."""
     jobs = test_jobs(conn)
@@ -306,7 +309,7 @@ def run(conn, control_seed=5):
     out = {name: replay(conn, jobs, rule, loads, Crew(conn, **crew)) for name, rule, loads, crew in POLICIES}
     out[SHUFFLED_SKILLS] = replay(conn, jobs, "skills and parts", "balanced", Crew(conn, shuffled=True, seed=control_seed))
     out[SHUFFLED_ODDS] = replay(conn, jobs, "skills and parts", "balanced",
-                                part_odds=load.ranked_lists(Predictor(conn, shuffled=True, seed=7), jobs))
+                                part_odds=load.ranked_lists(Predictor(conn, shuffled=True), jobs))
     conn.execute("DELETE FROM dispatch")
     conn.executemany("INSERT INTO dispatch VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                      [(name, r["calls"], r["served"], r["rolled"], r["fix_rate"], r["fixes_per_call"],

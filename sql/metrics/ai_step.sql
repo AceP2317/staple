@@ -1,5 +1,5 @@
 -- The AI step: how each reading of the customer's own words agrees with the booked code and with the true
--- problem, and the first-visit coverage of the 3-part list it leads to. The true problem is known only
+-- problem, and the coverage of the 3-part list it leads to. The true problem is known only
 -- because the data is made up; real history knows only the booked code. The made-up customers say each
 -- problem only a few ways, and the phrasings column counts the distinct descriptions these jobs hold: every
 -- score here is a score over that many readings, weighted by how often each is said. The row marked upper

@@ -78,7 +78,7 @@ CREATE TABLE jobs (
   noise            TEXT NOT NULL,   -- none, misdescribed or random: known only because it is made up
   tech             TEXT NOT NULL REFERENCES techs(tech),
   parts_on_truck   INTEGER NOT NULL, -- 1 if every needed part was on that truck
-  first_visit_fix  INTEGER NOT NULL,
+  first_time_fix  INTEGER NOT NULL,
   split            TEXT NOT NULL    -- train (first 33 months) or test (last 3)
 );
 
@@ -115,7 +115,7 @@ CREATE TABLE availability (kind TEXT NOT NULL, measure TEXT NOT NULL, value REAL
                            PRIMARY KEY (kind, measure));
 
 -- The AI step on held-back jobs: how each reading of the customer's words agrees with the booked code
--- and the true problem, and the first-visit coverage of the 3-part carry list it leads to.
+-- and the true problem, and the coverage of the 3-part carry list it leads to.
 CREATE TABLE triage (method TEXT PRIMARY KEY, jobs INTEGER NOT NULL, agree_booked REAL NOT NULL,
                      agree_true REAL NOT NULL, coverage REAL NOT NULL);
 
@@ -128,10 +128,10 @@ CREATE TABLE triage_calibration (low REAL PRIMARY KEY, high REAL NOT NULL, phras
 -- changes for every policy. A call rolled to tomorrow counts as not fixed today in fixes_per_call.
 CREATE TABLE dispatch (
   policy TEXT PRIMARY KEY, calls INTEGER NOT NULL, served INTEGER NOT NULL, rolled INTEGER NOT NULL,
-  fix_rate REAL NOT NULL,                         -- expected first-visit fixes per call served
+  fix_rate REAL NOT NULL,                         -- expected first-time fixes per call served
   fixes_per_call REAL NOT NULL, parts_missing REAL NOT NULL, drive_per_call REAL NOT NULL,
   moved INTEGER NOT NULL,                         -- calls moved to another truck by a sick call or breakdown
-  moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL  -- minutes at $1 plus expected second visits, made up
+  moved_fix_rate REAL NOT NULL, cost_per_call REAL NOT NULL  -- minutes at $1 plus expected repeat visits, made up
 );
 
 -- The buyer's back-order list for every held-back day: each part no center can ship that day. Forecasts use

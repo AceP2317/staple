@@ -3,7 +3,7 @@
 SELECT policy,
        calls,
        rolled,
-       ROUND(100.0 * fixes_per_call, 1)   AS first_visit_fix_pct,
+       ROUND(100.0 * fixes_per_call, 1)   AS first_time_fix_pct,
        ROUND(100.0 * parts_missing, 1)    AS parts_missing_pct,
        ROUND(drive_per_call, 1)           AS drive_minutes,
        moved,

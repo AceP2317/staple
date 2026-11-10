@@ -51,6 +51,8 @@ BANDS = (0.9, 0.8, BLEND_BELOW, 0.5, 0.0)   # the lower edge of each band of sta
 ASKED = "Claude, asking when unsure, ideal replies (upper bound)"
 RANDOM_REPLIES = "Claude, asking when unsure, random replies (control)"
 KEYWORDS = "keyword matcher"
+SHUFFLE_SEED = 7       # seeds the control that deals Claude's answers to other descriptions
+ID_LENGTH = 12         # hex characters of the prompt's hash that name a cache
 
 SYSTEM = "You read appliance repair bookings and choose the problem code that best fits the customer's own words."
 TEMPLATE = """Appliance: {appliance}
@@ -63,7 +65,7 @@ Reply with only a JSON array, one object per description:
 [{{"i": <number>, "code": "<CODE>", "confidence": <0 to 1>}}]
 
 {lines}"""
-PROMPT_ID = hashlib.sha256((MODEL + EFFORT + SYSTEM + TEMPLATE).encode()).hexdigest()[:12]
+PROMPT_ID = hashlib.sha256((MODEL + EFFORT + SYSTEM + TEMPLATE).encode()).hexdigest()[:ID_LENGTH]
 
 FOLLOWUP_SYSTEM = "You help call-takers book appliance repairs by asking the customer one short, plain question."
 FOLLOWUP_TEMPLATE = """Appliance: {appliance}
@@ -77,7 +79,7 @@ Reply with only a JSON array, one object per description:
 [{{"i": <number>, "question": "<question>", "answers": [{{"text": "<answer>", "code": "<CODE>"}}]}}]
 
 {lines}"""
-FOLLOWUP_ID = hashlib.sha256((MODEL + EFFORT + FOLLOWUP_SYSTEM + FOLLOWUP_TEMPLATE).encode()).hexdigest()[:12]
+FOLLOWUP_ID = hashlib.sha256((MODEL + EFFORT + FOLLOWUP_SYSTEM + FOLLOWUP_TEMPLATE).encode()).hexdigest()[:ID_LENGTH]
 
 
 def problems_of(conn):
@@ -352,7 +354,7 @@ def calibration(jobs, answers):
             for low, b in found.items() if b["jobs"]]
 
 
-def score(conn, jobs, answers, followups, seed=7):
+def score(conn, jobs, answers, followups, seed=SHUFFLE_SEED):
     predictor, problems = Predictor(conn), problems_of(conn)
     rng, by_type = random.Random(seed), {}
     for a, table in answers.items():

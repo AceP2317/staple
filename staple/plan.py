@@ -11,7 +11,7 @@ from collections import defaultdict
 from staple import dispatch, load, metrics, triage
 from staple.backtest import test_jobs
 from staple.predict import Predictor
-from staple.world import ZONES, travel_minutes
+from staple.world import ZONES, part_name, travel_minutes
 
 WEEK = 7
 LIKELY = load.BACKORDER_FLAG     # a part a call has at least this chance of needing counts as a likely part
@@ -64,13 +64,14 @@ class Context:
         self.first_lists = {j["job"]: sorted(predictor.odds(j["type"], j["family"], f"{j['type']}.{j['ai']['first']}").items(),
                                              key=lambda kv: (-kv[1], kv[0])) for j in jobs if j["ai"]["question"]}
         self.labels = dict(conn.execute("SELECT code, label FROM problems"))
-        self.names = dict(conn.execute("SELECT part, name FROM parts"))
+        self.names = {part: part_name(part) for (part,) in conn.execute("SELECT part FROM parts")}
         self.kind = dict(conn.execute("SELECT part, type FROM parts"))
         self.truck = dict(conn.execute("SELECT tech, truck FROM trucks"))
         self.techs = {t: {"level": lv, "profile": pr, "home": z, "certified": bool(c), "truck": self.truck[t]}
                       for t, lv, pr, z, c in conn.execute("SELECT tech, level, profile, home_zone, certified FROM techs")}
         # The buyer's list is the back-order query's own rows, so the plan and the evidence quote one figure.
         self.backorders = defaultdict(list)
+        self.flags_right = metrics.read(conn, "backorder_flag")[0]["flags_right_pct"]
         for row in metrics.read(conn, "backorder_exposure"):
             self.backorders[row["day"]].append(row)
         if not self.backorders:
@@ -93,7 +94,7 @@ class Context:
 
 
 def first_visit_chance(lists, job, cargo, rate):
-    """The plan-time chance of a first-visit fix: the truck holds what the call needs, times the technician's
+    """The plan-time chance of a first-time fix: the truck holds what the call needs, times the technician's
     success rate on the appliance as the history shows it."""
     return (1 - dispatch.miss_odds(lists, job, lambda p: p in cargo)) * rate
 
@@ -177,7 +178,9 @@ def todo(ctx, day, rec, trucks, jobs):
                 items.append({"owner": "Dispatch", "when": "before 08:00", "tech": tech, "job": c["job"],
                               "text": f"Warn the customer on call {c['job']}: a likely part is back-ordered",
                               "detail": f"{p['name']} ({p['odds']:.0%} likely) ships in {days(rec['stuck'][p['part']])} and no "
-                                        f"truck nearby holds one. Offer a later slot, or keep the visit to diagnose."})
+                                        f"truck nearby holds one. Offer a later slot, or keep the visit to diagnose. In the back-test "
+                                        f"{ctx.flags_right:.0f}% of flagged bookings were stuck, so this is a warning and "
+                                        f"not a forecast for this call."})
     for jid in rec["night_rolled"]:
         j = jobs[jid]
         items.append({"owner": "Dispatch", "when": "before 08:00", "tech": None, "job": jid,
@@ -205,15 +208,17 @@ def todo(ctx, day, rec, trucks, jobs):
                       "text": f"Expedite {ctx.names[r['part']]}: {r['expected_calls']:.1f} calls expected before it ships",
                       "detail": f"Ships in {days(r['ships_in_days'])}; {counted(r['trucks_holding'], 'truck')} "
                                 f"{'stocks' if r['trucks_holding'] == 1 else 'stock'} one; "
-                                f"{counted(r['open_zones'], 'zone')} with none within {load.NEARBY_MINUTES} minutes. "
-                                f"${r['dollars_at_risk']:,.0f} of second visits at risk. {need} of tomorrow's booked "
-                                f"calls {'is' if need == 1 else 'are'} likely to need it."})
+                                + (f"{counted(r['open_zones'], 'zone')} {'has' if r['open_zones'] == 1 else 'have'} no "
+                                   f"holder within {load.NEARBY_MINUTES} minutes. " if r["open_zones"] else
+                                   f"Every zone has a holder within {load.NEARBY_MINUTES} minutes. ")
+                                + f"${r['dollars_at_risk']:,.0f} of repeat visits at risk. {need if need else 'None'} of "
+                                  f"tomorrow's booked calls {'are' if need > 1 else 'is'} likely to need it."})
     return items
 
 
 def counted(n, noun):
-    """A count with its noun, plural where it should be."""
-    return f"{n} {noun}{'' if n == 1 else 's'}"
+    """A count with its noun, plural where it should be, and "no" for none."""
+    return f"{n if n else 'no'} {noun}{'' if n == 1 else 's'}"
 
 
 def days(n):
@@ -221,7 +226,7 @@ def days(n):
 
 
 def morning(ctx, rec, night_calls, ran_tech, jobs):
-    """The day's surprises and every call they moved: from whom, to whom, and the first-visit chance before and after."""
+    """The day's surprises and every call they moved: from whom, to whom, and the first-time fix chance before and after."""
     moved = []
     for jid, origins in sorted(rec["moved"].items()):
         j, to = jobs[jid], ran_tech.get(jid)

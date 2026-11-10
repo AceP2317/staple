@@ -4,7 +4,7 @@
 <li><a href="#todo">Every to-do, and who does it</a></li>
 <li><a href="#numbers">What the numbers mean</a></li>
 <li><a href="#labels">Every label and status, and what to do about it</a></li>
-<li><a href="#derived">How to read the computed columns</a></li>
+<li><a href="#derived">How each computed figure is made</a></li>
 <li><a href="#data">How the data is handled</a></li>
 <li><a href="#thresholds">Every threshold, and what sets it</a></li>
 <li><a href="#cannot">What Staple cannot tell you</a></li>
@@ -20,7 +20,7 @@ stock lives on the trucks, those are one decision, so Staple scores them togethe
 {{types}} appliance types and {{techs}} technicians. The last {{test_days}} days are held back. Each method learns
 from the earlier days only, and is then scored on the held-back days as if they had not happened yet. That is a
 back-test, and it is the same test I would run first on real history.</p>
-<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before 08:00. On the right is the proof: that day against the current way, then the evidence from all {{test_days}} held-back days. The next section walks through every part of the screen.</p>
+<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before {{day_start}}. On the right is the proof: that day against the current rules, then the evidence from all {{test_days}} held-back days. The next section walks through every part of the screen.</p>
 <p><strong>Hover over anything with a dotted underline, or anything that turns your pointer into a question
 mark.</strong> The hint shows the figures behind it and the query they come from. A blue <span class="q"{{sample_q}}>?</span>
 opens this manual at the word it explains. Under every chart, "Show the numbers" opens the table the chart is
@@ -28,29 +28,29 @@ drawn from.</p></section>
 
 <section id="plan"><h2>How to read the plan screen</h2>
 <p>The report is one screen with two sides, and on a desktop each side scrolls on its own, so the page itself never
-does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current way.
+does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current rules.
 Choosing a technician anywhere on the left lights up their route, their row and their load sheet, and shows their card
 on the right. Every page opens light. The Dark mode button at the top switches it, and your browser remembers the choice.</p>
 <h3>Across the top</h3>
 <p>Three steps say what Staple does, in order: Claude codes every booking, Staple plans the trucks, and people act
-before 08:00. Under them, the day buttons pick one of the most recent {{week}} held-back days. They are not picked by
+before {{day_start}}. Under them, the day buttons pick one of the most recent {{week}} held-back days. They are not picked by
 hand. A ✚ marks a technician who called out sick and a ⚠ a truck that broke down, so the days with surprises show
 before a click. The page opens on the most recent day on which a sick call and a breakdown both moved calls to other
 trucks.</p>
 <h3>The left side, top to bottom</h3>
 <ul>
-<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, second visits
-avoided, and parts moved overnight. Each compares the plan with the current way on the same day.</li>
+<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, repeat visits
+avoided, and parts moved overnight. The first three compare the plan with the current rules on the same day; the last counts the plan's own moves.</li>
 <li><strong>AI at booking</strong>: how many bookings Claude coded at once, and a card for every booking it was unsure
 of. A card shows the customer's words, Claude's first reading with its confidence, the one question it asked, the
 answers offered with the one taken in yellow, and the code the call runs on. Where the answer changed the carry list,
 the card shows what the first guess would have loaded and what the truck loads now.</li>
-<li><strong>To do before 08:00</strong>: every action, grouped by who takes it. The next section lists every kind.
+<li><strong>To do before {{day_start}}</strong>: every action, grouped by who takes it. The next section lists every kind.
 Clicking an item lights up its truck and opens, on the right, the evidence behind that kind of action.</li>
-<li><strong>07:00 and after</strong>: each sick call and breakdown, every call it moved, from whom to whom, and its
-first-visit chance before and after. A moved call can use only the parts its new truck already carries.</li>
-<li><strong>Routes and the board</strong>: the map of the twelve zones beside a row for each technician from 08:00 to
-17:00. Each block is a call, shaded by its first-visit chance, darker for likelier. The switch shows the plan as made
+<li><strong>{{sick_by}} and after</strong>: each sick call and breakdown, every call it moved, from whom to whom, and its
+first-time fix chance before and after. A moved call can use only the parts its new truck already carries.</li>
+<li><strong>Routes and the board</strong>: the map of the {{zones}} zones beside a row for each technician from {{day_start}} to
+{{day_end}}. Each block is a call, shaded by its first-time fix chance, on the scale the legend above the board shows. The switch shows the plan as made
 at night or the day as it ran. On the day as it ran, a sick technician's row is hatched, a broken truck's row stops at
 a ⚠ marker, a moved call is outlined and tagged with the technician it came from, and on the map a dashed line joins
 it to its new truck. A yellow corner marks a call Claude asked about, a hatched block a call added on the day, a red
@@ -61,25 +61,25 @@ it, the parts kept aboard: those tomorrow's calls may need, and a count by appli
 calls.</li>
 </ul>
 <h3>The right side</h3>
-<p>First, the day against the current way, with both replays on Claude's codes and the same surprises. Then the
+<p>First, the day against the current rules, with both replays on Claude's codes and the same surprises. Then the
 chosen technician's card: their appliances, how often they fix each first time, and how fast. Then the evidence from
 all {{test_days}} held-back days, which runs on the call-taker's booked codes so it measures the planning apart from the
-reading. Each card ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
+reading. A card that leads to an action ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
 what this does and does not show.</p></section>
 
 <section id="todo"><h2>Every to-do, and who does it</h2>
 <div class="scroll"><table class="wrap"><thead><tr><th>Owner and when</th><th>The item</th><th>Why it appears</th><th>What to do</th></tr></thead><tbody>
-<tr><td>Parts room, tonight</td><td>Truck V07 (T07): put on 11, take off 10</td><td>The truck's balanced load for tomorrow differs from tonight's. One item per truck whose load changes.</td><td>Load and unload at the center from that truck's load sheet.</td></tr>
-<tr><td>Call center, before 08:00</td><td>Call back about call 123</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
-<tr><td>Dispatch, before 08:00</td><td>Warn the customer on call 123</td><td>A part the call has at least a {{likely}} chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
-<tr><td>Dispatch, before 08:00</td><td>Rebook call 123</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
-<tr><td>Dispatch, before 08:00</td><td>Technicians with no booked calls</td><td>The booked calls fit on fewer routes than there are technicians, because each call goes to the technician with the lowest expected cost.</td><td>Keep them for the calls that come in during the day and the calls a sick call or breakdown moves.</td></tr>
-<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The back-ordered parts with the most second-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
+<tr><td>Parts room, tonight</td><td>A truck and its technician, with how many parts to put on and take off</td><td>The truck's balanced load for tomorrow differs from tonight's. One item per truck whose load changes.</td><td>Load and unload at the center from that truck's load sheet.</td></tr>
+<tr><td>Call center, before {{day_start}}</td><td>Call back about a call</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
+<tr><td>Dispatch, before {{day_start}}</td><td>Warn the customer on a call</td><td>A part the call has at least a {{likely}} chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
+<tr><td>Dispatch, before {{day_start}}</td><td>Rebook a call</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
+<tr><td>Dispatch, before {{day_start}}</td><td>Technicians with no booked calls</td><td>The booked calls fit on fewer routes than there are technicians, because each call goes to the technician with the lowest expected cost.</td><td>Keep them for the calls that come in during the day and the calls a sick call or breakdown moves.</td></tr>
+<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The back-ordered parts with the most repeat-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
 </tbody></table></div></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
 <h3>The four figures across all held-back days</h3>
-<p>They head the right side, under the day's comparison, and run on the call-taker's booked codes.</p>
+<p>They sit on the right side, under the day's comparison and the technician's card, and run on the call-taker's booked codes.</p>
 <p><strong>Fixed on the first visit</strong> is the share of all held-back calls that Staple's dispatch fixes on
 the first visit. A call fixes first time only when the truck holds every part it needs, and the technician's own
 success rate on that appliance then decides it. A call rolled to tomorrow counts as not fixed. The comparison is
@@ -98,7 +98,7 @@ the tile's hint gives the count.</p>
 caused by a part missing from the truck. Its table adds the share of each appliance's repeat visits that a missing
 part caused. The rest failed on the technician's success rate.</p>
 <p><strong>Which parts to carry</strong> plots, for carry lists of {{ks}} parts, the share of held-back jobs whose
-every needed part was on the list. The horizontal line is today's trucks, which carry far more than eight parts.
+every needed part was on the list. The horizontal line is today's trucks, which carry far more than the longest list's {{max_k}} parts.
 The list's job is to top the truck up for the day, not to replace it. The table's leaked column scores the
 predictor again with the held-back jobs already in its history. The gap between the two is what holding those
 days back is worth.</p>
@@ -111,9 +111,11 @@ other rows price it at {{move}}.</p>
 same made-up sick calls, breakdowns and priority changes. The bar is calls fixed on the first visit; the label
 adds the cost a call. Two rows are controls: one shuffles the technicians' skills, the other shuffles the history
 behind the parts odds the dispatcher reads.</p>
-<p><strong>Reading the customer's words</strong> compares Claude, a plain keyword matcher and a control in which
-Claude's answers are shuffled between bookings. The label adds how often the 3-part carry list built from that
-reading covered the job. The row with ideal replies is an upper bound: the customer who answers Claude's question is
+<p><strong>Claude coding the bookings</strong> compares six readings of the customer's words: Claude, Claude after
+its question with ideal replies and with random replies, the booked code, a plain keyword matcher, and a control in
+which Claude's answers are shuffled between bookings. Each bar is how often the {{shown_k}}-part carry list built from
+the reading covered the job, and its label adds how often the reading agrees with the booked code. The row with ideal
+replies is an upper bound: the customer who answers Claude's question is
 simulated and always picks the answer that matches the booking. The row with random replies is the lower end, and a
 real customer lands between them.</p>
 <p><strong>How often Claude is right, by its confidence</strong> groups Claude's first readings by the confidence
@@ -139,11 +141,11 @@ bar is a gain that came from something plainer, and the card that owns the gain 
 <tr><td>results last changed</td><td>The last day any code or query that feeds the page changed.</td><td>Compare it with the day you last read the page.</td></tr>
 </tbody></table></section>
 
-<section id="derived"><h2>How to read the computed columns</h2>
+<section id="derived"><h2>How each computed figure is made</h2>
 <table class="wrap"><thead><tr><th>Column</th><th>How it is computed</th></tr></thead><tbody>
 <tr><td>odds</td><td>For one booking, the share of past jobs like it that needed each part. "Like it" means the same model family and problem, leaning on the appliance and problem, then the appliance alone, where history is thin.</td></tr>
 <tr><td>coverage</td><td>The share of jobs whose every needed part was on the list or truck. One missing part fails the whole job, the way one short line holds a whole order.</td></tr>
-<tr><td>first_visit_fix_pct</td><td>Expected first-visit fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
+<tr><td>first_time_fix_pct</td><td>Expected first-time fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
 <tr><td>cost_per_call</td><td>Drive and repair minutes at {{minute}}, plus one minus the fix rate, times {{repeat_visit}}.</td></tr>
 <tr><td>cost_a_truck_day</td><td>Repeat visits at {{repeat_visit}}, plus {{move}} for each part moved on or off overnight, plus each part's cost times {{holding_rate}} a year, per day.</td></tr>
 <tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. A job counts as one repeat visit avoided when it needed a part and every part was aboard. A job that needed none is left out, because an empty truck covers it.</td></tr>
@@ -153,16 +155,16 @@ bar is a gain that came from something plainer, and the card that owns the gain 
 <tr><td>expected_stuck</td><td>Expected calls in zones with no holding truck based within {{nearby}} minutes, less the calls the holders themselves usually take there.</td></tr>
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>
 <tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought before the part shipped, for comparison with the forecast.</td></tr>
-<tr><td>back_test</td><td>1 on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
+<tr><td>back_test</td><td><code>1</code> on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
 <tr><td>line_fill_pct, job_fill_pct</td><td>Of the part lines jobs needed, the share already on the technician's truck; and the share of jobs with every line there.</td></tr>
-<tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the 12 months before the held-back days.</td></tr>
+<tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the year before the held-back days.</td></tr>
 </tbody></table></section>
 
 <section id="data"><h2>How the data is handled</h2>
 <p>Everything is invented by one seeded generator (seed {{seed}}) and written to one SQLite file on the machine
 that runs it. The same seed writes the same rows every time, so every figure reproduces exactly. No real company,
 customer, part number or technician appears anywhere.</p>
-<p>The report and both manuals are static pages. They load nothing from the network: no fonts, no scripts, no
+<p>The report, this manual, the methods page and the code languages page are static pages. They load nothing from the network: no fonts, no scripts, no
 tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
 before it is committed.</p>
 <p>The AI step's answers were produced once by {{model}} and ship in the repository, so a run needs no key and
@@ -189,15 +191,15 @@ rate, not wrong diagnoses or customer no-shows.</li>
 <li><strong>Whether the AI reads real customers this well.</strong> The customer phrasings are a small invented
 set, and the simulated customer answers the follow-up question with the booked problem.</li>
 </ul>
-<p>The methods manual lists each of these corners with the upgrade that would remove it.</p></section>
+<p>The methods page lists the shortcuts the code takes on purpose, each with the upgrade that would remove it.</p></section>
 
 <section id="glossary"><h2>Glossary</h2>
 {{GLOSSARY}}</section>
 
 <section id="run"><h2>Running it yourself</h2>
-<p>Python 3 is the only requirement; no packages are installed. From a copy of the repository:</p>
+<p>Python {{python}} or newer is the only requirement; no packages are installed. From a copy of the repository:</p>
 <pre>python run.py          # builds the made-up world, every result, the metric tables and these pages into out/
 python check.py        # every check, each with a control that proves it can fail
 python run.py --live   # the AI step asked afresh, with your own ANTHROPIC_API_KEY</pre>
-<p>Open <code>out/index.html</code> in a browser. The nine metric queries are plain SQL files in
+<p>Open <code>out/index.html</code> in a browser. The {{queries}} metric queries are plain SQL files in
 <code>sql/metrics/</code>; each runs on its own against <code>out/staple.db</code>.</p></section>

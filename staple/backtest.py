@@ -1,6 +1,6 @@
 """The back-test: predict the last three months as if they had not happened yet, then score it.
 
-The score is first-visit coverage: the share of held-back jobs where every part the job needed
+The score is coverage: the share of held-back jobs where every part the job needed
 was on the carry list. It stands in for parts-caused first-time fix; it cannot see a repair that
 failed for another reason, such as a wrong diagnosis.
 
@@ -38,7 +38,7 @@ def coverage(jobs, list_for, k):
 
 def methods(conn):
     real = Predictor(conn)
-    shuffled = Predictor(conn, shuffled=True, seed=7)
+    shuffled = Predictor(conn, shuffled=True)
     no_pull = Predictor(conn, pull=0)
     leaked = Predictor(conn, leaked=True)
     return {

@@ -1,4 +1,4 @@
--- First-visit coverage against carry-list length: the share of held-back jobs where every needed part was on
+-- Coverage against carry-list length: the share of held-back jobs where every needed part was on
 -- a list of k parts, for the predictor, the national top-parts list and the shuffled-history control. The
 -- leaked column scores the predictor again with the held-back jobs already in its history; its gap to the
 -- predictor is what holding those days back is worth.
