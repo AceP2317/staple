@@ -35,13 +35,20 @@ WITH tests (shown_order, control, gain_tested, measure, places, without_it, with
          100.0 * MAX(CASE WHEN policy = 'Staple with shuffled-history parts odds (control)' THEN fixes_per_call END)
   FROM dispatch
   UNION ALL
-  SELECT 6, 'Claude answers shuffled (control)', 'Claude reading the customer''s words', 'jobs the 3-part list covers, %', 1,
+  SELECT 6, 'Staple on shuffled history (control)', 'the whole plan over the current rules',
+         'calls fixed on the first visit, %', 1,
+         100.0 * MAX(CASE WHEN policy = 'nearest technician, today''s stock' THEN fixes_per_call END),
+         100.0 * MAX(CASE WHEN policy = 'Staple: skills and parts, balanced loads' THEN fixes_per_call END),
+         100.0 * MAX(CASE WHEN policy = 'Staple on shuffled history (control)' THEN fixes_per_call END)
+  FROM dispatch
+  UNION ALL
+  SELECT 7, 'Claude answers shuffled (control)', 'Claude reading the customer''s words', 'jobs the 3-part list covers, %', 1,
          100.0 * MAX(CASE WHEN method = 'no code' THEN coverage END),
          100.0 * MAX(CASE WHEN method = 'Claude' THEN coverage END),
          100.0 * MAX(CASE WHEN method = 'Claude answers shuffled (control)' THEN coverage END)
   FROM triage
   UNION ALL
-  SELECT 7, 'Claude, asking when unsure, random replies (control)', 'Claude asking one question when unsure',
+  SELECT 8, 'Claude, asking when unsure, random replies (control)', 'Claude asking one question when unsure',
          'jobs the 3-part list covers, %', 1,
          100.0 * MAX(CASE WHEN method = 'Claude' THEN coverage END),
          100.0 * MAX(CASE WHEN method = 'Claude, asking when unsure, ideal replies (upper bound)' THEN coverage END),

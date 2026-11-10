@@ -9,6 +9,7 @@
 <li><a href="#ai">The AI step</a></li>
 <li><a href="#dispatch">The dispatch replay</a></li>
 <li><a href="#cycle">Parts cycle time</a></li>
+<li><a href="#scorecard">The scorecard</a></li>
 <li><a href="#plan">The week's plan</a></li>
 <li><a href="#sql">The metric queries</a></li>
 <li><a href="#checks">The checks and their controls</a></li>
@@ -315,6 +316,7 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <li><strong>Parts only</strong>: parts, with every technician believed average: the fleet's mean rate and an unchanged repair time.</li>
 <li><strong>Staple</strong>: skills and parts.</li>
 <li><strong>Shuffled skills (control)</strong>: each technician-appliance pair reads another pair's rate and time (seed {{skills_seed}}); who covers what stays true. It must lose at least half the skill gain over parts only.</li>
+<li><strong>Staple on shuffled history (control)</strong>: the truck loads and the dispatcher's parts judgment both use shuffled-history odds. It is the scorecard's control, and the scorecard gives what it keeps of each measure's gain.</li>
 <li><strong>Shuffled-history parts odds (control)</strong>: the dispatcher's parts judgment uses shuffled-history odds; the trucks still load on the real ones. It stays within a point of Staple, so it does not fall back. At night any truck can load anything but locked or back-ordered parts, so the parts judgment does most of its work during the day, on calls that come in or are moved and can use only what a truck already carries. Trucks are loaded by appliance, and the shuffle keeps what each appliance usually needs. The check measures both halves of that reason: odds that know only the appliance must score within half a point of the shuffled ones, and odds handed over for same-day calls alone must keep more than half the gain.</li>
 </ul>
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
@@ -333,6 +335,24 @@ lead time from the day a center can ship it, and the repeat visit waits for the 
 recorded days must agree within the spread chance allows. Every row of the query draws on the same lead times. So
 a way of handing out calls can change how many repairs wait and which parts they wait for, never how long a
 supplier takes.</p></section>
+
+<section id="scorecard"><h2>The scorecard</h2>
+<p>Source: <code>sql/metrics/scorecard.sql</code>, over the dispatch replay's table. The scorecard gives five
+measures of the whole plan across the held-back days, each under three plans: the current rules, Staple, and
+Staple's control. Every figure is counted in the one replay, on the same calls and the same surprises.</p>
+<ul>
+<li><strong>First-time fix</strong>: expected first-time fixes over every held-back call. A visit counts its technician's success rate when the truck holds every part the call needs, and nothing when it does not. A rolled call counts nothing.</li>
+<li><strong>Parts-caused reschedules</strong>: of the calls served, those whose truck lacked a needed part, for every hundred.</li>
+<li><strong>Fill rate</strong>: of the part lines the calls served needed, the share aboard the truck that came. A call that needs two parts is two lines.</li>
+<li><strong>Parts cycle time</strong>: the mean wait of the section above, summed over the calls served and divided by all of them.</li>
+<li><strong>Inventory return</strong>: the calls a truck-day that needed a part and had every one aboard, times {{repeat_visit}}, times the days in a year, over the dollars of stock aboard a truck-day. Every truck counts on every day, working or not, because its stock is held either way.</li>
+</ul>
+<p>The control is the row <code>{{shuffled_history}}</code>. Its predictor is trained on the shuffled history of
+the back-test's control, and both the truck loads and the dispatcher's parts judgment read its odds. Those odds
+still know what each appliance usually needs. So the share of a difference the control keeps is what that
+knowledge alone is worth, and the rest is what the links to model family and problem add. The difference and
+that share are worked from the figures as shown. The check <code>scorecard</code> counts the replay's figures
+again from its recorded visits and loads.</p></section>
 
 <section id="plan"><h2>The week's plan</h2>
 <p>Source: <code>staple/plan.py</code>. Nothing in it plans anything. Every route, load and move on the plan screen is

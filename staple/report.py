@@ -121,6 +121,12 @@ GLOSSARY = {
                      "nearest qualified technician, driving today's fixed truck stock.",
     "parts cycle time": "The days a repair waits for its parts: from the visit that lacked one to the repeat visit that "
                         "brings it.",
+    "parts-caused reschedules": "Calls whose truck lacked a needed part, so the repair is put off to a repeat visit "
+                                "whatever the technician's skill. Counted per 100 calls served.",
+    "fill rate": "Of the part lines the calls needed, the share already on the truck that came. A call that needs two "
+                 "parts is two lines.",
+    "inventory return": f"The repeat-visit dollars a year a truck's stock avoids, per dollar of stock aboard. A call counts "
+                        f"when it needed a part and every part was aboard, at ${load.REPEAT_VISIT:.0f} a repeat visit (made up).",
     "call": "One repair visit to make. It starts as a booking, the customer's request in their own words, and once "
             "made it is a job in the history.",
 }
@@ -150,7 +156,13 @@ COLUMNS = {
     "cost_a_truck_day": "Repeat, handling and holding together, per truck-day.",
     "roi": "Repeat-visit dollars a year the stock avoids, per dollar of stock on board, counting only jobs that needed a part.",
     "control": "The control: the method run again with one link in its data broken.",
-    "gain_tested": "The gain this control tests.", "measure": "What the three figures count.",
+    "gain_tested": "The gain this control tests.", "measure": "What the row's figures count.",
+    "unit": "What one figure of the measure is counted in.",
+    "better_when": "Whether a higher or a lower figure is the better one.",
+    "current_rules": "The measure under the current rules: the nearest technician, on today's stock.",
+    "staple": "The measure under Staple: skills and parts, on balanced loads.",
+    "difference": "Staple's figure less the current rules', from the two as shown.",
+    "control_keeps_pct": "The share of the difference the control keeps, from the three figures as shown.",
     "without_it": "The measure without the method.", "with_it": "The measure with the method.",
     "with_control": "The measure with the control in the method's place.",
     "gain_kept_pct": "The share of the gain the control keeps, from the three figures as shown. Below zero, it lands "
@@ -230,6 +242,7 @@ CHECK_ABOUT = {
     "fresh-clone": "The publishing check. The public repository is cloned as a stranger would clone it, at this commit, with an empty home folder. The one command and every check must pass there, the clone's fresh build must equal its published copy with the stamp included, and the live report must equal that copy too. Damaging the copy must make the clone's own report check fail. It needs the network and runs the whole suite, so it runs only when named.",
     "history-dates": "The history records the order day and the repeat-visit day of each repair that failed for a missing part, and adding them moved nothing else. The world is built with and without the two days, and every other column of every table must hold the same values; a build with one value changed must be refused. Every repair that lacked a part has both days and no other repair has them. The order falls on the visit day or the next, the repeat visit comes after it by one of the made-up lead times, and a part on back-order arrives only after a center can ship it. The shares of each lead time and of next-morning orders must match the made-up table within a point. A repeat visit moved onto its order day, a repair with its parts given a wait, a wait taken away, an order placed two days late, a wait of a length the table does not hold and a part that arrives the day its back-order ends must each be refused, on the rules it breaks and no other.",
     "cycle-time": "Parts cycle time, the days a repair waits for its parts. The replay gives each repair that lacks a part the mean wait under the rule the history was written by. Over every recorded wait that mean must sit within four standard errors of the recorded days, and an engine that orders every part on the day of the visit must be refused. The same mean is worked a second way, day by day, and must agree on every repair; a repair that lacks two parts must wait at least as long as for either part and less than for both in turn. Two replays are counted again from their recorded visits and loads and must give the replay's own figures, and emptying the back-order calendar must shorten the wait. The report says a waiting repair waits longer under Staple because of back-orders, so back-orders must make up most of that gap. Three planted changes must move the query's rows, a changed figure must reach the card, two builds whose query contradicts the card's words must stop, and the worked example must match its hand answer.",
+    "scorecard": "The five-measure scorecard is what the replay gives. The raw figures behind it are counted again from the recorded visits and loads of its three plans, the current rules, Staple and Staple on shuffled history, and must equal the replay's own; a recount with one part taken off every truck must move. Every measure must be the better under Staple, the difference must be the difference of the two figures shown beside it, and the control must keep most of each gain and less than all of it, because the words under the table say so. Three planted changes must move the query's rows as they should. The report must carry the scorecard once, with every figure of every row as the query gives it; a page with one figure changed must be refused, and a build whose query makes a measure worse under Staple, or lets the control pass Staple, must stop.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 
@@ -316,6 +329,7 @@ WORDS_REST_ON = {"shuffled-history control": "falls back",
                  load.CONTROL_BALANCED: "does not fall back",
                  dispatch.SHUFFLED_SKILLS: "falls back",
                  dispatch.SHUFFLED_ODDS: "does not fall back",
+                 dispatch.SHUFFLED_HISTORY: "does not fall back",
                  "Claude answers shuffled (control)": "falls back",
                  triage.RANDOM_REPLIES: "falls back"}
 
@@ -374,6 +388,67 @@ def stamp(root=ROOT):
     saved = git_answer(root, "log", "-1", "--format=%cs", "--", *SOURCES)
     changed = dt.date.today().isoformat() if git_answer(root, "status", "--porcelain", "--", *SOURCES) else saved
     return text, pretty_day(changed) if changed else None, STAMP_RE, found
+
+
+SCORE_SHOWS = {   # each unit the scorecard query names: how a figure in it reads, and how a difference does
+    "percent of calls": ("{:.1f}%", "{:.1f} points"), "percent of part lines": ("{:.1f}%", "{:.1f} points"),
+    "per 100 calls served": ("{:.1f}", "{:.1f}"), "days a repair": ("{:.2f}", "{:.2f}"),
+    "dollars a year per dollar of stock": ("${:.2f}", "${:.2f}"),
+}
+
+
+def scored(row, column):
+    """One scorecard figure as the page writes it: in its measure's own unit, and a difference with its sign."""
+    figure, change = SCORE_SHOWS[row["unit"]]
+    if column != "difference":
+        return figure.format(row[column])
+    return ("+" if row[column] > 0 else "−") + change.format(abs(row[column]))
+
+
+def scorecard(results):
+    """The five measures of the whole plan across the held-back days: the current rules, Staple, the difference and
+    the control. The words under the table rest on the figures, so a build whose query no longer supports them stops."""
+    score = rows(results, "scorecard")
+    keeps = [r["control_keeps_pct"] for r in score]
+    worse = [r["measure"] for r in score if not r["difference"] or (r["difference"] > 0) != (r["better_when"] == "higher")]
+    if worse or not 50 < min(keeps) <= max(keeps) < 100:
+        raise ValueError("the scorecard says Staple is the better on every measure and that its control keeps most of each "
+                         f"gain and less than all of it; the query now says otherwise ({worse or keeps}): rewrite the "
+                         "scorecard's words before publishing")
+    head = "".join(f"<th{tipattr(name + chr(10) + hint)}>{e(name)}</th>" for name, hint in (
+        ("Measure", "What the row counts, and the unit it is counted in."),
+        ("Current rules", GLOSSARY["current rules"]),
+        ("Staple", "Each call goes to the technician with the lowest expected cost, on a truck loaded for the calls booked on it."),
+        ("Difference", "Staple's figure less the current rules', from the two figures as shown."),
+        ("Control", f"{dispatch.SHUFFLED_HISTORY}: Staple with the history behind its part odds shuffled. Under its figure "
+                    "is the share of the difference it keeps.")))
+
+    def line(r):
+        name = r["measure"]
+        about_it = (f"{name.capitalize()}\n{GLOSSARY[name]}\n{'Higher' if r['better_when'] == 'higher' else 'Lower'} is better. "
+                    f"Counted in {r['unit']}.")
+        kept = (f"{dispatch.SHUFFLED_HISTORY}: {scored(r, 'control')}\nThe current rules {scored(r, 'current_rules')}, Staple "
+                f"{scored(r, 'staple')}. The control keeps {r['control_keeps_pct']:.0f}% of that difference.")
+        return (f'<tr><td class="m"{tipattr(about_it)}><span class="hv">{e(name.capitalize())}</span>{q(name)}'
+                f'<span class="unit">{e(r["unit"])}</span></td><td>{e(scored(r, "current_rules"))}</td>'
+                f'<td class="ours">{e(scored(r, "staple"))}</td><td class="gain">{e(scored(r, "difference"))}</td>'
+                f'<td{tipattr(kept)}><span class="hv">{e(scored(r, "control"))}</span>'
+                f'<span class="keeps">keeps {r["control_keeps_pct"]:.0f}%</span></td></tr>')
+
+    spread = f"{min(keeps):.0f}%" if min(keeps) == max(keeps) else f"{min(keeps):.0f}% to {max(keeps):.0f}%"
+    title = f"The scorecard · all {world.TEST_DAYS} held-back days, on the booked codes"
+    tip = (f"The scorecard\nSource: sql/metrics/scorecard.sql. {about('scorecard')}\nIt runs on the call-taker's booked "
+           "codes, so it measures the planning apart from the reading.")
+    madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}. No real company, customer, part or technician. "
+              "The method is real; these figures are not.")
+    return (f'<section class="card" id="scorecard"><h3{tipattr(tip)}>{e(title)}</h3>'
+            f'<p class="sub">Every row is the whole plan replayed with the same made-up sick calls and breakdowns. '
+            f'<span class="invented"{tipattr(madeup)}>made-up data</span></p>'
+            f'<div class="scroll"><table class="score"><thead><tr>{head}</tr></thead><tbody>{"".join(line(r) for r in score)}'
+            f'</tbody></table></div><p>The control is Staple with the history behind its part odds shuffled, so it knows what '
+            f'each appliance usually needs and nothing finer. It keeps {spread} of each gain. So most of each gain needs '
+            f'only what each appliance usually needs, and the history\'s links to model family and problem add the rest.</p>'
+            '</section>')
 
 
 def tile(label, term, value, sub, tip):
@@ -1055,35 +1130,6 @@ def build_report(results, week, stamp_text, day):
     receivers = Counter(x["to"] for x in od["morning"]["moved"] if x["to"])
     chosen = receivers.most_common(1)[0][0] if receivers else next(i["tech"] for i in od["todo"] if i["tech"])
 
-    tiles = "".join([
-        tile("Fixed on the first visit", "first-time fix", pct(ours["first_time_fix_pct"]),
-             f"from {pct(now['first_time_fix_pct'])} sending the nearest technician on today's stock",
-             f"{pct(ours['first_time_fix_pct'])} of {calls:,} held-back calls fixed on the first visit\n"
-             f"Nearest technician, today's stock {pct(now['first_time_fix_pct'])}; nearest, balanced loads "
-             f"{pct(loaded['first_time_fix_pct'])}; skills only {pct(skills['first_time_fix_pct'])}; parts only "
-             f"{pct(parts_only['first_time_fix_pct'])}.\nA rolled call counts as not fixed; {counted(ours['rolled'], 'call')} "
-             f"{'was' if ours['rolled'] == 1 else 'were'} rolled.\n"
-             "From dispatch_scorecard.sql."),
-        tile("Cost a call", "repeat visit", f"{cents(ours['cost_per_call'])}",
-             f"from {cents(now['cost_per_call'])}: minutes at ${dispatch.MINUTE:.0f}, repeat visits at ${R:.0f}, both made up",
-             f"{cents(ours['cost_per_call'])} a call, against {cents(now['cost_per_call'])} today\n"
-             f"Drive {ours['drive_minutes']} minutes a call against {now['drive_minutes']}. Repeat visits at ${R:.0f} for "
-             f"the {100 - ours['first_time_fix_pct']:.1f}% not fixed first time, against {100 - now['first_time_fix_pct']:.1f}%.\n"
-             f"Minutes at ${dispatch.MINUTE:.0f} each. Both rates are made up.\nFrom dispatch_scorecard.sql."),
-        tile("Jobs the truck covers", "coverage", pct(bal["covered_pct"]),
-             f"from {pct(fixed['covered_pct'])}, at {cents(bal['cost_a_truck_day'])} a truck-day against {cents(fixed['cost_a_truck_day'])}",
-             f"{pct(bal['covered_pct'])} of jobs had every needed part aboard the balanced truck\n"
-             f"Today's trucks {pct(fixed['covered_pct'])} at {cents(fixed['cost_a_truck_day'])} a truck-day; balanced "
-             f"{cents(bal['cost_a_truck_day'])}.\nBalanced: {bal['parts_aboard']:.0f} parts aboard, {some(bal['permanent_parts'])} "
-             f"of them permanent, {bal['moves_a_night']} moved a night, ${bal['stock_value']:,.0f} of stock.\nFrom inventory_roi.sql."),
-        tile("Customer's words read right", "booked code", pct(claude["agrees_booked_pct"]),
-             f"agreement with the booked code, against {pct(keywords['agrees_booked_pct'])} for a plain keyword matcher",
-             f"{pct(claude['agrees_booked_pct'])} of {claude['jobs']:,} held-back bookings: Claude's code matches the booked code\n"
-             f"Those bookings hold {said}, so this is a score over that many readings.\n"
-             f"A plain keyword matcher {pct(keywords['agrees_booked_pct'])}; Claude's answers shuffled (control) {pct(shuffled_ai['agrees_booked_pct'])}.\n"
-             f"Against the true problem: Claude {pct(claude['agrees_true_pct'])}, the keyword matcher {pct(keywords['agrees_true_pct'])}.\n"
-             "From ai_step.sql.")])
-
     cause_bars = bars([(r["appliance"], r["parts_caused_per_100_jobs"], f"{r['parts_caused_per_100_jobs']:.1f} per 100 jobs",
                         f"{r['parts_caused_per_100_jobs']:.1f} repeat visits per 100 {r['appliance']} jobs for a missing part\n"
                         f"{r['parts_caused']:,} of {r['jobs']:,} jobs; {r['parts_share_of_repeats_pct']:.1f}% of its "
@@ -1408,8 +1454,7 @@ def build_report(results, week, stamp_text, day):
              f'Day</span>{"".join(dbtn)}<span class="invented"{tipattr(madeup)}>every name and figure is invented; the method is real</span>'
              f'<span class="sides">{sides}</span></div></div>')
     left = "".join(day_section(d, ctx, week["centers"], d["day"] == open_day, chosen) for d in week["days"])
-    across = (f'<section class="card"><h3{tipattr(f"Across all {world.TEST_DAYS} held-back days" + chr(10) + "The scorecard runs on the call-taker" + chr(39) + "s booked codes, so it measures the planning apart from the reading.")}>'
-              f'Across all {world.TEST_DAYS} held-back days, on the booked codes</h3><div class="tiles">{tiles}</div></section>')
+    across = scorecard(results)
     right = ("".join(day_proof(d, d["day"] == open_day) for d in week["days"])
              + "".join(tech_card(t, ctx, t == chosen) for t in ctx.crew.techs) + across + "".join(proof) + adopt + limits)
     body = (f'{intro}<div class="panes"><div class="pane plan-pane"><p class="pane-label">The plan · one invented week, '
@@ -1477,7 +1522,7 @@ def facts():
          "answer_seed": triage.SHUFFLE_SEED, "id_length": triage.ID_LENGTH, "day_start": plan.clock(0),
          "day_end": plan.clock(dispatch.DAY), "sick_by": SICK_AT, "breaks_from": plan.clock(dispatch.BREAKS_BETWEEN[0]),
          "breaks_to": plan.clock(dispatch.BREAKS_BETWEEN[1]), "max_k": max(load.KS),
-         "queries": len(list(metrics.SQL.glob("*.sql"))), "python": ".".join(map(str, PYTHON))}
+         "shuffled_history": dispatch.SHUFFLED_HISTORY, "queries": len(list(metrics.SQL.glob("*.sql"))), "python": ".".join(map(str, PYTHON))}
     return {k: Raw(e(str(x))) for k, x in v.items()}
 
 

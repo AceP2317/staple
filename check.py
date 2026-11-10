@@ -391,6 +391,20 @@ def shared_week():
     return _WORLD["week"], _WORLD["followups"]
 
 
+def recorded_replay(name):
+    """One row of the dispatch table replayed again with its visits and loads recorded, as (the held-back jobs, the
+    run). Each takes several seconds, so a check run makes each once and its checks share it."""
+    from staple import backtest, dispatch, load
+    conn = shared_world()
+    if "plans" not in _WORLD:
+        _WORLD["held_back"] = backtest.test_jobs(conn)
+        load.mark_unplanned(_WORLD["held_back"])
+        _WORLD["plans"], _WORLD["replays"] = dispatch.plans(conn, _WORLD["held_back"]), {}
+    if name not in _WORLD["replays"]:
+        _WORLD["replays"][name] = dispatch.replay(conn, _WORLD["held_back"], record=True, **_WORLD["plans"][name])
+    return _WORLD["held_back"], _WORLD["replays"][name]
+
+
 @check("predictor")
 def predictor():
     from staple.predict import Predictor
@@ -873,8 +887,8 @@ def dispatch_control():
             "same-day calls no longer carry most of the parts judgment's gain: rewrite the report's reason")
     require(got["booked calls only"] - none < 0.5 * gain,
             "control: booked calls alone also keep most of the gain, so the split tells nothing")
-    side = max(c["rolled"] for c in (skills_off, odds_off)) - staple["rolled"]
-    print(f"  the controls roll {side:+} calls beyond Staple's, so neither wins by overbooking the day")
+    side = max(c["rolled"] for c in (skills_off, odds_off, out[dispatch.SHUFFLED_HISTORY])) - staple["rolled"]
+    print(f"  the controls roll {side:+} calls beyond Staple's, so none wins by overbooking the day")
     require(side <= 0.01 * staple["calls"], "a control withdraws the gain by overbooking routes, not by choosing worse")
     require(skills_off["fixes_per_call"] - parts["fixes_per_call"] <= 0.5 * (staple["fixes_per_call"] - parts["fixes_per_call"]),
             "shuffled skills keep most of the skill gain: it may not come from knowing the technicians")
@@ -1337,6 +1351,10 @@ def hand_tables(conn, stock_as_replayed=True):
             "the dispatcher judging each truck's parts", first, 1,
             *(fixes[p] for p in ("skills only, balanced loads", "Staple: skills and parts, balanced loads",
                                  "Staple with shuffled-history parts odds (control)"))),
+        "Staple on shuffled history (control)": control(
+            "the whole plan over the current rules", first, 1,
+            *(fixes[p] for p in ("nearest technician, today's stock", "Staple: skills and parts, balanced loads",
+                                 "Staple on shuffled history (control)"))),
         "Claude answers shuffled (control)": control(
             "Claude reading the customer's words", list_covers, 1,
             *(read[m] for m in ("no code", "Claude", "Claude answers shuffled (control)"))),
@@ -1367,6 +1385,25 @@ def hand_tables(conn, stock_as_replayed=True):
                            "days_when_waiting": to(wait / lacking, 2) if lacking else None, "days_a_repair": to(wait, 2)}
                   for policy, served, lacking, stuck_share, wait in
                   conn.execute("SELECT policy, served, parts_missing, backorder_missing, wait_per_call FROM dispatch")})
+    # The scorecard: the query's arithmetic redone on the replay's raw figures for its three plans.
+    raw = {policy: figures for policy, *figures in conn.execute(
+        "SELECT policy, fixes_per_call, parts_missing, line_fill, wait_per_call, part_jobs, stock_value FROM dispatch")}
+
+    def five(policy):
+        fix, lacking, fill, wait, part_jobs, stock = raw[policy]
+        return (100 * fix, 100 * lacking, 100 * fill, wait, part_jobs * repeat_visit * 365 / stock)
+
+    trio = [five(p) for p in ("nearest technician, today's stock", "Staple: skills and parts, balanced loads",
+                              "Staple on shuffled history (control)")]
+    score = {}
+    for i, (name, unit, better, digits) in enumerate((
+            ("first-time fix", "percent of calls", "higher", 1), ("parts-caused reschedules", "per 100 calls served", "lower", 1),
+            ("fill rate", "percent of part lines", "higher", 1), ("parts cycle time", "days a repair", "lower", 2),
+            ("inventory return", "dollars a year per dollar of stock", "higher", 2))):
+        now, ours, broken = (round(plan[i], digits) for plan in trio)
+        score[name] = {"unit": unit, "better_when": better, "current_rules": to(trio[0][i], digits),
+                       "staple": to(trio[1][i], digits), "difference": to(ours - now, digits),
+                       "control": to(trio[2][i], digits), "control_keeps_pct": to(100 * (broken - now) / (ours - now), 0)}
     return {
         "first_time_fix": {m: {"jobs": len(v), "first_time_fix_pct": of(sum(v), len(v))} for m, v in month.items()},
         "parts_caused_reschedules": {
@@ -1417,6 +1454,7 @@ def hand_tables(conn, stock_as_replayed=True):
         "inventory_roi": loads,
         "controls": controls,
         "parts_cycle_time": cycle,
+        "scorecard": score,
     }
 
 
@@ -1537,6 +1575,8 @@ WRONG_QUERIES = {
                                  "counts the repeats that had their parts as caused by parts"),
     "parts_cycle_time": ("julianday(j.day)", "julianday(w.order_day)",
                          "counts a wait from the day the part was ordered, not from the visit that lacked it"),
+    "scorecard": ("100.0 * d.line_fill", "100.0 * (1 - d.parts_missing)",
+                  "reports the share of calls with every part aboard as the share of part lines aboard"),
     "slow_truck_stock": ("'-365 days'", "'-30 days'", "looks back one month for use, not twelve"),
     "truck_fill_rate": ("MIN(on_truck)", "MAX(on_truck)", "passes a job when any one of its parts was aboard"),
 }
@@ -1663,7 +1703,8 @@ def controls_shown():
     copy = sqlite3.connect(":memory:")
     conn.backup(copy)
     copy.execute("INSERT INTO dispatch SELECT 'Staple with shuffled zones (control)', calls, served, rolled, fix_rate, "
-                 "fixes_per_call, parts_missing, drive_per_call, moved, moved_fix_rate, cost_per_call, backorder_missing, wait_per_call "
+                 "fixes_per_call, parts_missing, drive_per_call, moved, moved_fix_rate, cost_per_call, backorder_missing, wait_per_call, "
+                 "line_fill, stock_value, part_jobs "
                  "FROM dispatch LIMIT 1")
     planted = unlisted_controls(copy, results)
     copy.close()
@@ -2835,7 +2876,7 @@ def cycle_time():
     planted changes, and reaches the report with the words its figures support."""
     import sqlite3
     from statistics import mean, stdev
-    from staple import backtest, dispatch, examples, load, metrics, report, world
+    from staple import dispatch, examples, metrics, report, world
     conn = shared_world()
     results_written(conn)
     stuck, needed, aboard = defaultdict(list), defaultdict(set), defaultdict(set)
@@ -2879,14 +2920,12 @@ def cycle_time():
     require(off > 1 - 1e-9, "control: lead times a day longer were not seen by the comparison")
 
     # Each replay's waiting figures, counted again from its recorded visits and loads.
-    jobs = backtest.test_jobs(conn)
-    load.mark_unplanned(jobs)
-    wanted = {j["job"]: j["needed"] for j in jobs}
     table = {policy: rest for policy, *rest in
              conn.execute("SELECT policy, parts_missing, backorder_missing, wait_per_call FROM dispatch")}
     when = {}
-    for name, rule, loads, crew in (dispatch.POLICIES[0], dispatch.POLICIES[-1]):
-        run = dispatch.replay(conn, jobs, rule, loads, dispatch.Crew(conn, **crew), record=True)
+    for name in (dispatch.POLICIES[0][0], dispatch.POLICIES[-1][0]):
+        jobs, run = recorded_replay(name)
+        wanted = {j["job"]: j["needed"] for j in jobs}
         trucks = {day: rec["load"] for day, rec in run["days"].items()}
         counted = waits_recount(run["visits"], trucks, wanted, stuck, leads, next_day)
         bare = waits_recount(run["visits"], trucks, wanted, {}, leads, next_day)
@@ -2978,6 +3017,160 @@ def cycle_time():
     example = next(x for x in examples.EXAMPLES if x.section == "cycle")
     print(f"  the worked example: {example.show(example.compute())}, as worked by hand")
     require(not example_faults([example]), "the cycle-time example's hand answer is not what the engine gives")
+
+
+SCORED = ("fixes_per_call", "parts_missing", "line_fill", "wait_per_call", "stock_value", "part_jobs")    # the replay's figures behind the scorecard
+
+
+def plan_recount(conn, jobs, run, stuck):
+    """The replay's figures behind the scorecard, counted again from one plan's recorded visits and loads, the
+    technicians' true rates and the parts' costs."""
+    from staple import world
+    needed, kind = {j["job"]: j["needed"] for j in jobs}, {j["job"]: j["type"] for j in jobs}
+    rate = {(tech, appliance): r for tech, appliance, r in conn.execute("SELECT tech, type, success_rate FROM tech_skills")}
+    cost = dict(conn.execute("SELECT part, cost FROM parts"))
+    loads = {day: rec["load"] for day, rec in run["days"].items()}
+    fixes = days = 0.0
+    lacking = lines = aboard = whole_jobs = 0
+    for day, tech, job, *_ in run["visits"]:
+        have = needed[job] & loads[day][tech]
+        whole = have == needed[job]
+        fixes += whole * rate[(tech, kind[job])]
+        lacking += not whole
+        lines += len(needed[job])
+        aboard += len(have)
+        whole_jobs += bool(needed[job]) and whole
+        days += wait_by_hand(day, needed[job] - have, stuck, world.LEAD_TIMES, world.ORDER_NEXT_DAY)
+    truck_days = sum(len(trucks) for trucks in loads.values())
+    stock = sum(cost[part] for trucks in loads.values() for parts in trucks.values() for part in parts)
+    served = len(run["visits"])
+    return {"fixes_per_call": fixes / len(jobs), "parts_missing": lacking / served, "line_fill": aboard / lines,
+            "wait_per_call": days / served, "stock_value": stock / truck_days, "part_jobs": whole_jobs / truck_days}
+
+
+def score_cells(page):
+    """The scorecard as the report draws it: each row's cells as a reader sees them, with no markup."""
+    import html
+    table = re.search(r'<table class="score">.*?</table>', page, flags=re.S)
+    if not table:
+        return []
+    return [[html.unescape(re.sub(r"<[^>]+>", " ", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.S)]
+            for row in re.findall(r"<tr>(.*?)</tr>", table.group(0).split("<tbody>")[1], flags=re.S)]
+
+
+def score_faults(page, rows):
+    """Where the report's scorecard parts ways with the query's rows: a row missing or out of place, a figure that is
+    not the query's, a difference that is not Staple's figure less the current rules', or a row at mixed precision."""
+    cells = score_cells(page)
+    if page.count('id="scorecard"') != 1 or len(cells) != len(rows):
+        return [f"the report draws {page.count('id=' + chr(34) + 'scorecard' + chr(34))} scorecards with {len(cells)} rows, for {len(rows)} measures"]
+    faults = []
+    for (name, r), (measure, now, ours, change, control) in zip(rows.items(), cells):
+        if not measure.lower().startswith(name) or not measure.endswith(r["unit"]):
+            faults.append(f"{name}: the row is headed '{measure}'")
+            continue
+        (x, px), (y, py), (d, pd), (c, pc) = (figure_of(cell) for cell in (now, ours, change, control))
+        signed = -d if change.startswith("−") else d
+        kept = float(re.search(r"keeps (-?\d+)%", control).group(1))
+        if (x, y, signed, c, kept) != (r["current_rules"], r["staple"], r["difference"], r["control"], r["control_keeps_pct"]):
+            faults.append(f"{name}: the page shows {now}, {ours}, {change} and {control}, which are not the query's figures")
+        elif not px == py == pd == pc:
+            faults.append(f"{name}: {now}, {ours}, {change} and {control} are not at one precision")
+        elif abs(round(y - x, px) - signed) > 1e-9:
+            faults.append(f"{name}: {ours} less {now} is not {change}")
+    return faults
+
+
+@check("scorecard")
+def scorecard_check():
+    """The five-measure scorecard is what the replay gives, and the report carries it with words its figures support."""
+    import sqlite3
+    from staple import dispatch, metrics, report
+    conn = shared_world()
+    results_written(conn)
+    stuck = defaultdict(list)
+    for part, starts, ships in conn.execute("SELECT part, starts, ships FROM backorders"):
+        stuck[part].append((starts, ships))
+    now_name, our_name, control_name = dispatch.POLICIES[0][0], dispatch.POLICIES[-1][0], dispatch.SHUFFLED_HISTORY
+
+    # The replay's figures behind the five measures, counted again from each plan's recorded visits and loads.
+    table = {policy: dict(zip(SCORED, figures)) for policy, *figures in
+             conn.execute(f"SELECT policy, {', '.join(SCORED)} FROM dispatch")}
+    counted = {}
+    for name in (now_name, our_name, control_name):
+        jobs, run = recorded_replay(name)
+        counted[name] = plan_recount(conn, jobs, run, stuck)
+        apart = max(abs(counted[name][k] - table[name][k]) for k in SCORED)
+        print(f"  {name}: {len(SCORED)} figures counted again from {len(run['visits']):,} recorded visits and "
+              f"{sum(len(rec['load']) for rec in run['days'].values()):,} truck loads; the replay's own differ by at most {apart:.0e}")
+        require(apart < 1e-9, f"the replay's scorecard figures for {name} are not what its visits and loads give")
+    jobs, run = recorded_replay(our_name)
+    lighter = dict(run, days={day: dict(rec, load={tech: set(sorted(parts)[1:]) for tech, parts in rec["load"].items()})
+                              for day, rec in run["days"].items()})
+    less = plan_recount(conn, jobs, lighter, stuck)
+    moved = [k for k in SCORED if less[k] != counted[our_name][k]]
+    print(f"  control: with one part taken off every truck, the recount moves {len(moved)} of {len(SCORED)} figures; the "
+          f"fill rate falls from {counted[our_name]['line_fill']:.1%} to {less['line_fill']:.1%}")
+    require(less["line_fill"] < counted[our_name]["line_fill"] and less["stock_value"] < counted[our_name]["stock_value"]
+            and less["parts_missing"] > counted[our_name]["parts_missing"],
+            "control: taking a part off every truck did not move the recount")
+
+    # The query's rows: Staple the better on every measure, the difference from the figures shown, the control's share.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    text = (metrics.SQL / "scorecard.sql").read_text(encoding="utf-8")
+
+    def asked(db):
+        cur = db.execute(text)
+        return rows_by_key("scorecard", ([d[0] for d in cur.description], cur.fetchall()))
+
+    rows = asked(conn)
+    for name, r in rows.items():
+        print(f"  {name}, {r['unit']}: {r['current_rules']} under the current rules, {r['staple']} under Staple, "
+              f"{r['difference']:+} apart; the control {r['control']}, keeping {r['control_keeps_pct']:.0f}%")
+    worse = [name for name, r in rows.items() if not (r["difference"] > 0 if r["better_when"] == "higher" else r["difference"] < 0)]
+    require(len(rows) == 5 and not worse, f"the scorecard does not show five measures, each the better under Staple: {worse}")
+    keeps = [r["control_keeps_pct"] for r in rows.values()]
+    require(50 < min(keeps) and max(keeps) < 100,
+            f"the scorecard's words say the control keeps most of each gain and less than all of it, and it keeps {keeps}")
+    copy = sqlite3.connect(":memory:")
+    conn.backup(copy)
+    copy.execute("UPDATE dispatch SET line_fill = line_fill / 2 WHERE policy = ?", (our_name,))
+    copy.execute("UPDATE assumptions SET value = 2 * value WHERE name = 'repeat_visit'")
+    copy.execute("UPDATE dispatch SET fixes_per_call = (SELECT fixes_per_call FROM dispatch WHERE policy = ?) WHERE policy = ?",
+                 (now_name, control_name))
+    later = asked(copy)
+    copy.close()
+    fill, back, fix, wait = (later[m] for m in ("fill rate", "inventory return", "first-time fix", "parts cycle time"))
+    planted = {"Staple's fill rate halved": abs(fill["staple"] - rows["fill rate"]["staple"] / 2) < 0.051
+                                            and fill["current_rules"] == rows["fill rate"]["current_rules"],
+               "a repeat visit priced at double": all(abs(back[c] - 2 * rows["inventory return"][c]) < 0.011
+                                                      for c in ("current_rules", "staple", "control"))
+                                                  and abs(back["control_keeps_pct"] - rows["inventory return"]["control_keeps_pct"]) <= 1,
+               "the control given the current rules' fixes": fix["control_keeps_pct"] == 0 and fix["staple"] == rows["first-time fix"]["staple"]}
+    print(f"  control: planted changes moved the query's rows as they should in {sum(planted.values())} of {len(planted)} cases, "
+          f"and left the cycle-time row {'alone' if wait == rows['parts cycle time'] else 'changed'}")
+    require(all(planted.values()) and wait == rows["parts cycle time"], f"the scorecard query did not move as it should: {planted}")
+
+    # The page: the scorecard once, every figure the query's, and a build that stops where its words would be untrue.
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    page = report.build_report(results, week, stamp_text, day)
+    faults = score_faults(page, rows)
+    print(f"  the report draws the scorecard once, with {len(score_cells(page))} rows; faults against the query: {faults or 'none'}")
+    require(not faults, f"the report's scorecard is not the query's: {faults}")
+    off = report.build_report(changed(results, "scorecard", "fill rate", "staple", lambda v: v + 1), week, stamp_text, day)
+    caught = score_faults(off, rows)
+    stopped = []
+    for what, column, value in (("first-time fix", "difference", lambda v: -v), ("inventory return", "control_keeps_pct", lambda v: 104.0)):
+        try:
+            report.build_report(changed(results, "scorecard", what, column, value), week, stamp_text, day)
+        except ValueError:
+            stopped.append(what)
+    print(f"  control: a page whose fill rate under Staple is a point off is refused ({len(caught)} fault), and a build "
+          f"stops where a measure is worse under Staple or the control passes Staple: {len(stopped)} of 2")
+    require(len(caught) == 1 and caught[0].startswith("fill rate"), f"control: a changed figure on the scorecard gave {caught}")
+    require(len(stopped) == 2, "control: the report was built though its scorecard's words contradict the query")
 
 
 @check("data")

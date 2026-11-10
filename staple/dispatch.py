@@ -127,9 +127,10 @@ def miss_odds(lists, job, has):
     return min(1.0, sum(p for part, p in lists[job["job"]] if not has(part)))
 
 
-def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEED, part_odds=None):
+def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEED, part_odds=None, load_odds=None):
     """One policy over every held-back day. rule is "nearest", "skills" or "skills and parts". part_odds, when
-    given, replaces the predictor's odds in the dispatcher's parts judgment only; trucks still load on the real ones."""
+    given, replaces the predictor's odds in the dispatcher's parts judgment only; trucks still load on the real ones.
+    load_odds, when given, replaces them in the truck loads."""
     crew = crew or Crew(conn)
     fleet, predictor = load.Fleet(conn), Predictor(conn)
     lists, surprise = load.ranked_lists(predictor, jobs), load.surprise_value(conn, predictor)
@@ -221,11 +222,13 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
             plan_night([j for j in night if priority(j, {}) == band])
         night_routes, night_rolled, prev = {t: [j["job"] for j in r] for t, r in routes.items()}, list(rolled), before
         if loads == "balanced":
-            truck = {tech: load.balanced_load(fleet, tech, routes[tech], lists, surprise, before[tech], stuck)
+            truck = {tech: load.balanced_load(fleet, tech, routes[tech], load_odds or lists, surprise, before[tech], stuck)
                      for tech in crew.techs}
             before = truck
         else:
             truck = {tech: set(fleet.stock[tech]) for tech in crew.techs}
+        t["truck_days"] += len(truck)    # every truck holds its stock all day, whether or not it works
+        t["stock"] += sum(fleet.cost[part] for parts in truck.values() for part in parts)
         moved = Counter()
         out |= sick                      # sick calls come in at 07:00, after the routes are planned and loaded
         for tech in sorted(sick):
@@ -263,6 +266,9 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
                 t["served"] += 1
                 t["fixes"] += fix
                 t["parts_missing"] += not covered
+                t["lines"] += len(j["needed"])
+                t["lines_aboard"] += len(j["needed"] & truck[tech])
+                t["part_jobs"] += bool(j["needed"]) and covered
                 t["backorder_missing"] += any(part in stuck for part in j["needed"] - truck[tech])
                 t["wait_days"] += expected_wait(day, j["needed"] - truck[tech], calendar)
                 t["drive"] += travel_minutes(zone, j["zone"])    # the drive alone: a wait for a call to come in is not driving
@@ -291,6 +297,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
               "moved": t["moved"], "moved_fix_rate": t["moved_fixes"] / t["moved"] if t["moved"] else 0.0,
               "sick": t["sick"], "broken": t["broken"], "wait_per_call": t["wait_days"] / t["served"],
               "backorder_missing": t["backorder_missing"] / t["served"],
+              "line_fill": t["lines_aboard"] / t["lines"], "stock_value": t["stock"] / t["truck_days"],
+              "part_jobs": t["part_jobs"] / t["truck_days"],
               "cost_per_call": (t["drive"] + t["repair"]) * MINUTE / t["served"]
                                + (1 - t["fixes"] / t["served"]) * load.REPEAT_VISIT}
     if record:
@@ -305,6 +313,19 @@ POLICIES = [("nearest technician, today's stock", "nearest", "today", {}),
             ("Staple: skills and parts, balanced loads", "skills and parts", "balanced", {})]
 SHUFFLED_SKILLS = "Staple with shuffled skills (control)"
 SHUFFLED_ODDS = "Staple with shuffled-history parts odds (control)"
+SHUFFLED_HISTORY = "Staple on shuffled history (control)"
+
+
+def plans(conn, jobs, control_seed=SKILLS_SEED):
+    """Every row of the dispatch table, as the arguments replay() takes for it: the policies, then the controls."""
+    shuffled = load.ranked_lists(Predictor(conn, shuffled=True), jobs)
+    staple = {"rule": "skills and parts", "loads": "balanced"}
+    out = {name: {"rule": rule, "loads": loads, "crew": Crew(conn, **crew)} for name, rule, loads, crew in POLICIES}
+    out[SHUFFLED_SKILLS] = dict(staple, crew=Crew(conn, shuffled=True, seed=control_seed))
+    out[SHUFFLED_ODDS] = dict(staple, part_odds=shuffled)
+    # The whole plan on shuffled history: the trucks load on it and the dispatcher judges by it.
+    out[SHUFFLED_HISTORY] = dict(staple, part_odds=shuffled, load_odds=shuffled)
+    return out
 
 
 def run(conn, control_seed=SKILLS_SEED):
@@ -312,15 +333,12 @@ def run(conn, control_seed=SKILLS_SEED):
     caller can leave the table holding a subset; replay() runs one policy on any jobs and writes nothing."""
     jobs = test_jobs(conn)
     load.mark_unplanned(jobs)
-    out = {name: replay(conn, jobs, rule, loads, Crew(conn, **crew)) for name, rule, loads, crew in POLICIES}
-    out[SHUFFLED_SKILLS] = replay(conn, jobs, "skills and parts", "balanced", Crew(conn, shuffled=True, seed=control_seed))
-    out[SHUFFLED_ODDS] = replay(conn, jobs, "skills and parts", "balanced",
-                                part_odds=load.ranked_lists(Predictor(conn, shuffled=True), jobs))
+    out = {name: replay(conn, jobs, **how) for name, how in plans(conn, jobs, control_seed).items()}
     conn.execute("DELETE FROM dispatch")
-    conn.executemany("INSERT INTO dispatch VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    conn.executemany("INSERT INTO dispatch VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                      [(name, r["calls"], r["served"], r["rolled"], r["fix_rate"], r["fixes_per_call"],
                        r["parts_missing"], r["drive_per_call"], r["moved"], r["moved_fix_rate"], r["cost_per_call"],
-                       r["backorder_missing"], r["wait_per_call"])
+                       r["backorder_missing"], r["wait_per_call"], r["line_fill"], r["stock_value"], r["part_jobs"])
                       for name, r in out.items()])
     conn.commit()
     return out

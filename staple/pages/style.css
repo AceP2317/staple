@@ -27,6 +27,10 @@ h2{font-size:1.3rem;color:var(--ink);margin:0 0 8px}h3{font-size:1.05rem;color:v
 .tile{background:var(--surface);border:1px solid var(--ring);border-top:4px solid var(--s1);border-radius:8px;padding:14px}
 .tile p{margin:0}.tile .label{font-size:.85rem}.tile .value{font-size:2rem;font-weight:700;color:var(--ink)}
 .tile .sub{color:var(--muted);font-size:.8rem}
+.score{width:100%;margin:2px 0 8px;font-size:.9rem}.score th,.score td{padding:7px 12px 7px 0;white-space:normal}
+.score .m{font-weight:700;color:var(--ink)}.score .unit,.score .keeps{display:block;font-weight:400;color:var(--muted);font-size:.78rem}
+.score .ours{font-weight:700;color:var(--ink)}.score .gain{font-weight:700;color:var(--good);white-space:nowrap}.score .keeps{white-space:nowrap}
+@media(max-width:560px){.score{font-size:.8rem}.score th,.score td{padding-right:8px}.score .gain{white-space:normal}}
 section{margin:36px 0}section>p{margin:0 0 12px}
 figure{margin:0;background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:14px}
 figcaption{font-weight:700;font-size:.9rem;color:var(--ink);margin-bottom:10px}

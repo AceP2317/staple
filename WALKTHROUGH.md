@@ -107,6 +107,9 @@ replay's own record of the most recent week, so every route and load on it is on
   each way of handing out calls would leave them, with the share of waits that are on a back-ordered part.
 - `sql/metrics/truck_fill_rate.sql`: of the part lines jobs needed, the share already on the truck, and the
   share of jobs with every line there.
+- `sql/metrics/scorecard.sql`: the scorecard's rows. Each is one measure of the whole plan under the current
+  rules, under Staple and under Staple on shuffled history, with the difference and the share of it that control
+  keeps.
 - `sql/metrics/slow_truck_stock.sql`: what each truck holds that its own technician's jobs did not need in
   the year before the held-back months.
 - `sql/metrics/inventory_roi.sql`: each way of loading a truck, cheapest first, with its coverage, stock,

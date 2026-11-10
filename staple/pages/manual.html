@@ -78,21 +78,28 @@ what this does and does not show.</p></section>
 </tbody></table></div></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
-<h3>The four figures across all held-back days</h3>
-<p>They sit on the right side, under the day's comparison and the technician's card, and run on the call-taker's booked codes.</p>
-<p><strong>Fixed on the first visit</strong> is the share of all held-back calls that Staple's dispatch fixes on
-the first visit. A call fixes first time only when the truck holds every part it needs, and the technician's own
-success rate on that appliance then decides it. A call rolled to tomorrow counts as not fixed. The comparison is
-the nearest qualified technician driving today's fixed truck stock.</p>
-<p><strong>Cost a call</strong> adds the drive and repair minutes at {{minute}} a minute to the chance of a second
-visit times {{repeat_visit}}. Both dollar figures are made up, and the threshold table names every made-up value.</p>
-<p><strong>Jobs the truck covers</strong> is the share of jobs whose every needed part was on the truck that day,
-under the balanced truck. It is compared with today's fixed stock, and each comes with its cost a truck-day.</p>
-<p><strong>Customer's words read right</strong> is how often Claude's reading of the customer's own words matches
-the problem code the booking recorded. It is compared with a plain keyword matcher: the code whose label shares
-the most words with the customer's. That matcher is a floor to beat, not a picture of how any booking screen works.
-The invented customers say each problem only a few ways, so the score is over that many distinct descriptions, and
-the tile's hint gives the count.</p>
+<h3>The scorecard across all held-back days</h3>
+<p>It sits on the right side, under the day's comparison and the technician's card, and runs on the call-taker's
+booked codes. Each row is one measure of the whole plan, replayed over every held-back day with the same made-up
+sick calls and breakdowns. It gives the measure under the current rules, under Staple, the difference, and the
+control.</p>
+<p><strong>First-time fix</strong> is the share of all held-back calls fixed on the first visit. A call fixes first
+time only when the truck holds every part it needs, and the technician's own success rate on that appliance then
+decides it. A call rolled to tomorrow counts as not fixed.</p>
+<p><strong>Parts-caused reschedules</strong> counts the calls whose truck lacked a needed part, for every hundred
+calls served. Each of them needs a repeat visit whatever the technician's skill.</p>
+<p><strong>Fill rate</strong> is the share of the part lines those calls needed that were on the truck. A call that
+needs two parts is two lines. So one missing part costs one line here, and the whole call in the row above.</p>
+<p><strong>Parts cycle time</strong> is the days a repair waits for its parts, spread over every repair. The chart
+on how long a repair waits adds the wait of a repair that does wait.</p>
+<p><strong>Inventory return</strong> is the repeat-visit dollars a year that a truck's stock avoids, per dollar of
+stock aboard, at {{repeat_visit}} a repeat visit. A call counts when it needed a part and every part was aboard.
+That dollar figure is made up, and the threshold table names every made-up value.</p>
+<p><strong>The current rules</strong> send each call to the nearest qualified technician, driving today's fixed
+truck stock. <strong>The control</strong> is Staple with the history behind its part odds shuffled, so it knows
+what each appliance usually needs and nothing finer. Its column gives its own figure and the share of the
+difference it keeps. What it keeps needs only that knowledge. The rest comes from the history's links to model
+family and problem.</p>
 <h3>The charts</h3>
 <p><strong>Where repeat visits come from</strong> counts, per 100 jobs of each appliance, the repeat visits
 caused by a part missing from the truck. Its table adds the share of each appliance's repeat visits that a missing
@@ -122,7 +129,9 @@ which Claude's answers are shuffled between bookings. Each bar is how often the 
 the reading covered the job, and its label adds how often the reading agrees with the booked code. The row with ideal
 replies is an upper bound: the customer who answers Claude's question is
 simulated and always picks the answer that matches the booking. The row with random replies is the lower end, and a
-real customer lands between them.</p>
+real customer lands between them. The keyword matcher picks the code whose label shares the most words with the
+customer's. It is a floor to beat, not a picture of how any booking screen works. The invented customers say each
+problem only a few ways, so every score is over that many distinct descriptions, and the card gives the count.</p>
 <p><strong>How often Claude is right, by its confidence</strong> groups Claude's first readings by the confidence
 it stated. Each bar is the share of those readings that match the booked code. A reader that can be trusted is
 right at least as often as the confidence it states, and seldom right where it says it is unsure. Below
@@ -161,6 +170,9 @@ bar is a gain that came from something plainer, and the card that owns the gain 
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times {{repeat_visit}}.</td></tr>
 <tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought before the part shipped, for comparison with the forecast.</td></tr>
 <tr><td>back_test</td><td><code>1</code> on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
+<tr><td>fill rate</td><td>On the scorecard: the part lines aboard over the part lines needed, across the calls a plan served. A call needing two parts is two lines.</td></tr>
+<tr><td>inventory return</td><td>On the scorecard: the calls a truck-day that needed a part and had every one aboard, times {{repeat_visit}}, times the days in a year, over the dollars of stock aboard a truck-day. Every truck counts on every day, working or not.</td></tr>
+<tr><td>control_keeps_pct</td><td>On the scorecard: the control's figure less the current rules', over Staple's figure less the same, from the three figures as shown.</td></tr>
 <tr><td>repairs_waiting_pct</td><td>Repairs whose truck lacked a needed part, over every repair counted.</td></tr>
 <tr><td>days_when_waiting, days_a_repair</td><td>Days from the visit that lacked a part to the repeat visit. In the history row they are the recorded days. In a replayed row each waiting repair counts the average over every order day and lead time the made-up table allows, and a part on back-order waits first for the day a center can ship it. The first figure divides by the repairs that wait, the second by every repair.</td></tr>
 <tr><td>waits_on_backorder_pct</td><td>Of the repairs that wait, the share lacking a part no center could ship on the day of the visit.</td></tr>
