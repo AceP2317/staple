@@ -158,11 +158,11 @@ body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:no
 table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
 @media print{.band{background:none;color:#000}.actions,#tip{display:none}}
 </style><script>try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}</script></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
-Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 38 · 10 Nov 2026 · 154d4c4
-The build that made this page: how many changes the repository held at the change it was built from, the day of that change, and its short code. A + means it was built from changes not yet saved. A fresh clone of the repository builds this same stamp." tabindex="0">Build 38 · 10 Nov 2026 · 154d4c4</span> · results last changed <span class="content-day" data-tip="10 Nov 2026
-The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">10 Nov 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
-Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods and logic
-Opens the methods manual in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods and logic</a><a class="btn ghost" href="languages.html" target="_blank" rel="noopener" data-tip="Code languages
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 48 · Nov 10, 2026 · 9c4428d
+The build that made this page: how many changes the repository held at the change it was built from, the day of that change, and its short code. A + means it was built from changes not yet saved. A fresh clone of the repository builds this same stamp." tabindex="0">Build 48 · Nov 10, 2026 · 9c4428d</span> · results last changed <span class="content-day" data-tip="Nov 10, 2026
+The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">Nov 10, 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
+Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods page
+Opens the methods page in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods page</a><a class="btn ghost" href="languages.html" target="_blank" rel="noopener" data-tip="Code languages
 Opens the code languages page in a new tab: what Staple is written in, where each part runs, and every program it starts." tabindex="0">Code languages</a><button type="button" class="btn ghost" data-theme-toggle data-tip="Light or dark
 The page opens light. This switches it, and this browser remembers the choice." tabindex="0">Dark mode</button></nav></div></header><main><ol class="toc">
 <li><a href="#first">What Staple is for, and what to do first</a></li>
@@ -170,7 +170,7 @@ The page opens light. This switches it, and this browser remembers the choice." 
 <li><a href="#todo">Every to-do, and who does it</a></li>
 <li><a href="#numbers">What the numbers mean</a></li>
 <li><a href="#labels">Every label and status, and what to do about it</a></li>
-<li><a href="#derived">How to read the computed columns</a></li>
+<li><a href="#derived">How each computed figure is made</a></li>
 <li><a href="#data">How the data is handled</a></li>
 <li><a href="#thresholds">Every threshold, and what sets it</a></li>
 <li><a href="#cannot">What Staple cannot tell you</a></li>
@@ -182,11 +182,11 @@ The page opens light. This switches it, and this browser remembers the choice." 
 <p>Staple answers two questions that decide whether a repair is finished on the first visit. Which parts should
 the technician's truck carry for tomorrow's booked calls, and which technician should take each call? When the
 stock lives on the trucks, those are one decision, so Staple scores them together.</p>
-<p>Every number in it comes from repair history I invented: 160,000 jobs over 1,096 days from 1 Nov 2023, across
+<p>Every number in it comes from repair history I invented: 160,000 jobs over 1,096 days from Nov 1, 2023, across
 6 appliance types and 30 technicians. The last 92 days are held back. Each method learns
 from the earlier days only, and is then scored on the held-back days as if they had not happened yet. That is a
 back-test, and it is the same test I would run first on real history.</p>
-<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before 08:00. On the right is the proof: that day against the current way, then the evidence from all 92 held-back days. The next section walks through every part of the screen.</p>
+<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before 08:00. On the right is the proof: that day against the current rules, then the evidence from all 92 held-back days. The next section walks through every part of the screen.</p>
 <p><strong>Hover over anything with a dotted underline, or anything that turns your pointer into a question
 mark.</strong> The hint shows the figures behind it and the query they come from. A blue <span class="q" data-tip="A blue ?
 Sits beside a word the manual's glossary explains. Clicking it opens the manual in a new tab at that word." tabindex="0">?</span>
@@ -195,7 +195,7 @@ drawn from.</p></section>
 
 <section id="plan"><h2>How to read the plan screen</h2>
 <p>The report is one screen with two sides, and on a desktop each side scrolls on its own, so the page itself never
-does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current way.
+does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current rules.
 Choosing a technician anywhere on the left lights up their route, their row and their load sheet, and shows their card
 on the right. Every page opens light. The Dark mode button at the top switches it, and your browser remembers the choice.</p>
 <h3>Across the top</h3>
@@ -206,8 +206,8 @@ before a click. The page opens on the most recent day on which a sick call and a
 trucks.</p>
 <h3>The left side, top to bottom</h3>
 <ul>
-<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, second visits
-avoided, and parts moved overnight. Each compares the plan with the current way on the same day.</li>
+<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, repeat visits
+avoided, and parts moved overnight. The first three compare the plan with the current rules on the same day; the last counts the plan's own moves.</li>
 <li><strong>AI at booking</strong>: how many bookings Claude coded at once, and a card for every booking it was unsure
 of. A card shows the customer's words, Claude's first reading with its confidence, the one question it asked, the
 answers offered with the one taken in yellow, and the code the call runs on. Where the answer changed the carry list,
@@ -215,9 +215,9 @@ the card shows what the first guess would have loaded and what the truck loads n
 <li><strong>To do before 08:00</strong>: every action, grouped by who takes it. The next section lists every kind.
 Clicking an item lights up its truck and opens, on the right, the evidence behind that kind of action.</li>
 <li><strong>07:00 and after</strong>: each sick call and breakdown, every call it moved, from whom to whom, and its
-first-visit chance before and after. A moved call can use only the parts its new truck already carries.</li>
-<li><strong>Routes and the board</strong>: the map of the twelve zones beside a row for each technician from 08:00 to
-17:00. Each block is a call, shaded by its first-visit chance, darker for likelier. The switch shows the plan as made
+first-time fix chance before and after. A moved call can use only the parts its new truck already carries.</li>
+<li><strong>Routes and the board</strong>: the map of the 12 zones beside a row for each technician from 08:00 to
+17:00. Each block is a call, shaded by its first-time fix chance, on the scale the legend above the board shows. The switch shows the plan as made
 at night or the day as it ran. On the day as it ran, a sick technician's row is hatched, a broken truck's row stops at
 a ⚠ marker, a moved call is outlined and tagged with the technician it came from, and on the map a dashed line joins
 it to its new truck. A yellow corner marks a call Claude asked about, a hatched block a call added on the day, a red
@@ -228,24 +228,25 @@ it, the parts kept aboard: those tomorrow's calls may need, and a count by appli
 calls.</li>
 </ul>
 <h3>The right side</h3>
-<p>First, the day against the current way, with both replays on Claude's codes and the same surprises. Then the
+<p>First, the day against the current rules, with both replays on Claude's codes and the same surprises. Then the
 chosen technician's card: their appliances, how often they fix each first time, and how fast. Then the evidence from
 all 92 held-back days, which runs on the call-taker's booked codes so it measures the planning apart from the
-reading. Each card ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
+reading. A card that leads to an action ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
 what this does and does not show.</p></section>
 
 <section id="todo"><h2>Every to-do, and who does it</h2>
 <div class="scroll"><table class="wrap"><thead><tr><th>Owner and when</th><th>The item</th><th>Why it appears</th><th>What to do</th></tr></thead><tbody>
-<tr><td>Parts room, tonight</td><td>Truck V07 (T07): put on 11, take off 10</td><td>The truck's balanced load for tomorrow differs from tonight's. One item per truck whose load changes.</td><td>Load and unload at the center from that truck's load sheet.</td></tr>
-<tr><td>Call center, before 08:00</td><td>Call back about call 123</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
-<tr><td>Dispatch, before 08:00</td><td>Warn the customer on call 123</td><td>A part the call has at least a 10% chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
-<tr><td>Dispatch, before 08:00</td><td>Rebook call 123</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
-<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The three back-ordered parts with the most second-visit dollars at risk before they ship. Where calls likely to need one sit in a zone with no holder nearby, the item names a truck to move a spare from.</td><td>Expedite, source elsewhere, or move the spare.</td></tr>
+<tr><td>Parts room, tonight</td><td>A truck and its technician, with how many parts to put on and take off</td><td>The truck's balanced load for tomorrow differs from tonight's. One item per truck whose load changes.</td><td>Load and unload at the center from that truck's load sheet.</td></tr>
+<tr><td>Call center, before 08:00</td><td>Call back about a call</td><td>Claude was unsure, asked its question, and no offered answer fit, so the plan runs on its best guess.</td><td>Ring the customer and recode the call.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Warn the customer on a call</td><td>A part the call has at least a 10% chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Rebook a call</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
+<tr><td>Dispatch, before 08:00</td><td>Technicians with no booked calls</td><td>The booked calls fit on fewer routes than there are technicians, because each call goes to the technician with the lowest expected cost.</td><td>Keep them for the calls that come in during the day and the calls a sick call or breakdown moves.</td></tr>
+<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The back-ordered parts with the most repeat-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
 </tbody></table></div></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
 <h3>The four figures across all held-back days</h3>
-<p>They head the right side, under the day's comparison, and run on the call-taker's booked codes.</p>
+<p>They sit on the right side, under the day's comparison and the technician's card, and run on the call-taker's booked codes.</p>
 <p><strong>Fixed on the first visit</strong> is the share of all held-back calls that Staple's dispatch fixes on
 the first visit. A call fixes first time only when the truck holds every part it needs, and the technician's own
 success rate on that appliance then decides it. A call rolled to tomorrow counts as not fixed. The comparison is
@@ -255,60 +256,82 @@ visit times $165. Both dollar figures are made up, and the threshold table names
 <p><strong>Jobs the truck covers</strong> is the share of jobs whose every needed part was on the truck that day,
 under the balanced truck. It is compared with today's fixed stock, and each comes with its cost a truck-day.</p>
 <p><strong>Customer's words read right</strong> is how often Claude's reading of the customer's own words matches
-the problem code the booking recorded. It is compared with keyword rules, the way a booking screen matches words
-to codes today.</p>
+the problem code the booking recorded. It is compared with a plain keyword matcher: the code whose label shares
+the most words with the customer's. That matcher is a floor to beat, not a picture of how any booking screen works.
+The invented customers say each problem only a few ways, so the score is over that many distinct descriptions, and
+the tile's hint gives the count.</p>
 <h3>The charts</h3>
 <p><strong>Where repeat visits come from</strong> counts, per 100 jobs of each appliance, the repeat visits
 caused by a part missing from the truck. Its table adds the share of each appliance's repeat visits that a missing
 part caused. The rest failed on the technician's success rate.</p>
 <p><strong>Which parts to carry</strong> plots, for carry lists of 1 to 8 parts, the share of held-back jobs whose
-every needed part was on the list. The horizontal line is today's trucks, which carry far more than eight parts.
-The list's job is to top the truck up for the day, not to replace it.</p>
+every needed part was on the list. The horizontal line is today's trucks, which carry far more than the longest list's 8 parts.
+The list's job is to top the truck up for the day, not to replace it. The table's leaked column scores the
+predictor again with the held-back jobs already in its history. The gap between the two is what holding those
+days back is worth.</p>
 <p><strong>What to load tonight</strong> ranks each way of loading a truck by its cost a truck-day: repeat visits
 for jobs the truck could not cover, parts moved on or off overnight, and the cost of money tied up in stock.
-Lower is better. Each bar's label also gives the share of jobs covered.</p>
+Lower is better. Each bar's label also gives the share of jobs covered. Some rows test the balanced truck: loaded
+from shuffled history, held to the space today's stock uses, and with one move priced at $5, $10, $20 where the
+other rows price it at $2.</p>
 <p><strong>Who takes the call</strong> replays every held-back day under each way of handing out calls, with the
 same made-up sick calls, breakdowns and priority changes. The bar is calls fixed on the first visit; the label
-adds the cost a call.</p>
-<p><strong>Reading the customer's words</strong> compares Claude, keyword rules and a control in which Claude's
-answers are shuffled between bookings. The label adds how often the 3-part carry list built from that reading
-covered the job.</p>
+adds the cost a call. Two rows are controls: one shuffles the technicians' skills, the other shuffles the history
+behind the parts odds the dispatcher reads.</p>
+<p><strong>Claude coding the bookings</strong> compares six readings of the customer's words: Claude, Claude after
+its question with ideal replies and with random replies, the booked code, a plain keyword matcher, and a control in
+which Claude's answers are shuffled between bookings. Each bar is how often the 3-part carry list built from
+the reading covered the job, and its label adds how often the reading agrees with the booked code. The row with ideal
+replies is an upper bound: the customer who answers Claude's question is
+simulated and always picks the answer that matches the booking. The row with random replies is the lower end, and a
+real customer lands between them.</p>
+<p><strong>How often Claude is right, by its confidence</strong> groups Claude's first readings by the confidence
+it stated. Each bar is the share of those readings that match the booked code. A reader that can be trusted is
+right at least as often as the confidence it states, and seldom right where it says it is unsure. Below
+0.7 Staple does not run on the code alone, and Claude asks its question. A band under that line that is
+right as often as the bands above it means the line is set cautiously.</p>
 <p><strong>Back-orders to chase first</strong> lists each part the centers cannot ship, with the calls expected to
-need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p></section>
+need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p>
+<p><strong>Each gain against its control</strong> draws, for every control, the share of the gain it keeps. A
+control that keeps under 25% has fallen back, so that gain came from the link the control broke. A long
+bar is a gain that came from something plainer, and the card that owns the gain says what.</p></section>
 
 <section id="labels"><h2>Every label and status, and what to do about it</h2>
 <table class="wrap"><thead><tr><th>Label</th><th>What it means</th><th>What to do</th></tr></thead><tbody>
 <tr><td>made-up data</td><td>The figure comes from invented history. It shows the method, never a result.</td><td>Run the same back-test on real history before trusting any number.</td></tr>
-<tr><td>(control)</td><td>A deliberately broken version of a method: history shuffled, skills shuffled, or answers shuffled. It shows how much of a gain the real links in the data earn.</td><td>A control that scores close to the real method means the gain is not real. Every control here falls back.</td></tr>
+<tr><td>(control)</td><td>A method run again with one link in its data broken: history shuffled, skills shuffled, answers shuffled, or replies made random. It shows how much of a gain that link earns.</td><td>Read the card named Each gain against its control. Where a control falls back, the gain came from the link it broke. Where one does not, its own card says what the gain rests on.</td></tr>
 <tr><td>Highlighted bar</td><td>The row the section is about.</td><td>Read it against the rows around it, not alone.</td></tr>
 <tr><td>Rolled to tomorrow</td><td>A call that no technician's day had room for, after sick calls and breakdowns.</td><td>It counts as not fixed today. A policy that wins by rolling calls is refused by the checks.</td></tr>
-<tr><td>needs a certified technician</td><td>The part is locked and this technician is not certified.</td><td>Send a certified technician.</td></tr><tr><td>on this truck</td><td>The technician&#x27;s own truck holds it.</td><td>Nothing.</td></tr><tr><td>from a center overnight</td><td>A center can load it before the visit.</td><td>Load it tonight.</td></tr><tr><td>on another truck nearby</td><td>A truck based within 30 minutes holds it.</td><td>Hand it over, or send that truck.</td></tr><tr><td>back-ordered</td><td>No center can ship it in time and no truck nearby holds it.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
+<tr><td>needs a certified technician</td><td>The part is locked and this technician is not certified.</td><td>Send a certified technician.</td></tr><tr><td>aboard</td><td>The technician&#x27;s own truck holds it.</td><td>Nothing.</td></tr><tr><td>on a truck nearby</td><td>A truck based within 30 minutes holds it.</td><td>Hand it over, or send that truck.</td></tr><tr><td>at a center, not loaded</td><td>A center holds it, and tonight&#x27;s load left it off this truck.</td><td>Nothing: its odds did not earn the space. It can be loaded for another night.</td></tr><tr><td>back-ordered</td><td>No center can ship it in time and no truck nearby holds it.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
 <tr><td>Back-order flag</td><td>A booking whose odds of needing a part no truck nearby holds reach 10%.</td><td>Source the part or move a holding truck's spare before the visit, not after it fails.</td></tr>
 <tr><td>a copy with no saved history</td><td>The page was built from a copy that carries no git history, such as a downloaded zip, so there was no change to name.</td><td>Nothing; the numbers are the same, because every run starts from the same seed.</td></tr>
 <tr><td>results last changed</td><td>The last day any code or query that feeds the page changed.</td><td>Compare it with the day you last read the page.</td></tr>
 </tbody></table></section>
 
-<section id="derived"><h2>How to read the computed columns</h2>
+<section id="derived"><h2>How each computed figure is made</h2>
 <table class="wrap"><thead><tr><th>Column</th><th>How it is computed</th></tr></thead><tbody>
 <tr><td>odds</td><td>For one booking, the share of past jobs like it that needed each part. "Like it" means the same model family and problem, leaning on the appliance and problem, then the appliance alone, where history is thin.</td></tr>
 <tr><td>coverage</td><td>The share of jobs whose every needed part was on the list or truck. One missing part fails the whole job, the way one short line holds a whole order.</td></tr>
-<tr><td>first_visit_fix_pct</td><td>Expected first-visit fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
+<tr><td>first_time_fix_pct</td><td>Expected first-time fixes per held-back call: covered times the technician's success rate on that appliance, with a rolled call counted as zero.</td></tr>
 <tr><td>cost_per_call</td><td>Drive and repair minutes at $1, plus one minus the fix rate, times $165.</td></tr>
 <tr><td>cost_a_truck_day</td><td>Repeat visits at $165, plus $2 for each part moved on or off overnight, plus each part's cost times 25% a year, per day.</td></tr>
-<tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. Each covered job counts as one repeat visit avoided against an empty truck.</td></tr>
+<tr><td>roi</td><td>Repeat-visit dollars a year that a truck's stock avoids, per dollar of stock on board. A job counts as one repeat visit avoided when it needed a part and every part was aboard. A job that needed none is left out, because an empty truck covers it.</td></tr>
+<tr><td>gain_kept_pct</td><td>For a control: its figure less the figure without the method, over the method's figure less the same, from the three figures as shown. Under 25%, the control has fallen back.</td></tr>
+<tr><td>leaked_pct</td><td>Coverage for the predictor with the held-back jobs already in its history. No scored method is built that way; the column only measures what the hold-out is worth.</td></tr>
 <tr><td>expected_calls</td><td>For a back-ordered part: its share of its appliance's past calls, times that appliance's calls a day in the same month of past years, times the days until it ships.</td></tr>
 <tr><td>expected_stuck</td><td>Expected calls in zones with no holding truck based within 30 minutes, less the calls the holders themselves usually take there.</td></tr>
 <tr><td>dollars_at_risk</td><td>Expected stuck calls times $165.</td></tr>
-<tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought, for comparison with the forecast.</td></tr>
+<tr><td>actual_calls, actual_stuck</td><td>What the held-back days then brought before the part shipped, for comparison with the forecast.</td></tr>
+<tr><td>back_test</td><td><code>1</code> on the first day a back-order is listed, when it ships inside the held-back days. The forecast is scored on these rows, so each back-order counts once and every call that came is counted.</td></tr>
 <tr><td>line_fill_pct, job_fill_pct</td><td>Of the part lines jobs needed, the share already on the technician's truck; and the share of jobs with every line there.</td></tr>
-<tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the 12 months before the held-back days.</td></tr>
+<tr><td>unused_value</td><td>Stock on a truck that its own technician's jobs did not need in the year before the held-back days.</td></tr>
 </tbody></table></section>
 
 <section id="data"><h2>How the data is handled</h2>
 <p>Everything is invented by one seeded generator (seed 2026) and written to one SQLite file on the machine
 that runs it. The same seed writes the same rows every time, so every figure reproduces exactly. No real company,
 customer, part number or technician appears anywhere.</p>
-<p>The report and both manuals are static pages. They load nothing from the network: no fonts, no scripts, no
+<p>The report, this manual, the methods page and the code languages page are static pages. They load nothing from the network: no fonts, no scripts, no
 tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
 before it is committed.</p>
 <p>The AI step's answers were produced once by claude-haiku-5-5 and ship in the repository, so a run needs no key and
@@ -319,31 +342,38 @@ it sends the made-up booking words and problem labels and nothing else.</p></sec
 <p>Read from the code at build time, so this table cannot disagree with what ran. "Made up" means a stand-in to
 replace with a real figure before any real decision.</p>
 <div class="scroll"><table class="wrap"><thead><tr><th>Threshold</th><th>Value</th><th>What it does</th><th>What sets it</th></tr></thead><tbody><tr><td><a href="method.html#principles" target="_blank" rel="noopener" data-tip="Held-back days
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Held-back days</a></td><td>92 days</td><td>The back-test&#x27;s hold-out.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-predictor" target="_blank" rel="noopener" data-tip="Pull toward wider groups
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">Pull toward wider groups</a></td><td>20 jobs</td><td>How far thin history leans on the wider level.</td><td>design choice; check.py backtest measures its effect</td></tr><tr><td><a href="method.html#ex-backtest" target="_blank" rel="noopener" data-tip="Carry list quoted
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">Carry list quoted</a></td><td>3 parts</td><td>The list length the report quotes.</td><td>design choice</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Repeat visit
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repeat visit</a></td><td>$165</td><td>A second truck roll.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Moving a part
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Moving a part</a></td><td>$2</td><td>Loading or unloading one part overnight.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Holding rate
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Holding rate</a></td><td>25% a year</td><td>Cost of money tied up in stock.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Unplanned share
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Unplanned share</a></td><td>15%</td><td>Calls added or moved on the day.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#availability" target="_blank" rel="noopener" data-tip="Nearby
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Nearby</a></td><td>30 minutes</td><td>Another truck counts as nearby within this drive.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-loads" target="_blank" rel="noopener" data-tip="List-length tolerance
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">List-length tolerance</a></td><td>$2 a truck-day</td><td>The shortest list within this of the cheapest is chosen.</td><td>design choice</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Permanent
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Permanent</a></td><td>90% of days</td><td>A part aboard this often counts as permanent.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-availability" target="_blank" rel="noopener" data-tip="Back-order flag
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">Back-order flag</a></td><td>10% odds</td><td>A booking at this chance of needing a stuck part is flagged.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Truck space
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Truck space</a></td><td>90 units</td><td>Space on one truck.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Today's fill
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Today&#x27;s fill</a></td><td>90%</td><td>How full today&#x27;s trucks are kept.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#ex-ai" target="_blank" rel="noopener" data-tip="AI confidence
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">AI confidence</a></td><td>0.7</td><td>Below it, a reading leans on the appliance&#x27;s overall odds and a follow-up question is asked.</td><td>design choice</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Working day
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Working day</a></td><td>540 minutes</td><td>08:00 to 17:00.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-dispatch" target="_blank" rel="noopener" data-tip="Minute
-Opens the methods manual in a new tab at the worked example of this rule." tabindex="0">Minute</a></td><td>$1</td><td>One minute of a technician and truck.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Sick day
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Sick day</a></td><td>3% a day</td><td>Chance a technician calls out.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Breakdown
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Breakdown</a></td><td>2% a day</td><td>Chance a truck breaks down.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Priority change
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Priority change</a></td><td>5% up, 5% down</td><td>Chance a call escalates or eases on the day.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, refrigerator
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, refrigerator</a></td><td>75 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, washer
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, washer</a></td><td>60 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, dryer
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, dryer</a></td><td>50 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, dishwasher
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, dishwasher</a></td><td>55 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, range
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, range</a></td><td>50 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, furnace
-Opens the methods manual in a new tab at the section that uses this value." tabindex="0">Repair time, furnace</a></td><td>70 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr></tbody></table></div></section>
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Held-back days</a></td><td>92 days</td><td>The back-test&#x27;s hold-out.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-predictor" target="_blank" rel="noopener" data-tip="Pull toward wider groups
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">Pull toward wider groups</a></td><td>20 jobs</td><td>How far thin history leans on the wider level.</td><td>design choice; check.py backtest measures its effect</td></tr><tr><td><a href="method.html#ex-backtest" target="_blank" rel="noopener" data-tip="Carry list quoted
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">Carry list quoted</a></td><td>3 parts</td><td>The list length the report quotes.</td><td>design choice</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Repeat visit
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repeat visit</a></td><td>$165</td><td>Another visit to a job the first visit did not fix.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Moving a part
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Moving a part</a></td><td>$2</td><td>Loading or unloading one part overnight.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Higher move prices replayed
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Higher move prices replayed</a></td><td>$5, $10, $20</td><td>Other prices for one move, each replayed to show how far the balanced truck&#x27;s saving leans on that price.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#principles" target="_blank" rel="noopener" data-tip="A control falls back
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">A control falls back</a></td><td>under 25% of the gain kept</td><td>A control keeping less than this share of the gain it tests counts as fallen back.</td><td>design choice</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Holding rate
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Holding rate</a></td><td>25% a year</td><td>Cost of money tied up in stock.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Unplanned share
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Unplanned share</a></td><td>15%</td><td>Calls added or moved on the day.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#availability" target="_blank" rel="noopener" data-tip="Nearby
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Nearby</a></td><td>30 minutes</td><td>Another truck counts as nearby within this drive.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-loads" target="_blank" rel="noopener" data-tip="List-length tolerance
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">List-length tolerance</a></td><td>$2.00 a truck-day</td><td>The shortest list within this of the cheapest is chosen.</td><td>design choice</td></tr><tr><td><a href="method.html#loads" target="_blank" rel="noopener" data-tip="Permanent
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Permanent</a></td><td>90% of days</td><td>A part aboard this often counts as permanent.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-availability" target="_blank" rel="noopener" data-tip="Back-order flag
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">Back-order flag</a></td><td>10% odds</td><td>A booking at this chance of needing a stuck part is flagged.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Truck space
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Truck space</a></td><td>90 units</td><td>Space on one truck.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Today's fill
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Today&#x27;s fill</a></td><td>90%</td><td>How full today&#x27;s trucks are kept.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Back-order starts
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Back-order starts</a></td><td>1% a day</td><td>Chance a part the centers stock goes on back-order.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#world" target="_blank" rel="noopener" data-tip="Back-order length
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Back-order length</a></td><td>3 to 14 days</td><td>How long a back-order lasts before the part ships.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#plan" target="_blank" rel="noopener" data-tip="Buyer's list
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Buyer&#x27;s list</a></td><td>3 parts</td><td>Back-orders shown to the buyer each day, costliest first.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-ai" target="_blank" rel="noopener" data-tip="AI confidence
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">AI confidence</a></td><td>0.7</td><td>Below it, a reading leans on the appliance&#x27;s overall odds and a follow-up question is asked.</td><td>design choice</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Pull toward the appliance's average
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Pull toward the appliance&#x27;s average</a></td><td>20 jobs</td><td>How far a technician with few visits leans on the appliance&#x27;s average success rate.</td><td>design choice</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Working day
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Working day</a></td><td>540 minutes</td><td>08:00 to 17:00.</td><td>design choice</td></tr><tr><td><a href="method.html#ex-dispatch" target="_blank" rel="noopener" data-tip="Minute
+Opens the methods page in a new tab at the worked example of this rule." tabindex="0">Minute</a></td><td>$1</td><td>One minute of a technician and truck.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Sick day
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Sick day</a></td><td>3% a day</td><td>Chance a technician calls out.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Breakdown
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Breakdown</a></td><td>2% a day</td><td>Chance a truck breaks down.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Same-day calls
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Same-day calls</a></td><td>until 12:00</td><td>An unplanned call comes in between 08:00 and this time.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Priority change
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Priority change</a></td><td>5% up, 5% down</td><td>Chance a call escalates or eases on the day.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, refrigerator
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, refrigerator</a></td><td>75 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, washer
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, washer</a></td><td>60 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, dryer
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, dryer</a></td><td>50 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, dishwasher
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, dishwasher</a></td><td>55 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, range
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, range</a></td><td>50 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr><tr><td><a href="method.html#dispatch" target="_blank" rel="noopener" data-tip="Repair time, furnace
+Opens the methods page in a new tab at the section that uses this value." tabindex="0">Repair time, furnace</a></td><td>70 minutes</td><td>An average technician&#x27;s time on this appliance.</td><td>made up: replace with a real figure</td></tr></tbody></table></div></section>
 
 <section id="cannot"><h2>What Staple cannot tell you</h2>
 <ul>
@@ -360,20 +390,20 @@ rate, not wrong diagnoses or customer no-shows.</li>
 <li><strong>Whether the AI reads real customers this well.</strong> The customer phrasings are a small invented
 set, and the simulated customer answers the follow-up question with the booked problem.</li>
 </ul>
-<p>The methods manual lists each of these corners with the upgrade that would remove it.</p></section>
+<p>The methods page lists the corners the code cuts on purpose, each with the upgrade that would lift it.</p></section>
 
 <section id="glossary"><h2>Glossary</h2>
-<dl><dt id="term-back-order"><strong>back-order</strong></dt><dd>A part the distribution centers cannot ship until a set day.</dd><dt id="term-booked-code"><strong>booked code</strong></dt><dd>The problem code the booking recorded from the customer&#x27;s words. Real history knows only this code.</dd><dt id="term-carry-list"><strong>carry list</strong></dt><dd>The parts a booked call is likeliest to need, ranked by the predictor. Its length is how many parts are on it.</dd><dt id="term-certified-technician"><strong>certified technician</strong></dt><dd>A technician allowed to carry and fit locked parts.</dd><dt id="term-control"><strong>control</strong></dt><dd>A deliberately broken copy of a method with its data&#x27;s links shuffled. If it scores as well, the gain is not real.</dd><dt id="term-coverage"><strong>coverage</strong></dt><dd>The share of jobs whose every needed part was on the list or the truck. One missing part fails the whole job.</dd><dt id="term-current-way"><strong>current way</strong></dt><dd>The comparison on the plan: the nearest qualified technician, driving today&#x27;s fixed truck stock.</dd><dt id="term-first-visit-chance"><strong>first-visit chance</strong></dt><dd>The plan&#x27;s chance a call is fixed on the first visit: the chance its truck holds every part the call needs, times the technician&#x27;s success rate on that appliance.</dd><dt id="term-first-visit-fix"><strong>first-visit fix</strong></dt><dd>A repair finished on the technician&#x27;s first visit: every part on the truck, and a repair that takes.</dd><dt id="term-follow-up-question"><strong>follow-up question</strong></dt><dd>The one question Claude asks when it is less than 70% sure of the problem, with a few answers for the customer to pick from. Made once by the model and saved.</dd><dt id="term-held-back-days"><strong>held-back days</strong></dt><dd>The last 92 days of history. Methods learn from the days before and are scored on these.</dd><dt id="term-holding-cost"><strong>holding cost</strong></dt><dd>The yearly cost of money tied up in truck stock: 25% of its value (made up).</dd><dt id="term-lean"><strong>lean</strong></dt><dd>Where a model family has little history, its odds lean on the wider group, as if 20 more jobs were seen there.</dd><dt id="term-load-sheet"><strong>load sheet</strong></dt><dd>One truck&#x27;s list for the parts room tonight: each part to put on, take off or keep, with its worth and the booked calls behind it.</dd><dt id="term-locked-part"><strong>locked part</strong></dt><dd>A part that may ride only on a certified technician&#x27;s truck.</dd><dt id="term-regret-insertion"><strong>regret insertion</strong></dt><dd>Placing first the call that loses most if its best technician&#x27;s day fills up, not the call booked first.</dd><dt id="term-repeat-visit"><strong>repeat visit</strong></dt><dd>A second truck roll because the first visit did not fix the job, costed at $165 (made up).</dd><dt id="term-rolled-call"><strong>rolled call</strong></dt><dd>A call no technician&#x27;s day had room for. It moves to tomorrow and counts as not fixed today.</dd><dt id="term-truck-day"><strong>truck-day</strong></dt><dd>One technician&#x27;s truck on one day: its load, its jobs and its costs.</dd><dt id="term-true-problem"><strong>true problem</strong></dt><dd>What was really wrong. Known here only because the history is invented.</dd><dt id="term-unplanned-call"><strong>unplanned call</strong></dt><dd>A call added or moved on the day, 15% of calls (made up). No night-before list saw it.</dd><dt id="term-worth"><strong>worth</strong></dt><dd>What a part is worth carrying tomorrow: each booked call&#x27;s chance of needing it times a $165 repeat visit, plus a share for unplanned calls, less its holding cost. A $2 move counts against it when it is not aboard, and for it when it is.</dd></dl></section>
+<dl><dt id="term-back-order"><strong>back-order</strong></dt><dd>A part the distribution centers cannot ship until a set day.</dd><dt id="term-booked-code"><strong>booked code</strong></dt><dd>The problem code the booking recorded from the customer&#x27;s words. Real history knows only this code.</dd><dt id="term-call"><strong>call</strong></dt><dd>One repair visit to make. It starts as a booking, the customer&#x27;s request in their own words, and once made it is a job in the history.</dd><dt id="term-carry-list"><strong>carry list</strong></dt><dd>The parts a booked call is likeliest to need, ranked by the predictor. Its length is how many parts are on it.</dd><dt id="term-certified-technician"><strong>certified technician</strong></dt><dd>A technician allowed to carry and fit locked parts.</dd><dt id="term-control"><strong>control</strong></dt><dd>A method run again with one link in its data broken, such as its history shuffled. A control that scores as well as the method shows the gain does not come from that link.</dd><dt id="term-coverage"><strong>coverage</strong></dt><dd>The share of jobs whose every needed part was on the list or the truck. One missing part fails the whole job.</dd><dt id="term-current-rules"><strong>current rules</strong></dt><dd>What the invented fleet does now, and what every gain is measured against: each call goes to the nearest qualified technician, driving today&#x27;s fixed truck stock.</dd><dt id="term-first-time-fix"><strong>first-time fix</strong></dt><dd>A repair finished on the technician&#x27;s first visit: every needed part was on the truck, and the repair held.</dd><dt id="term-first-time-fix-chance"><strong>first-time fix chance</strong></dt><dd>The plan&#x27;s chance a call is fixed on the first visit: the chance its truck holds every part the call needs, times the technician&#x27;s success rate on that appliance.</dd><dt id="term-follow-up-question"><strong>follow-up question</strong></dt><dd>The one question Claude asks when it is less than 70% sure of the problem, with a few answers for the customer to pick from. Made once by the model and saved.</dd><dt id="term-held-back-days"><strong>held-back days</strong></dt><dd>The last 92 days of history. Methods learn from the days before and are scored on these.</dd><dt id="term-holding-cost"><strong>holding cost</strong></dt><dd>The yearly cost of money tied up in truck stock: 25% of its value (made up).</dd><dt id="term-lean"><strong>lean</strong></dt><dd>Where a model family has little history, its odds lean on the wider group, as if 20 more jobs were seen there.</dd><dt id="term-load-sheet"><strong>load sheet</strong></dt><dd>One truck&#x27;s list for the parts room tonight: each part to put on, take off or keep, with its worth and the booked calls behind it.</dd><dt id="term-locked-part"><strong>locked part</strong></dt><dd>A part that may ride only on a certified technician&#x27;s truck.</dd><dt id="term-regret-insertion"><strong>regret insertion</strong></dt><dd>Placing first the call that loses most if its best technician&#x27;s day fills up, not the call booked first.</dd><dt id="term-repeat-visit"><strong>repeat visit</strong></dt><dd>Another visit to a job the first visit did not fix, priced at $165 (made up).</dd><dt id="term-rolled-call"><strong>rolled call</strong></dt><dd>A call no technician&#x27;s day had room for. It moves to tomorrow and counts as not fixed today.</dd><dt id="term-truck-day"><strong>truck-day</strong></dt><dd>One technician&#x27;s truck on one day: its load, its jobs and its costs.</dd><dt id="term-true-problem"><strong>true problem</strong></dt><dd>What was really wrong. Known here only because the history is invented.</dd><dt id="term-unplanned-call"><strong>unplanned call</strong></dt><dd>A call added or moved on the day, 15% of calls (made up). No night-before list saw it.</dd><dt id="term-worth"><strong>worth</strong></dt><dd>What a part is worth carrying tomorrow: each booked call&#x27;s chance of needing it times a $165 repeat visit, plus a share for unplanned calls, less its holding cost. A $2 move counts against it when it is not aboard, and for it when it is.</dd></dl></section>
 
 <section id="run"><h2>Running it yourself</h2>
-<p>Python 3 is the only requirement; no packages are installed. From a copy of the repository:</p>
+<p>Python 3.12 or newer is the only requirement; no packages are installed. From a copy of the repository:</p>
 <pre>python run.py          # builds the made-up world, every result, the metric tables and these pages into out/
 python check.py        # every check, each with a control that proves it can fail
 python run.py --live   # the AI step asked afresh, with your own ANTHROPIC_API_KEY</pre>
-<p>Open <code>out/index.html</code> in a browser. The nine metric queries are plain SQL files in
+<p>Open <code>out/index.html</code> in a browser. The 12 metric queries are plain SQL files in
 <code>sql/metrics/</code>; each runs on its own against <code>out/staple.db</code>.</p></section>
-<footer>Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 10 SQL files hold the tables and the 9 metric queries; 2 JavaScript files run the hints and switches. Beside them, 5 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python. Every number comes from the queries in <span class="hv" data-tip="sql/metrics/
-ai_step, backorder_exposure, carry_list_curve, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on mouse hover or keyboard focus. On a touch screen one tap
+<footer>Written in Python, SQL and JavaScript: 15 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 13 SQL files hold the tables and the 12 metric queries; 2 JavaScript files run the hints and switches. Beside them, 6 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python. Every figure in the evidence comes from the queries in <span class="hv" data-tip="sql/metrics/
+ai_calibration, ai_step, backorder_exposure, backorder_flag, carry_list_curve, controls, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>, and the plan is the record the dispatch replay kept. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on mouse hover or keyboard focus. On a touch screen one tap
 // shows it and keeps it; the next tap anywhere closes it, and opens the spot it lands on if that is another one.
 // A tap never cancels anything, so it still presses what it lands on. The first line is the value.
 const tip = document.getElementById('tip')
