@@ -8,8 +8,10 @@
 #
 # TWO HALVES. The control hands the scanner planted messages, each carrying one banned form, and one
 # plain message: it must catch every planted one and pass the plain one. The sweep then reads every
-# message on this branch. It runs before a commit is made, so a bad message is caught at the next
-# commit, one late.
+# message on this branch.
+#
+# ponytail: the sweep runs before a commit is made, so a bad message is caught at the next commit, one
+# late. The upgrade is a hook that reads the message as it is written.
 
 set -uo pipefail
 shopt -s nocasematch

@@ -59,7 +59,8 @@ def forecast(demand, fleet, day):
                       if not any(travel_minutes(fleet.home[h], z) <= NEARBY_MINUTES for h in holders)]
         # A call is stuck when its zone has no holder nearby and its own technician holds none. Technicians
         # mostly work near home, so the chance a holder takes the call is measured zone by zone.
-        # ponytail: dispatch could still send a holder from farther away; the dispatch replay can price that.
+        # ponytail: dispatch could still send a holder from farther away, and this count leaves that out. The
+        # upgrade is to price that trip with the dispatch replay.
         by_zone, by_zone_tech = demand.by_zone[appliance], demand.by_zone_tech[appliance]
         total = sum(by_zone.values())
         stuck_share = sum((by_zone[z] - sum(by_zone_tech[(z, h)] for h in holders)) / total for z in open_zones)

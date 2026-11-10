@@ -247,8 +247,8 @@ def replay(conn, jobs, rule, loads="balanced", crew=None, record=False, seed=SEE
                         moved_from[j["job"]].append((who, "breakdown"))
                         place(j, night=False, at=at)
         for tech in crew.techs:
-            # ponytail: the day's end drops the lowest-priority call, last first, until the route fits; a real
-            # scheduler would re-sequence the route instead. Drive time is zone to zone, not road routing.
+            # ponytail: the day's end drops the lowest-priority call, last first, until the route fits. The
+            # upgrade is a scheduler that re-sequences the route instead.
             while routes[tech] and end_of(crew, tech, routes[tech], crew.skill, known)[0] > DAY:
                 drop = max(range(len(routes[tech])), key=lambda i: (priority(routes[tech][i], changed), i))
                 rolled.append(routes[tech].pop(drop))

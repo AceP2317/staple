@@ -381,6 +381,7 @@ read from <code>check.py</code>:</p>
 {{CHECKS}}</section>
 
 <section id="corners"><h2>Corners cut on purpose</h2>
-<p>Each is marked in the code where it is cut, with the ceiling it sets and the upgrade that would lift it. Read from
-those markers at build time:</p>
-{{PONYTAILS}}</section>
+<p>A corner is a simplification taken knowingly. Each is marked where the code cuts it by a comment that opens
+<code># ponytail:</code>, which names the ceiling the corner sets and the upgrade that would lift it. This list is read
+from those comments at build time: {{corners_method}} in the method, and {{corners_checks}} in the checks and the build.</p>
+{{CORNERS}}</section>

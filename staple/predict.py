@@ -10,6 +10,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 SHUFFLE_SEED = 7       # seeds the shuffled-history control
+# ponytail: the odds are counts of past jobs with a lean toward the wider group, not a trained model. The upgrade
+# is a model fit on real history and scored on the same held-back days, kept only if it beats the counts there.
 PULL = 20
 
 

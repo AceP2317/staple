@@ -390,6 +390,8 @@ def _history_tech(rng, techs, appliance, zone):
 
 def travel_minutes(zone_a, zone_b):
     """Zone-to-zone drive time: a fixed time inside a zone; between zones, a fixed time plus the miles between their centers."""
+    # ponytail: drive time runs zone to zone on straight-line miles, not on roads. The upgrade is a table of
+    # road times between zones from a routing service.
     if zone_a == zone_b:
         return INSIDE_ZONE
     (xa, ya), (xb, yb) = ZONES[zone_a], ZONES[zone_b]

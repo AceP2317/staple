@@ -14,6 +14,7 @@ import os
 import re
 import struct
 import subprocess
+import tokenize
 import warnings
 import zlib
 from collections import Counter
@@ -199,6 +200,7 @@ CHECK_ABOUT = {
     "replay-clock": "The replay obeys the clock and the calendar. No call that came in during the day, and none moved by a breakdown, may start before that minute, read from the day's own events. No truck may take on a part no center can ship or send one back before it ships, and a part must be loaded again once it ships. A list read before 08:00 may name no call that has not come in, the buyer's list must be the back-order query's own rows for its day and count down a day at a time, and every technician with no booked calls must be named. Six planted faults must be refused.",
     "triage": "The AI step on its cached answers, live mode against a local stand-in for the API, and its controls: shuffled answers and random replies must fall back.",
     "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
+    "corners": "The corners cut on purpose are read from the comments that mark them. Only a real comment counts, so the marker written inside a string is not a corner: every corner found must be a line that opens with the marker, a planted file with the marker in a string and in a comment must give one corner, and a comment that runs on must be read whole. Every corner must name its upgrade. The methods page must list each corner once and write the marker once, where it defines it, and the report must state the count the method cuts. A page with one corner dropped, and a report with the wrong count, must be refused.",
     "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
@@ -1300,15 +1302,16 @@ def build_report(results, week, stamp_text, day):
              'region left as it is, and compare first-time fix, parts-caused repeat visits and stock value.</li>'
              '<li><strong>Roll out region by region.</strong> Each region goes live only after the one before it beat its match.</li></ol></section>')
     limits = ('<section class="card"><h3' + tipattr("What this shows, and what it does not\nThe instruction manual's last sections "
-              "list every limit; the methods page names each shortcut and its upgrade.") + '>What this shows, and what it does not</h3>'
+              "list every limit; the methods page names each corner cut on purpose and its upgrade.") + '>What this shows, and what it does not</h3>'
               f'<p>The plan on the left runs on Claude\'s codes for one invented week. The evidence above runs on the call-taker\'s '
               f'booked codes for all {world.TEST_DAYS} held-back days, so it measures the planning apart from the reading. Every '
               f'result reproduces from one seed, and each gain is shown beside a control that breaks the link it should come '
               f'from: {len(controls) - len(held)} of the {len(controls)} fall back, and the last card above names the '
               f'{"one that does" if len(held) == 1 else "ones that do"} not. None of it shows the gains on a real fleet, '
-              'because the history is invented. Three corners are cut on '
-              'purpose: counting instead of a trained model, zone-to-zone drive times instead of road routing, and a call-by-call '
-              'night plan instead of a solver.</p></section>')
+              f'because the history is invented. The method cuts {len(method_corners())} corners on purpose, each marked in '
+              f'the code and <a href="{FILES["method"]}#corners" target="_blank" rel="noopener">listed on the methods page</a> '
+              'with the upgrade that would lift it. Among them: counting instead of a trained model, zone-to-zone drive '
+              'times instead of road routing, and a call-by-call night plan instead of a solver.</p></section>')
 
     dbtn = []
     for d in week["days"]:
@@ -1375,6 +1378,7 @@ def facts():
          "problems_max": max(n_problems), "pull": predict.PULL, "shown_k": load.SHOWN_K, "ks": f"{min(load.KS)} to {max(load.KS)}",
          "repeat_visit": f"${load.REPEAT_VISIT:.0f}", "move": f"${load.MOVE:.0f}", "holding_rate": f"{load.HOLDING_RATE:.0%}",
          "unplanned": f"{load.UNPLANNED:.0%}", "nearby": load.NEARBY_MINUTES, "lean_tolerance": cents(load.LEAN_TOLERANCE),
+         "corners_method": len(method_corners()), "corners_checks": len(corners()) - len(method_corners()),
          "permanent": f"{load.PERMANENT:.0%}", "backorder_flag": f"{load.BACKORDER_FLAG:.0%}", "model": triage.MODEL,
          "effort": triage.EFFORT, "api_version": triage.API_VERSION, "blend_below": triage.BLEND_BELOW, "day": dispatch.DAY,
          "minute": f"${dispatch.MINUTE:.0f}", "skill_pull": dispatch.SKILL_PULL, "sick": f"{dispatch.SICK:.0%}", "breakdown": f"{dispatch.BREAKDOWN:.0%}",
@@ -1446,20 +1450,52 @@ def thresholds():
                f'<th>What sets it</th></tr></thead><tbody>{body}</tbody></table></div>')
 
 
-def ponytails():
-    """Each deliberate shortcut, read from the marker comment where the code cuts it."""
+MARKER = "# ponytail:"    # the comment that marks a corner cut on purpose
+
+
+def corner_files():
+    """The source a corner can be marked in: the Python and the shell scripts."""
+    return [ROOT / "run.py", ROOT / "check.py", *sorted((ROOT / "staple").glob("*.py")), *sorted((ROOT / "scripts").rglob("*.sh"))]
+
+
+def corners(paths=None):
+    """Each corner cut on purpose, as (file, words), read from the comment that marks it. Only a comment counts:
+    the marker inside a string, as in this file, is not a corner."""
     found = []
-    for path in sorted((ROOT / "staple").glob("*.py")):
-        lines = path.read_text(encoding="utf-8").splitlines()
-        for i, line in enumerate(lines):
-            if "# ponytail:" in line:
-                text = [line.split("# ponytail:", 1)[1].strip()]
-                for nxt in lines[i + 1:]:
-                    if not nxt.strip().startswith("#"):
+    for path in paths or corner_files():
+        if path.suffix == ".py":
+            with tokenize.open(path) as source:
+                notes = [(t.start, t.string) for t in tokenize.generate_tokens(source.readline) if t.type == tokenize.COMMENT]
+        else:
+            # ponytail: a shell script is read line by line, so a line that opens with the marker inside a quoted
+            # block of text would count as a corner. The upgrade is to read shell scripts with a shell tokenizer.
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            notes = [((i, len(line) - len(line.lstrip())), line.strip()) for i, line in enumerate(lines, 1)
+                     if line.lstrip().startswith("#")]
+        for i, ((row, col), words) in enumerate(notes):
+            if words.startswith(MARKER):
+                text = [words[len(MARKER):].strip()]
+                for at, more in notes[i + 1:]:    # the comment runs on while the next line is a comment at the same indent
+                    if at != (row + len(text), col) or more.startswith(MARKER):
                         break
-                    text.append(nxt.strip().lstrip("#").strip())
-                found.append(f"<li><code>{e(path.name)}</code>: {e(' '.join(text))}</li>")
-    return Raw("<ul>" + "".join(found) + "</ul>")
+                    text.append(more.lstrip("#").strip())
+                found.append((path.relative_to(ROOT).as_posix() if ROOT in path.parents else path.name, " ".join(text)))
+    return found
+
+
+def method_corners():
+    """The corners in the method itself, apart from those in the checks and in this file, which builds the pages."""
+    return [c for c in corners() if c[0].startswith("staple/") and c[0] != "staple/report.py"]
+
+
+def corner_list():
+    """The corners as the methods page lists them: the method's first, then those of the checks and the build."""
+    found, method = corners(), method_corners()
+
+    def items(group):
+        return "".join(f"<li><code>{e(name)}</code>: {e(words)}</li>" for name, words in group)
+    return Raw(f"<h3>In the method</h3><ul>{items(method)}</ul><h3>In the checks and the build</h3>"
+               f"<ul>{items([c for c in found if c not in method])}</ul>")
 
 
 def checks():
@@ -1499,7 +1535,7 @@ def build_manuals(stamp_text, day):
     v["THRESHOLDS"] = thresholds()
     v["GLOSSARY"] = Raw("<dl>" + "".join(f'<dt id="{slug(t)}"><strong>{e(t)}</strong></dt><dd>{e(d)}</dd>'
                                          for t, d in sorted(GLOSSARY.items())) + "</dl>")
-    v["SQL_METRICS"], v["CHECKS"], v["PONYTAILS"] = sql_metrics(), checks(), ponytails()
+    v["SQL_METRICS"], v["CHECKS"], v["CORNERS"] = sql_metrics(), checks(), corner_list()
     v.update({f"EX_{x.section}": example_html(x) for x in examples.EXAMPLES})
     manual = shell("manual", "Staple instruction manual", "What each figure means, how to read it, and what it cannot tell you.",
                    fill_in("manual.html", v), stamp_text, day)

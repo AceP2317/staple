@@ -126,8 +126,8 @@ def fill(fleet, tech, load, wanted, stuck=(), before=(), room=None):
 
 def list_load(fleet, tech, day_jobs, lists, k, keep_stock, before=(), stuck=()):
     """Today's stock if kept, then the booked calls' carry-list parts, likeliest first, while space allows."""
-    # ponytail: a truck that holds a part is taken to hold enough of it, as the made-up history assumes;
-    # count units per truck-day once real usage shows how often two calls on one route need the same part.
+    # ponytail: a truck that holds a part is taken to hold enough of it, as the made-up history assumes. The
+    # upgrade is to count units per truck-day, once real usage shows how often two calls on one route need one part.
     wanted = {}
     for j in day_jobs:
         if not j["unplanned"]:

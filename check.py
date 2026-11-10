@@ -1891,7 +1891,7 @@ ABROAD = [a + b for a, b in (("col", "our"), ("cent", "re"), ("per ", "cent"), (
                              ("gr", "ey"))]
 OLD_NAMES = {"first-" + "visit fix": "first-time fix", "first-" + "visit chance": "first-time fix chance",
              "second " + "visit": "repeat visit", "second truck " + "roll": "repeat visit", "the current " + "way": "the current rules",
-             "methods " + "manual": "methods page", "Methods and " + "logic": "Methods page", "Instruction " + "Manual": "Instruction manual"}
+             "short" + "cut": "corner", "methods " + "manual": "methods page", "Methods and " + "logic": "Methods page", "Instruction " + "Manual": "Instruction manual"}
 FALSE_EVERY = ("Every number on the report comes " + "from", "every constant in these " + "manuals", "Every control here falls " + "back")
 MONTHS = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec"
 COUNTED = "calls|trucks|parts|jobs|visits|technicians|bookings|days|moves|items|zones|routes|answers|minutes"
@@ -2096,6 +2096,93 @@ def wording():
     quoted = f"{calls:.1f} calls and {stuck:.1f} stuck"
     print(f"  the back-order card quotes {quoted}, the sums over the {len(scored)} rows scored")
     require(quoted in card_words(page, "backorder_exposure"), "the back-order card does not quote the forecast its rows add up to")
+
+
+def unnamed(found):
+    """Corners whose comment does not say what would lift them."""
+    return [f"{name}: {words[:60]}" for name, words in found if "upgrade" not in words.lower()]
+
+
+def of_method(corner):
+    """Whether a corner is cut in the method itself: in the engine, not in the checks or the file that draws the pages."""
+    return corner[0].startswith("staple/") and corner[0] != "staple/report.py"
+
+
+def corner_faults(method_page, report_page, found, marker):
+    """Where the pages disagree with the corners the code marks: one missing, listed twice or miscounted, or the
+    marker written anywhere but the one sentence that defines it."""
+    import html
+    faults = []
+    section = re.search(r'<section id="corners">.*?</section>', method_page, flags=re.S).group(0)
+    listed = [(html.unescape(n), html.unescape(w)) for n, w in re.findall(r"<li><code>(.*?)</code>: (.*?)</li>", section, flags=re.S)]
+    if sorted(listed) != sorted(found):
+        faults.append(f"the methods page lists {len(listed)} corners where the code marks {len(found)}")
+    if page_words(method_page).count(marker) != 1:
+        faults.append(f"the methods page writes the marker {page_words(method_page).count(marker)} times, not once")
+    in_method = sum(map(of_method, found))
+    said = re.search(r"The method cuts (\d+) corners on purpose", page_words(report_page))
+    if not said or int(said.group(1)) != in_method:
+        faults.append(f"the report states {said.group(1) if said else 'no count'} where the method cuts {in_method}")
+    counts = re.search(r"(\d+) in the method, and (\d+) in the checks and the build", page_words(section))
+    if not counts or [int(n) for n in counts.groups()] != [in_method, len(found) - in_method]:
+        faults.append("the methods page does not state the two counts of its own list")
+    return faults
+
+
+@check("corners")
+def corners_listed():
+    """The corners cut on purpose are read from the comments that mark them, each counted once and each naming
+    its upgrade, and the pages state the same count."""
+    from staple import metrics, report
+    marker, found, sources = report.MARKER, report.corners(), report.corner_files()
+    texts = [p.read_text(encoding="utf-8", errors="replace") for p in sources]
+    opens = sum(line.strip().startswith(marker) for text in texts for line in text.splitlines())
+    written = sum(text.count(marker) for text in texts)
+    print(f"  {len(found)} corners marked in {len({name for name, _ in found})} of {len(sources)} source files; the marker is written "
+          f"{written} times, {written - len(found)} of them inside a string, which is not a corner")
+    require(found and len(found) == opens, f"{len(found)} corners were found where {opens} lines open with the marker")
+    require(written > len(found), "no string holds the marker any more, so the rule against counting one was not exercised")
+    require(not unnamed(found), f"a corner does not name its upgrade: {unnamed(found)[:3]}")
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        py, sh = Path(tmp) / "planted.py", Path(tmp) / "planted.sh"
+        py.write_text(f'said = "{marker} inside a string"\n{marker} a real one. The upgrade\n# runs on to this line.\nvalue = 1\n'
+                      "# and this note is about something else\n", encoding="utf-8")
+        sh.write_text(f'echo "{marker} inside a string"\n{marker} a real one, with no way out named.\nexit 0\n', encoding="utf-8")
+        planted = report.corners([py, sh])
+    require(planted == [("planted.py", "a real one. The upgrade runs on to this line."),
+                        ("planted.sh", "a real one, with no way out named.")],
+            f"control: two planted files, each with one corner and the marker in a string, gave {planted}")
+    require(len(unnamed(planted)) == 1, "control: a corner that names no upgrade passed")
+    print("  control: the marker inside a string is not counted in Python or in a shell script, a comment that runs on is read "
+          "whole, and a corner that names no upgrade is refused")
+
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    pages = report.build(results, week, stamp_text, day)
+    method, front = pages["method"], pages["report"]
+    faults = corner_faults(method, front, found, marker)
+    in_method = sum(map(of_method, found))
+    print(f"  the methods page lists {len(found)} corners once each, {in_method} in the method and {len(found) - in_method} in the "
+          f"checks and the build, and defines the marker in one place; the report states {in_method}: {len(faults)} faults")
+    require(not faults, f"the pages and the code disagree on the corners: {faults}")
+    for name in ("staple/predict.py", "staple/world.py", "staple/dispatch.py"):
+        require(any(n == name for n, _ in found), f"the report names a corner in {name} that no comment there marks")
+    one = re.search(r"<li><code>.*?</li>", method[method.index('<section id="corners">'):], flags=re.S).group(0)
+    said = re.search(r"The method cuts \d+ corners on purpose", front).group(0)
+    def caught(page, front_page, word):
+        return any(word in fault for fault in corner_faults(page, front_page, found, marker))
+    require(caught(method.replace(one, "", 1), front, "lists"), "control: a methods page with one corner dropped passed")
+    require(caught(method.replace(one, one + one, 1), front, "lists"), "control: a methods page listing a corner twice passed")
+    require(caught(method, front.replace(said, f"The method cuts {in_method + 1} corners on purpose", 1), "report states"),
+            "control: a report stating one corner too many passed")
+    require(caught(method.replace('<section id="corners">', f'<p>{marker}</p><section id="corners">', 1), front, "marker"),
+            "control: a methods page writing the marker a second time passed")
+    print("  control: a corner dropped from the page, one listed twice, a wrong count on the report and the marker written "
+          "twice are each refused")
 
 
 class Hints(HTMLParser):
