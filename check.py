@@ -1122,7 +1122,7 @@ def plan_faults(week, followups):
         buyer = [i for i in d["todo"] if i["owner"] == "Buyer"]
         faults["a buyer's list that is not the back-order query's rows"] += (
             [i.get("row") for i in buyer] != costliest
-            or any(f"{r['expected_calls']:.1f} calls" not in i["text"] or f"${r['dollars_at_risk']:,.0f} " not in i["detail"]
+            or any(not carries(i["text"], f"{r['expected_calls']:.1f} calls") or f"${r['dollars_at_risk']:,.0f} " not in i["detail"]
                    or f"Ships in {r['ships_in_days']} day" not in i["detail"] for i, r in zip(buyer, costliest)))
         free = sorted(t for t, truck in d["trucks"].items() if not truck["calls"])
         named = [i["idle"] for i in d["todo"] if "idle" in i]
@@ -1861,7 +1861,7 @@ def ai_card_faults(page, results, said):
     ai = {r[0]: dict(zip(results["ai_step"][0], r)) for r in results["ai_step"][1]}
     words, whole = card_words(page, "ai_step"), card_text(page, "ai_step")
     faults = [] if f"in only {said} ways" in words else [f"the count of {said} distinct phrasings"]
-    if f"{report.pct(ai[triage.ASKED]['coverage_pct'])}, an upper bound" not in words:
+    if not carries(words, f"{report.pct(ai[triage.ASKED]['coverage_pct'])}, an upper bound"):
         faults.append("the score after the question called an upper bound")
     for band in report.rows(results, "ai_calibration"):
         if f"stated {band['stated_confidence']}" not in whole or f"right {report.pct(band['agrees_booked_pct'])}" not in whole:
@@ -2304,7 +2304,7 @@ def wording():
     calls, stuck = sum(r["expected_calls"] for r in scored), sum(r["expected_stuck"] for r in scored)
     quoted = f"{calls:.1f} calls and {stuck:.1f} stuck"
     print(f"  the back-order card quotes {quoted}, the sums over the {len(scored)} rows scored")
-    require(quoted in card_words(page, "backorder_exposure"), "the back-order card does not quote the forecast its rows add up to")
+    require(carries(card_words(page, "backorder_exposure"), quoted), "the back-order card does not quote the forecast its rows add up to")
 
     # Every evidence card keeps one shape: its finding first, short pieces under it, and a link to how it is worked out.
     cards = re.findall(r'<section class="card" id="proof-\w+">.*?</section>', page, flags=re.S)
@@ -2742,7 +2742,7 @@ def report_check():
             print(f"  control: a page whose results day is written day first, or left out, is refused; \"{shown.group(2)}\" passes")
         ours = next(r for r in results["dispatch_scorecard"][1] if r[0].startswith("Staple:"))
         figure = f"{ours[3]:.1f}%"
-        require(figure in page, "the page does not show the dispatch scorecard's own first-time fix figure")
+        require(carries(page, figure), "the page does not show the dispatch scorecard's own first-time fix figure")
         shows = opening_faults(page)
         print(f"  the page opens on {week['open']}: {'; '.join(shows) or 'a sick row, a broken-down truck and moved calls on its board'}")
         require(not shows, f"the opening day does not show its morning: {shows}")
@@ -3453,9 +3453,12 @@ def cycle_time():
               + [f"{r['days_when_waiting']:.2f}" for r in (past, now, ours)]
               + [report.pct(r["waits_on_backorder_pct"]) for r in (now, ours)]
               + [f"{r['days_a_repair']:.2f}" for r in (now, ours)])
-    absent = [figure for figure in quoted if figure not in card]
+    absent = [figure for figure in quoted if not carries(card, figure)]
     print(f"  the report's card carries {len(quoted) - len(absent)} of the {len(quoted)} figures its words rest on")
     require(not absent, f"the cycle-time card does not carry: {absent}")
+    longer = card.replace(quoted[0], "1" + quoted[0])
+    require(longer != card and not carries(longer, quoted[0]), "control: a card showing a longer number passed for the figure inside it")
+    print(f"  control: a card showing 1{quoted[0]} is not taken to carry {quoted[0]}")
     marked = changed(results, "parts_cycle_time", our_name, "repairs_waiting_pct", lambda v: 0.7)
     planted = lambda text: re.search(r"(?<![\d.])0\.7%", text)    # the planted share, and no longer figure that ends in it
     require(not planted(card) and planted(card_text(report.build_report(marked, week, stamp_text, day), "parts_cycle_time")),
@@ -4364,7 +4367,7 @@ def buyer_card():
         finally:
             agent.DATA = home
     require([m for _, m, _ in states["whole"][0]] == [model] and not states["whole"][1], "control: a whole saved file is not scored")
-    require(not states["short"][0] and f"{len(cases) - 1:,} of {len(cases):,}" in states["short"][1][0]
+    require(not states["short"][0] and carries(states["short"][1][0], f"{len(cases) - 1:,} of {len(cases):,}")
             and not states["stale"][0] and "different prompt" in states["stale"][1][0],
             f"a saved file short of a decision, or made with another prompt, is scored or not named: {states}")
     print(f"  a saved file short of one decision, and one made with another prompt, are each left unscored and named; "
@@ -4566,11 +4569,11 @@ def docs():
     pins = {"the live report": PAGES_URL, "the job count": f"{world.JOBS:,} jobs", "the held-back days":
             f"last {world.TEST_DAYS} days", "the seed": f"Seed {world.SEED}", "the model": triage.MODEL,
             "the model's name": triage.MODEL_NAME, "the day's start": plan.clock(0), "the file counts": written_in()}
-    stale = [name for name, text in pins.items() if text not in readme]
+    stale = [name for name, text in pins.items() if not carries(readme, text)]
     print(f"  README carries {len(pins) - len(stale)} of {len(pins)} values read from the code: {', '.join(pins)}")
     require(not stale, f"the README no longer matches the code on: {', '.join(stale)}")
     miscounted = readme.replace(" Python files", "0 Python files", 1)
-    require(miscounted != readme and "the file counts" in [n for n, t in pins.items() if t not in miscounted],
+    require(miscounted != readme and "the file counts" in [n for n, t in pins.items() if not carries(miscounted, t)],
             "control: a README with a wrong Python file count passed")
     print("  control: a README naming the wrong number of Python files is refused")
     supplied = list(pins.values())
