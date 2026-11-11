@@ -162,8 +162,8 @@ body[data-side="plan"] .proof-pane,body[data-side="proof"] .plan-pane{display:no
 table.cmp{font-size:.78rem}table.cmp th,table.cmp td{padding-right:5px}}
 @media print{.band{background:none;color:#000}.actions,#tip{display:none}}
 </style><script>try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}</script></head><body><header class="band"><div class="band-in"><div><h1 data-tip="Staple
-Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 55 · Nov 10, 2026 · 36794cc
-The build that made this page: how many changes the repository held at the change it was built from, the day of that change, and its short code. A + means it was built from changes not yet saved. A fresh clone of the repository builds this same stamp." tabindex="0">Build 55 · Nov 10, 2026 · 36794cc</span> · results last changed <span class="content-day" data-tip="Nov 10, 2026
+Plans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the technicians and loads the trucks, and people act on a to-do list before 08:00." tabindex="0">Staple instruction manual</h1><p class="lede">What each figure means, how to read it, and what it cannot tell you.</p><p class="stamp"><span class="build-stamp" data-tip="Build 57 · Nov 10, 2026 · 588d9c9
+The build that made this page: how many changes the repository held at the change it was built from, the day of that change, and its short code. A + means it was built from changes not yet saved. A fresh clone of the repository builds this same stamp." tabindex="0">Build 57 · Nov 10, 2026 · 588d9c9</span> · results last changed <span class="content-day" data-tip="Nov 10, 2026
 The last day any code, query or cached answer that feeds these pages changed. A rebuild that moved nothing keeps it." tabindex="0">Nov 10, 2026</span></p></div><nav class="actions"><a class="btn" href="index.html" data-tip="Back to the report
 Returns to the report." tabindex="0">Back to the report</a><a class="btn ghost" href="method.html" target="_blank" rel="noopener" data-tip="Methods page
 Opens the methods page in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks." tabindex="0">Methods page</a><a class="btn ghost" href="languages.html" target="_blank" rel="noopener" data-tip="Code languages
@@ -359,8 +359,9 @@ customer, part number or technician appears anywhere.</p>
 tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
 before it is committed.</p>
 <p>The AI step's answers were produced once by claude-haiku-5-5 and ship in the repository, so a run needs no key and
-sends nothing anywhere. Only <code>python run.py --live</code> calls the Claude API, with the reader's own key, and
-it sends the made-up booking words and problem labels and nothing else.</p></section>
+sends nothing anywhere. Only <code>python run.py --live</code> and <code>python -m staple.agent</code> call the
+Claude API, each with the reader's own key. The first sends the made-up booking words and problem labels, the
+second the made-up facts of a back-ordered part, and neither sends anything else.</p></section>
 
 <section id="thresholds"><h2>Every threshold, and what sets it</h2>
 <p>Read from the code at build time, so this table cannot disagree with what ran. "Made up" means a stand-in to
@@ -429,7 +430,7 @@ python check.py        # every check, each with a control that proves it can fai
 python run.py --live   # the AI step asked afresh, with your own ANTHROPIC_API_KEY</pre>
 <p>Open <code>out/index.html</code> in a browser. The 14 metric queries are plain SQL files in
 <code>sql/metrics/</code>; each runs on its own against <code>out/staple.db</code>.</p></section>
-<footer>Written in Python, SQL and JavaScript: 16 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 15 SQL files hold the tables and the 14 metric queries; 2 JavaScript files run the hints and switches. Beside them, 6 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python. Every figure in the evidence comes from the queries in <span class="hv" data-tip="sql/metrics/
+<footer>Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write these pages and check it all; 15 SQL files hold the tables and the 14 metric queries; 2 JavaScript files run the hints and switches. Beside them, 6 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages. Nothing is installed beyond Python. Every figure in the evidence comes from the queries in <span class="hv" data-tip="sql/metrics/
 ai_calibration, ai_step, backorder_exposure, backorder_flag, carry_list_curve, controls, dispatch_scorecard, first_time_fix, inventory_roi, parts_caused_reschedules, parts_cycle_time, scorecard, slow_truck_stock, truck_fill_rate" tabindex="0">sql/metrics/</span>, and the plan is the record the dispatch replay kept. Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div><script>// The hover layer: any element with data-tip shows it on mouse hover or keyboard focus. On a touch screen one tap
 // shows it and keeps it; the next tap anywhere closes it, and opens the spot it lands on if that is another one.
 // A tap never cancels anything, so it still presses what it lands on. The first line is the value.
