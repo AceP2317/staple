@@ -2,6 +2,7 @@
 `python run.py --live` asks the Claude API afresh for the AI step, with your own ANTHROPIC_API_KEY.
 `python run.py --pages` also writes the four pages and languages.json to docs/, the copy the repository publishes.
 `python run.py --card` only photographs the share card with Chrome; run it when the card's words or colors change.
+`python run.py --picture` only photographs the README's picture of the board, from the report last built into out/.
 The report is the week's plan (staple/plan.py) beside the 92-day evidence behind it."""
 import shutil
 import subprocess
@@ -16,37 +17,58 @@ CHROMES = ["chrome", "google-chrome", "chromium", r"C:\Program Files\Google\Chro
            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
 
 
-def chrome():
+def find_chrome():
     """Where Chrome is on this machine, or None."""
     return next((c for c in (shutil.which(n) or (n if Path(n).exists() else None) for n in CHROMES) if c), None)
 
 
+def photograph(page, shot, size, scale=1):
+    """Photographs a page file at an exact size with headless Chrome, the one build step not in Python. scale is
+    the pixels drawn for each pixel of the page's own measure."""
+    chrome = find_chrome()
+    if not chrome:
+        sys.exit(f"no Chrome found, so {shot.name} was not photographed; looked for: " + ", ".join(CHROMES))
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
+        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--force-device-scale-factor={scale}",
+                        f"--user-data-dir={profile}", f"--window-size={size[0]},{size[1]}", "--virtual-time-budget=6000",
+                        f"--screenshot={shot.resolve()}", page.resolve().as_uri()], check=True, capture_output=True, timeout=120)
+
+
 def card():
-    """Photographs the share card page at its exact size with headless Chrome, the one step not in Python."""
-    exe = chrome()
-    if not exe:
-        sys.exit("no Chrome found, so the share card was not photographed; looked for: " + ", ".join(CHROMES))
+    """Photographs the share card page at its exact size."""
     db.OUT.mkdir(parents=True, exist_ok=True)
     page, shot = db.OUT / "card.html", report.PAGES / report.CARD
     page.write_text(report.card_html(), encoding="utf-8")
-    w, h = report.CARD_SIZE
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
-        subprocess.run([exe, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
-                        f"--user-data-dir={profile}", f"--window-size={w},{h}", f"--screenshot={shot.resolve()}",
-                        page.resolve().as_uri()], check=True, capture_output=True, timeout=120)
+    photograph(page, shot, report.CARD_SIZE)
     (report.PAGES / "card.sha").write_text(report.card_fingerprint() + "\n", encoding="utf-8")
     print(f"share card: {shot}, photographed from {page}; bump report.CARD_VERSION if its pixels changed")
+
+
+def picture():
+    """Photographs the README's picture of the board from the report last built into out/."""
+    built = db.OUT / report.FILES["report"]
+    if not built.exists():
+        sys.exit(f"{built} is missing, so there is no report to photograph; run `python run.py` first")
+    page, shot = built.read_text(encoding="utf-8"), report.PAGES / report.PICTURE
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
+        for name, text in report.picture_pages(page).items():
+            (Path(folder) / name).write_text(text, encoding="utf-8")
+        photograph(Path(folder) / "frame.html", shot, report.PICTURE_SIZE, report.PICTURE_SCALE)
+    (report.PAGES / "board.sha").write_text(report.picture_fingerprint(page) + "\n", encoding="utf-8")
+    print(f"README picture: {shot}, photographed from {built}")
 
 
 def main():
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8")    # a piped run on Windows would otherwise garble the stamp's middle dot
     report.notes_in_plain_words()
-    unknown = [a for a in sys.argv[1:] if a not in ("--live", "--pages", "--card")]
+    unknown = [a for a in sys.argv[1:] if a not in ("--live", "--pages", "--card", "--picture")]
     if unknown:
-        sys.exit(f"run.py does not know {', '.join(unknown)}; it takes --live, --pages or --card, or nothing")
+        sys.exit(f"run.py does not know {', '.join(unknown)}; it takes --live, --pages, --card or --picture, or nothing")
     if "--card" in sys.argv[1:]:
         return card()
+    if "--picture" in sys.argv[1:]:
+        return picture()
     started = time.perf_counter()
     conn = db.fresh()
     world.build(conn)

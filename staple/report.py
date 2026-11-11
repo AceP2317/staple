@@ -37,6 +37,8 @@ AUTHOR, SITE = "Ian Provencher", "https://ian-provencher.com/"    # who built it
 REPO = "https://github.com/AceP2317/staple"                        # where the code is kept
 PHONE_COLUMN = 296    # px: the narrowest column a drawing gets, on a 360 px phone less the page's and the panel's edges
 CARD, CARD_VERSION, CARD_SIZE = "card.png", 1, (1200, 630)   # bump CARD_VERSION whenever the card's pixels change
+PICTURE, PICTURE_SIZE, PICTURE_SCALE = "board.png", (1000, 880), 2   # the README's picture: its size on the page, and the pixels drawn for each
+PICTURE_STRIP = 44    # px: the strip across the top of that picture, which says the day is invented
 STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, as bars on a 32-unit square
 SOURCES =["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
 # Every file kind by its extension; `check.py languages` refuses a file whose kind neither map names.
@@ -84,7 +86,9 @@ LANGUAGE_ABOUT = {   # what each language is, then what it does in this build
 PROGRAMS = {   # every program the code starts, as `check.py languages` finds it in the code, and what it does here
     "git": ("git", "Lists the repository's files for these counts and the names scan, reads each page's build stamp "
                    "from the history, and clones the public repository fresh for check.py fresh-clone."),
-    "chrome": ("Chrome", "Photographs the share card in python run.py --card, the one build step outside Python."),
+    "chrome": ("Chrome", "Photographs the share card in python run.py --card and the README's picture of the board in "
+                         "python run.py --picture, the build steps outside Python. One guard also opens the published "
+                         "report in it, to see where the first screen ends."),
     "claude": ("Claude Code (claude)", "Built the saved answers and follow-up questions with python -m staple.triage "
                                        "build, on a subscription rather than a key."),
     "bash": ("Bash (bash)", "Runs the guard runner on a scratch folder of planted guards in check.py plain-words, which "
@@ -236,7 +240,7 @@ CHECK_ABOUT = {
     "sql": "Every metric query returns rows, and every column of every query is recomputed in Python apart from the SQL. A decimal may differ by half a unit of its last shown place, which is all rounding can do, and the return on today's trucks is counted again from the jobs and the stock. Planted changes in a copy of the data must move the history metrics, and a part taken off a truck must move that recount.",
     "mutants": "Every metric query against one wrong version of itself, such as a fix rate that counts the wrong column or a return on stock that counts jobs needing no part. The Python recomputation that agrees with the real query must refuse each wrong one, and a query added without a wrong version fails the check.",
     "stamp": "The build stamp is read from git alone. On a scratch history it must give the count, day and code of the last change outside the published copy; committing only that copy must leave it alone; unsaved code must add a +; a partial history must drop the count and warn; and a folder with no history must say so. Two builds that differ only in their stamps must compare equal once the stamps are emptied.",
-    "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
+    "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The README's picture of the board must have been photographed from today's plan and styles. The published copy must match a fresh build, and planted faults must be refused.",
     "readable": "The pages can be read and used. No text set for the screen is under 14 px, and no label on the board under 12 px; a drawing's text is measured at the least width the drawing can take. In light and in dark, text reaches 4.5:1 against what it sits on and every mark a reader must tell apart reaches 3:1. On every day and view the report's Tab order holds fewer than 150 stops, because the board is one stop and the arrow keys move inside it. Every switch says whether it is pressed. Printing hides the controls and opens the lists. Every page names the author with a link to his site and to the repository, and links to no other site. On a phone the scorecard folds its control under the difference, a click opens a call beside the board, and each day's calls are given as those booked the night before plus those added on the day. Nineteen planted faults must be refused, among them a text size too small, a color too pale in one scheme only, every hint put in the Tab order and a link to another site.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
@@ -720,6 +724,35 @@ def card_html():
 
 def card_fingerprint():
     return hashlib.sha256(card_html().encode("utf-8")).hexdigest()
+
+
+def picture_pages(page):
+    """The two files the README's picture is photographed from, by name. page.html is the report with all but the
+    day's plan hidden, the day as it ran showing and a moved call open. frame.html holds it at the picture's exact
+    width, under a strip that says the day is invented."""
+    t = tokens()
+    w, h = PICTURE_SIZE
+    events = re.search(r'class="day-btn"[^>]*aria-pressed="true" aria-label="[^":]*: ([^"]*)"', page).group(1)
+    hide = ("<style>html{scrollbar-width:none}.band,.split-top,.day-proof,.map-panel,.grid.two,.how,.evidence-head,"
+            ".evidence,.pair,#run,footer,#tip{display:none!important}.report main{padding-top:12px}</style>")
+    act = ("<script>addEventListener('load', () => {document.querySelector('.vbtn[data-view=ran]').click();"
+           "const moved = [...document.querySelectorAll('.board-panel:not([hidden]) .v-ran .blk.moved')];"
+           "moved[Math.min(4, moved.length - 1)].click();scrollTo(0, 0)})</script>")
+    frame = (f'<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:{t["--page"]};'
+             f'font:17px/{PICTURE_STRIP}px system-ui,sans-serif"><div style="height:{PICTURE_STRIP}px;background:{t["--band"]};'
+             f'color:{t["--band-ink"]};padding:0 16px;display:flex;gap:14px;align-items:center"><b style="font-size:21px">Staple</b>'
+             f'<span>one invented day, as it ran: {e(events)}</span><span style="margin-left:auto;font-size:14px;line-height:22px;'
+             f'border:1px solid {t["--band-2"]};border-radius:4px;padding:0 6px">Invented data</span></div>'
+             f'<iframe src="page.html" style="width:{w}px;height:{h - PICTURE_STRIP}px;border:0;display:block"></iframe></body></html>')
+    at = page.rindex("</body>")
+    return {"page.html": page[:at] + hide + act + page[at:], "frame.html": frame}
+
+
+def picture_fingerprint(page):
+    """A fingerprint of what the README's picture shows of a report: its strip, the styles and the week's plan."""
+    plan_part = page[page.index('<div class="daybar"'):page.index('<div class="grid two">')]
+    styles = re.search(r"<style>(.*?)</style>", page, re.S).group(1)
+    return hashlib.sha256((picture_pages(page)["frame.html"] + styles + plan_part).encode("utf-8")).hexdigest()
 
 
 def day_name(day):

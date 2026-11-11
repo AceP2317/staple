@@ -2470,6 +2470,21 @@ def asset_faults(folder):
     return faults
 
 
+def picture_faults(page):
+    """The README's picture of the board: a PNG of its stated size, photographed from this plan and these styles."""
+    from staple import report
+    shot, sha = report.PAGES / report.PICTURE, report.PAGES / "board.sha"
+    data = shot.read_bytes() if shot.exists() else b""
+    size = tuple(n * report.PICTURE_SCALE for n in report.PICTURE_SIZE)
+    faults = []
+    if data[12:16] != b"IHDR" or struct.unpack(">II", data[16:24]) != size:
+        faults.append(f"the README's picture is not a {size[0]} by {size[1]} PNG")
+    if not sha.exists() or sha.read_text(encoding="utf-8").strip() != report.picture_fingerprint(page):
+        faults.append("the README's picture was photographed from another plan or other styles; run `python run.py`, "
+                      "then `python run.py --picture`")
+    return faults
+
+
 def schemes(css):
     """The color tokens of each scheme the styles define, named light, dark, or by the selector that set them."""
     found = {}
@@ -2700,6 +2715,13 @@ def report_check():
             report.LEDE = lede
         require(any("photographed from other words" in f for f in reworded), "control: a card older than its words passed")
         print("  control: a share card photographed before its words changed is refused")
+        shot = picture_faults(page)
+        print(f"  the README's picture of the board, held to the plan and the styles it was photographed from; faults: {shot or 'none'}")
+        require(not shot, "; ".join(shot))
+        later = page.replace('<div class="daybar"', '<div class="daybar" lang="en"', 1)
+        require(later != page and any("another plan" in f for f in picture_faults(later)),
+                "control: a picture older than the plan it shows passed")
+        print("  control: a picture photographed before the plan changed is refused")
 
         tip = r'data-tip="[^"]*"'
         planted = {"stamp taken out": re.sub(r'(<span class="build-stamp"[^>]*>)[^<]*', r"\1nothing", page, count=1),

@@ -5,8 +5,11 @@ do before 08:00.
 
 **[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods page](https://acep2317.github.io/staple/method.html)
 
-Every figure in this repository comes from repair history I invented. The method is real and the results
-are not. On real history, the same back-test is the first thing I would run.
+![The board for one invented day as it ran: a row for each technician, a block for each call, and a ring on every call that a sick call or a breakdown moved.](staple/pages/board.png)
+
+Every figure in this repository comes from repair history I invented: the calls, the customers' words, the
+technicians, the parts and every dollar. The method is real and the results are not. On real history, the
+same back-test is the first thing I would run.
 
 ## The problem
 
@@ -72,6 +75,7 @@ python check.py first-run  # the same two commands in an empty folder, with no h
 python run.py --live     # the AI step asked afresh, with your own ANTHROPIC_API_KEY
 python run.py --pages    # also writes the published copy of the pages to docs/
 python run.py --card     # photographs the share card with headless Chrome, when its words or colors change
+python run.py --picture  # photographs the picture of the board above, from the report last built
 ```
 
 Then open `out/index.html` in a browser.
@@ -101,5 +105,9 @@ trucks, measured on first-time fix and parts-caused reschedules.
 ## How it was built
 
 Designed and directed by Ian Provencher, built with Claude Code. Python's standard library and SQLite only,
-which `check.py` enforces. [WALKTHROUGH.md](WALKTHROUGH.md) explains every file in
-plain words.
+which `check.py` enforces. [WALKTHROUGH.md](WALKTHROUGH.md) gives a path for presenting the report to a room,
+then explains every file in plain words.
+
+## License
+
+Free to reuse under the [MIT license](LICENSE).

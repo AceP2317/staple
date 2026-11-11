@@ -138,7 +138,7 @@ def text_faults(m):
     return faults
 
 
-exe = run.chrome()
+exe = run.find_chrome()
 if not exe:
     fail("no Chrome was found on this machine, so nothing was checked; looked for: " + ", ".join(run.CHROMES))
 page = page_path.read_text(encoding="utf-8")

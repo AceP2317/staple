@@ -1,8 +1,46 @@
 # Walkthrough
 
-How Staple fits together, file by file, in the order the one command runs it. Every figure Staple produces
-comes from invented history, so this page names no result. The results live on the
+Two parts. The first is a path through the live report for presenting it to a room in twenty minutes. The
+second is how Staple fits together, file by file, in the order the one command runs it. Every figure Staple
+produces comes from invented history, so this page names no result. The results live on the
 [live report](https://acep2317.github.io/staple/), built from the files below.
+
+## Presenting the report in twenty minutes
+
+Open the [live report](https://acep2317.github.io/staple/) and stay on that one page. The steps run down it in
+order. Each names what to click and the one thing to say.
+
+- **The first screen, three minutes.** Read the sentence under the name aloud, then point at the invented-data
+  label: the method is real and the numbers are not. The scorecard is the whole plan against the current rules
+  over every held-back day. Read one row across: the current rules, Staple, the difference, then the control.
+  Say what the control is before anyone asks. It is Staple with the history behind its part odds shuffled, so it
+  shows how much of each gain needs nothing finer than what each appliance usually needs.
+- **The to-do list, two minutes.** Beside the scorecard is what people do before the day starts, grouped by who
+  does it: the parts room, dispatch and the buyer. On a day when a customer's answer left a booking unsure, the
+  call center has a group too. Click one parts-room item. The page moves to the plan, lights up that truck and
+  opens its load sheet.
+- **The plan at night, three minutes.** Each row of the board is a technician and each block a call, shaded by
+  its chance of a first-time fix. Click a call. It opens beside the board in the customer's own words, with
+  Claude's reading, the parts and their odds, and why that technician took it. Then read one row of the open
+  load sheet: put on or take off, the part, its worth, and the calls behind it.
+- **The day as it ran, three minutes.** Switch to As the day ran. The hatched row is a technician who called
+  out sick, a warning mark is a truck that broke down, and every ringed call moved to another truck. Open one
+  moved call and read its first-time fix chance on the planned truck and on the new one. A moved call is scored
+  on the truck that took it, with that technician's skill and only the parts already aboard, which is why the
+  chance can fall.
+- **AI at booking, two minutes.** Under the plan, each card is a booking Claude was unsure of: the customer's
+  words, its first reading, the one question it asked and the answer taken. Where the answer changed the parts
+  that call loads, the card shows the first guess's parts and the new ones. Say plainly that the customer who
+  answers is simulated, so that gain is an upper bound.
+- **One piece of evidence and its control, three minutes.** Scroll to the evidence and stop at its first card,
+  Who takes the call. Its bars set each way of handing out calls side by side, with the controls among them.
+  Then go to the last card, Each gain against its control, which names the controls that do not fall back and
+  says what that means.
+- **What it does not show, two minutes.** Read the panel What this shows, and what it does not: the history is
+  invented, so nothing here shows a gain on a real fleet, and some corners are cut on purpose. The panel beside
+  it gives the order a fleet would adopt it in, and its first step is the same back-test on real history.
+- **How to run it, two minutes.** The last panel names the two commands that rebuild and check everything, and
+  the instruction manual walks through a first run.
 
 ## The flow
 
@@ -10,14 +48,15 @@ comes from invented history, so this page names no result. The results live on t
 one SQLite file. Each step after that reads the file and writes its answer back as a table: the parts
 predictor's back-test, the truck loads, the back-order list, the AI step and the dispatch replay. The metric
 queries read only those tables, and the report's evidence reads only the query results. So a number in the
-evidence can always be traced to one query, and that query to one table. The plan beside it is the dispatch
-replay's own record of the most recent week, so every route and load on it is one the replay decided.
+evidence can always be traced to one query, and that query to one table. The day's plan on the report is the
+dispatch replay's own record of the most recent week, so every route and load on it is one the replay decided.
 
 ## The one command and its checks
 
 - `run.py` is the one command. It builds the world, runs every step in order, prints a summary of each, runs
   the metric queries, records the week's plan and writes the four pages into `out/`. With `--pages` it also writes the copy GitHub
-  Pages serves, and with `--live` it asks Claude afresh instead of reading the cached answers.
+  Pages serves, and with `--live` it asks Claude afresh instead of reading the cached answers. With `--card` or
+  `--picture` it only takes a photograph, as the two picture files below say.
 - `check.py` holds every check, each runnable alone by name (`python check.py report`). Each one plants a
   fault or a known answer and must catch it, because a check that never fails looks exactly like one that
   sees nothing. It guards the ban on third-party packages, a private list of names that must never appear
@@ -167,8 +206,12 @@ replay's own record of the most recent week, so every route and load on it is on
 - `staple/pages/languages.html` is the code languages page's text: what Staple is written in, where each part
   runs, the programs it starts and the files that are not code, with every count read from git's list of files.
 - `staple/pages/card.png` is the share card a link preview shows, a photograph of the card page `report.py`
-  writes, taken by headless Chrome with `python run.py --card`, the one step outside Python. `staple/pages/card.sha`
+  writes, taken by headless Chrome with `python run.py --card`, a step outside Python. `staple/pages/card.sha`
   fingerprints the card page it was taken from, so `check.py report` refuses a card older than its words or colors.
+- `staple/pages/board.png` is the README's picture of the board: one invented day as it ran, with a moved call
+  open, under a strip that says the day is invented. `python run.py --picture` photographs it from the report
+  last built. `staple/pages/board.sha` fingerprints the plan and the styles it was taken from, so
+  `check.py report` refuses a picture older than the plan it shows.
 - `docs/index.html`, `docs/manual.html`, `docs/method.html` and `docs/languages.html` are the published copy
   GitHub Pages serves.
   `python run.py --pages` writes them, and `check.py report` refuses a copy that differs from a fresh build.
@@ -182,6 +225,7 @@ replay's own record of the most recent week, so every route and load on it is on
 - `README.md` is the front page: what Staple does, how it is kept honest, how to run it, and what a real
   system must also handle.
 - `WALKTHROUGH.md` is this page.
+- `LICENSE` is the MIT license: anyone may reuse the code, keeping the copyright line.
 - `.gitignore` keeps the built output, Python's caches and a private folder out of the repository.
 - `.gitattributes` keeps shell scripts' line endings Unix-style, because bash fails on a Windows line ending.
 - `scripts/guard.sh` runs the repository's own guards before each commit: one test per mistake already made.
