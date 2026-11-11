@@ -202,5 +202,11 @@ replay's own record of the most recent week, so every route and load on it is on
   a hint open and the next tap must close it, with or without the browser moving focus. It runs a browser script the author
   keeps outside this repository, so it runs only on the author's machine and fails anywhere else, saying
   that nothing was checked.
+- `scripts/guards/fast/first-screen-fits-a-laptop.sh` opens the published report in Chrome before each commit
+  that changes it, in a frame the size a small laptop leaves for a page and again at a phone's width. The
+  one-sentence summary and the whole scorecard must sit inside the laptop's first screen, nothing may run off
+  the side on the phone, and every piece of text is read at the size it is drawn. A copy with planted faults,
+  and the report from before the scorecard led the page, must each be refused. It needs Chrome and fails
+  anywhere without it, saying that nothing was checked.
 - `scripts/guards/fast/commit-messages-stay-plain.sh` reads every commit message on the branch and refuses
   one that carries a tool's trailer or a bookkeeping line, after proving on planted messages that it can.
