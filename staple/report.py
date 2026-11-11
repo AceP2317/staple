@@ -33,6 +33,9 @@ MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 WEIGHT_LIMIT = 2_000_000    # bytes a published page may weigh: what a phone should load for one page
 PAGES_URL = "https://acep2317.github.io/staple/"   # where GitHub Pages serves docs/, read from its API when turned on
 LEDE = "Plans a repair fleet's next day: who takes each call, what each truck carries, and what people do before 08:00."
+AUTHOR, SITE = "Ian Provencher", "https://ian-provencher.com/"    # who built it, and his own site
+REPO = "https://github.com/AceP2317/staple"                        # where the code is kept
+PHONE_COLUMN = 296    # px: the narrowest column a drawing gets, on a 360 px phone less the page's and the panel's edges
 CARD, CARD_VERSION, CARD_SIZE = "card.png", 1, (1200, 630)   # bump CARD_VERSION whenever the card's pixels change
 STAPLE = [(7, 8, 11, 25), (7, 8, 25, 12), (21, 8, 25, 25)]   # the staple mark, as bars on a 32-unit square
 SOURCES =["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are computed from
@@ -234,6 +237,7 @@ CHECK_ABOUT = {
     "mutants": "Every metric query against one wrong version of itself, such as a fix rate that counts the wrong column or a return on stock that counts jobs needing no part. The Python recomputation that agrees with the real query must refuse each wrong one, and a query added without a wrong version fails the check.",
     "stamp": "The build stamp is read from git alone. On a scratch history it must give the count, day and code of the last change outside the published copy; committing only that copy must leave it alone; unsaved code must add a +; a partial history must drop the count and warn; and a folder with no history must say so. Two builds that differ only in their stamps must compare equal once the stamps are emptied.",
     "report": "The pages carry the stamp, the results day, a made-up label and a table per chart, a hint on every element that needs one, and nothing from the network. Each page opens light with a switch to dark, and every selected mark stands out at least 3:1 from the page in both. Each page carries its tab icons and share card, the icons as drawn now and the card photographed from today's words. The published copy must match a fresh build, and planted faults must be refused.",
+    "readable": "The pages can be read and used. No text set for the screen is under 14 px, and no label on the board under 12 px; a drawing's text is measured at the least width the drawing can take. In light and in dark, text reaches 4.5:1 against what it sits on and every mark a reader must tell apart reaches 3:1. On every day and view the report's Tab order holds fewer than 150 stops, because the board is one stop and the arrow keys move inside it. Every switch says whether it is pressed. Printing hides the controls and opens the lists. Every page names the author with a link to his site and to the repository, and links to no other site. On a phone the scorecard folds its control under the difference, a click opens a call beside the board, and each day's calls are given as those booked the night before plus those added on the day. Nineteen planted faults must be refused, among them a text size too small, a color too pale in one scheme only, every hint put in the Tab order and a link to another site.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
     "links": "Every link from the manual into the methods page, and every link within a page, lands on an id the page holds. A manual link turned to an anchor that does not exist must be refused.",
@@ -260,8 +264,9 @@ def join(*parts):
     return Raw("".join(p if isinstance(p, Raw) else e(str(p)) for p in parts))
 
 
-def tipattr(text):
-    return f' data-tip="{html.escape(text, quote=False).replace(chr(34), "&quot;")}" tabindex="0"'
+def tipattr(text, focus=False):
+    """The hint an element shows on hover or tap. focus also puts it in the Tab order, for what a reader acts on."""
+    return f' data-tip="{html.escape(text, quote=False).replace(chr(34), "&quot;")}"' + (' tabindex="0"' if focus else "")
 
 
 def hv(shown, tip):
@@ -417,7 +422,8 @@ def scorecard(results):
         raise ValueError("the scorecard says Staple is the better on every measure and that its control keeps most of each "
                          f"gain and less than all of it; the query now says otherwise ({worse or keeps}): rewrite the "
                          "scorecard's words before publishing")
-    head = "".join(f"<th{tipattr(name + chr(10) + hint)}>{e(name)}</th>" for name, hint in (
+    head = "".join(f"<th{' class=' + chr(34) + 'ctl' + chr(34) if name == 'Control' else ''}{tipattr(name + chr(10) + hint)}>{e(name)}</th>"
+                   for name, hint in (
         ("Measure", "What the row counts, and the unit it is counted in."),
         ("Current rules", GLOSSARY["current rules"]),
         ("Staple", "Each call goes to the technician with the lowest expected cost, on a truck loaded for the calls booked on it."),
@@ -434,7 +440,7 @@ def scorecard(results):
         return (f'<tr><td class="m"{tipattr(about_it)}><span class="hv">{e(name.capitalize())}</span>{q(name)}'
                 f'<span class="unit">{e(r["unit"])}</span></td><td>{e(scored(r, "current_rules"))}</td>'
                 f'<td class="ours">{e(scored(r, "staple"))}</td><td class="gain">{e(scored(r, "difference"))}</td>'
-                f'<td{tipattr(kept)}><span class="hv">{e(scored(r, "control"))}</span>'
+                f'<td class="ctl"{tipattr(kept)}><span class="hv">{e(scored(r, "control"))}</span>'
                 f'<span class="keeps">keeps {r["control_keeps_pct"]:.0f}%</span></td></tr>')
 
     spread = f"{min(keeps):.0f}%" if min(keeps) == max(keeps) else f"{min(keeps):.0f}% to {max(keeps):.0f}%"
@@ -443,19 +449,14 @@ def scorecard(results):
            "codes, so it measures the planning apart from the reading.")
     madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}. No real company, customer, part or technician. "
               "The method is real; these figures are not.")
-    return (f'<section class="card" id="scorecard"><h3{tipattr(tip)}>{e(title)}</h3>'
+    return (f'<section class="panel score-panel" id="scorecard"><h2{tipattr(tip)}>{e(title)}</h2>'
             f'<p class="sub">Every row is the whole plan replayed with the same made-up sick calls and breakdowns. '
             f'<span class="invented"{tipattr(madeup)}>made-up data</span></p>'
             f'<div class="scroll"><table class="score"><thead><tr>{head}</tr></thead><tbody>{"".join(line(r) for r in score)}'
-            f'</tbody></table></div><p>The control is Staple with the history behind its part odds shuffled, so it knows what '
+            f'</tbody></table></div><p class="sub after">The control is Staple with the history behind its part odds shuffled, so it knows what '
             f'each appliance usually needs and nothing finer. It keeps {spread} of each gain. So most of each gain needs '
             f'only what each appliance usually needs, and the history\'s links to model family and problem add the rest.</p>'
             '</section>')
-
-
-def tile(label, term, value, sub, tip):
-    return (f'<div class="tile"{tipattr(tip)}><p class="label">{e(label)}{q(term)}</p><p class="value">{e(value)}</p>'
-            f'<p class="sub">{e(sub)}</p></div>')
 
 
 def bars(items):
@@ -506,7 +507,7 @@ def curve(points, jobs):
               ("national_pct", "National top parts", "--s2", "The appliance's nationally most-used parts, whatever the problem: today's stocking logic."),
               ("shuffled_pct", "Shuffled history (control)", "--dim", "The predictor trained on history whose part-to-problem links were shuffled. It must fall to the national line.")]
     today = points[0]["todays_trucks_pct"]
-    svg = [f'<line class="grid" x1="{left}" x2="{w - right}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
+    svg = [f'<line class="gridline" x1="{left}" x2="{w - right}" y1="{y(v):.1f}" y2="{y(v):.1f}"/>'
            f'<text class="tick" x="{left - 8}" y="{y(v) + 4:.1f}" text-anchor="end">{v}%</text>' for v in (0, 25, 50, 75, 100)]
     svg += [f'<text class="tick" x="{xi:.1f}" y="{h - bottom + 20}" text-anchor="middle">{k}</text>' for xi, k in zip(x, ks)]
     svg.append(f'<text class="tick" x="{(left + w - right) / 2:.1f}" y="{h - 6}" text-anchor="middle">parts on the carry list</text>')
@@ -530,8 +531,9 @@ def curve(points, jobs):
     data = {"w": w, "xs": x, "ks": ks, "tips": tips}
     keys = "".join(f'<span class="key"{tipattr(n + chr(10) + t)}><i style="background:var({c})"></i>{e(n)}</span>'
                    for _, n, c, t in series)
-    return (f'<div class="legend">{keys}</div><svg viewBox="0 0 {w} {h}" tabindex="0" data-curve="{e(json.dumps(data))}" '
-            f'aria-label="Coverage against carry-list length; the table below holds every value">{"".join(svg)}</svg>')
+    return (f'<div class="legend">{keys}</div><div class="scroll"><svg class="curve" viewBox="0 0 {w} {h}" tabindex="0" '
+            f'data-curve="{e(json.dumps(data))}" role="img" aria-label="Coverage against carry-list length; the table below '
+            f'holds every value">{"".join(svg)}</svg></div>')
 
 
 def stamp_line(stamp_text, day):
@@ -552,14 +554,21 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
     new_tab = ' target="_blank" rel="noopener"'
     nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else new_tab}'
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
-    nav += (f'<button type="button" class="btn ghost" data-theme-toggle'
-            f'{tipattr("Light or dark" + chr(10) + "The page opens light. This switches it, and this browser remembers the choice.")}>Dark mode</button>')
+    nav += (f'<button type="button" class="btn ghost" data-theme-toggle aria-pressed="false"'
+            f'{tipattr("Dark mode" + chr(10) + "The page opens light. This switches it to dark and back, and this browser remembers the choice.")}>Dark mode</button>')
     css, js = (PAGES / "style.css").read_text(encoding="utf-8"), (PAGES / "tips.js").read_text(encoding="utf-8")
     if kind == "report":
         js += "\n" + (PAGES / "plan.js").read_text(encoding="utf-8")
-    app = f' class="app" data-side="plan" data-chosen="{chosen}"' if kind == "report" else ""
+    app = f' class="report" data-view="night" data-chosen="{chosen}"' if kind == "report" else ""
     h1_tip = ("Staple\nPlans a repair fleet's next day on invented history: Claude codes the bookings, Staple routes the "
               "technicians and loads the trucks, and people act on a to-do list before 08:00.")
+    madeup = (f"Invented data\n{world.JOBS:,} jobs from seed {world.SEED}, with wrong descriptions, thin model histories and "
+              "patternless failures planted on purpose. No real company, customer, part or technician.")
+    invented = (f'<p class="inv"><span class="invented"{tipattr(madeup)}>Invented data</span> Every call, technician, part '
+                f'and dollar here is invented. The method is real.</p>' if kind == "report" else "")
+    out = ' target="_blank" rel="noopener"'
+    byline = (f'Designed and directed by <a href="{SITE}"{out}>{AUTHOR}</a>, built with Claude Code. The code is at '
+              f'<a href="{REPO}"{out}>{REPO.split("//")[1]}</a>.')
     remembered = 'try{if(localStorage.getItem("staple-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){console.warn("Staple: the saved light/dark choice could not be read",e)}'
     url = PAGES_URL + ("" if kind == "report" else FILES[kind])
     share = "".join(f'<meta property="og:{k}" content="{e(str(v))}">' for k, v in (
@@ -570,12 +579,12 @@ def shell(kind, title, lede, body, stamp_text, day, chosen=None):
             '<link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="icon" href="icon-32.png" sizes="32x32">'
             '<link rel="apple-touch-icon" href="apple-touch-icon.png">')
     return (f'<!doctype html>\n<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<title>{e(title)}</title>{head}<style>{css}</style><script>{remembered}</script></head><body{app}><header class="band"><div class="band-in"><div>'
-            f'<h1{tipattr(h1_tip)}>{e("Staple" if kind == "report" else title)}</h1><p class="lede">{e(lede)}</p>{stamp_line(stamp_text, day)}</div>'
-            f'<nav class="actions">{nav}</nav></div></header><main>{body}'
-            f'<footer>{e(written_in("these pages"))} Nothing is installed beyond Python. Every figure in the evidence comes from the queries in '
-            f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}, and the plan is the record the dispatch replay kept. '
-            f'Designed and directed by Ian Provencher, built with Claude Code.</footer></main><div id="tip" hidden></div>'
+            f'<title>{e(title)}</title>{head}<style>{css}</style><script>{remembered}</script></head><body{app}><header class="band"><div class="band-in">'
+            f'<h1{tipattr(h1_tip)}>{e("Staple" if kind == "report" else title)}</h1><nav class="actions" aria-label="Pages and display">{nav}</nav>'
+            f'<p class="lede">{e(lede)}</p>{invented}{stamp_line(stamp_text, day)}</div></header><main>{body}'
+            f'<footer><p>{e(written_in("these pages"))} Nothing is installed beyond Python. Every figure in the evidence comes from the queries in '
+            f'{hv("sql/metrics/", "sql/metrics/" + chr(10) + ", ".join(p.stem for p in sorted(metrics.SQL.glob("*.sql"))))}, and the plan is the record the dispatch replay kept.</p>'
+            f'<p class="byline">{byline}</p></footer></main><div id="tip" hidden></div>'
             f'<script>{js}</script></body></html>\n')
 
 
@@ -769,7 +778,7 @@ def board(d, ctx, view):
     for tech in ctx.crew.techs:
         info = ctx.techs[tech]
         tip = (f"{tech} · truck {info['truck']}\n{info['level'].capitalize()} {info['profile']}, zone {info['home'] + 1}"
-               + (", certified." if info["certified"] else "."))
+               + (", certified." if info["certified"] else ".") + " Click to light up this truck and open its load sheet.")
         blocks, kind = [], ""
         if view == "night":
             for c in d["trucks"][tech]["calls"]:
@@ -781,7 +790,7 @@ def board(d, ctx, view):
                                                       ("miss", not c["covered"]), ("up", c["changed"] == 1)) if on)
                 blocks.append(f'<span class="blk {chance_class(c["chance"])}{marks}" style="left:{at(c["start"])};'
                               f'width:{at(c["end"] - c["start"])}"{tipattr(ran_tip(c, moved))}>'
-                              f'{"from " + moved[c["job"]]["from"] if c["job"] in moved else ""}</span>')
+                              f'{"<span class=fr>from " + moved[c["job"]]["from"] + "</span>" if c["job"] in moved else ""}</span>')
             gave = sum(x["from"] == tech for x in m["moved"])
             if tech in m["sick"]:
                 kind = " sick"
@@ -796,13 +805,18 @@ def board(d, ctx, view):
                              + (f"Its stock, {plan.counted(m['stranded'][tech], 'part')}, is stranded for the day. "
                                 if m["stranded"][tech] else "")
                              + f"{plan.counted(gave, 'later call').capitalize()} moved to other trucks.")
-                blocks.append(f'<span class="dead" style="left:{at(when)}"></span><span class="brk" style="left:{at(when)}"'
+                blocks.append(f'<span class="dead" style="left:{at(when)}"></span><span class="brk" style="--at:{at(when)}"'
                               f'{tipattr(broke_tip)}>'
                               f'&#9888; broke down {plan.clock(when)} · {some(gave)} moved</span>')
         rows.append(f'<div class="row{kind}" data-tech="{tech}"><span class="who"{tipattr(tip)}>{tech}</span>'
                     f'<span class="lane">{"".join(blocks)}</span></div>')
-    return (f'<div class="board v-{view}"><div class="row axis"><span></span><span class="lane ticks">{ticks}</span></div>'
-            f'{"".join(rows)}</div>')
+    # One call is in the Tab order; the arrow keys move from it to every other call and technician on the board.
+    lanes = "".join(rows).replace('<span class="blk ', '<span tabindex="0" class="blk ', 1)
+    served = sum(len(d["trucks"][t]["calls" if view == "night" else "ran"]) for t in ctx.crew.techs)
+    label = (f"The board, {'as planned at night' if view == 'night' else 'as the day ran'}: {served} calls on "
+             f"{len(ctx.crew.techs)} trucks. The arrow keys move between calls and technicians, and Enter opens one.")
+    return (f'<div class="board v-{view}" role="group" aria-label="{e(label)}"><div class="row axis"><span></span>'
+            f'<span class="lane ticks" aria-hidden="true">{ticks}</span></div>{lanes}</div>')
 
 
 def spot(zone, salt, ring=1.0):
@@ -812,11 +826,11 @@ def spot(zone, salt, ring=1.0):
     return 50 + 100 * x + radius * math.cos(angle), 50 + 100 * y + radius * math.sin(angle)
 
 
-def route_map(d, ctx, centers):
+def route_map(d, ctx, centers, shown):
     m = d["morning"]
     moved = {x["job"]: x for x in m["moved"]}
     cells = "".join(f'<rect class="zone" x="{100 * x + 3}" y="{100 * y + 3}" width="94" height="94" rx="8"/>'
-                    f'<text class="zone-n" x="{100 * x + 9}" y="{100 * y + 16}">zone {i + 1}</text>'
+                    f'<text class="zone-n" x="{100 * x + 8}" y="{100 * y + 22}">{i + 1}</text>'
                     for i, (x, y) in enumerate(plan.ZONES))
     marks = "".join(f'<rect class="center" x="{100 * plan.ZONES[z][0] + 44}" y="{100 * plan.ZONES[z][1] + 44}" width="12" height="12"/>'
                     for _, z in centers)
@@ -827,7 +841,10 @@ def route_map(d, ctx, centers):
         for view in layers:
             calls = d["trucks"][tech]["calls" if view == "night" else "ran"]
             pts = [spot(c["zone"], c["job"]) for c in calls]
-            line = " ".join(f"{x:.0f},{y:.0f}" for x, y in [homes[tech]] + pts)
+            path = [homes[tech]]
+            for x, y in pts:    # a point half way along each leg, where the chosen route draws its arrow
+                path += [((path[-1][0] + x) / 2, (path[-1][1] + y) / 2), (x, y)]
+            line = " ".join(f"{x:.0f},{y:.0f}" for x, y in path)
             stops = []
             for i, ((x, y), c) in enumerate(zip(pts, calls), 1):
                 if view == "night":
@@ -846,12 +863,14 @@ def route_map(d, ctx, centers):
                 stops.append(f'<text class="brk-map" x="{x + 5:.0f}" y="{y - 4:.0f}">&#9888;</text>')
             layers[view].append(f'<g class="rt" data-tech="{tech}"><polyline points="{line}"/>{"".join(stops)}'
                                 f'<circle class="home" cx="{hx:.0f}" cy="{hy:.0f}" r="2.5"/></g>')
-    tip = (f"Routes, zone to zone\n{len(world.ZONES)} zones {world.ZONE_MILES:g} miles apart; the squares are the "
+    tip = (f"Routes, zone to zone\n{len(world.ZONES)} numbered zones {world.ZONE_MILES:g} miles apart; the squares are the "
            f"{len(world.CENTERS)} distribution centers. Every truck's "
-           "route is drawn faint and the chosen one bold, with its stops numbered. A stop sits inside its zone; drive "
-           "times run zone to zone, not on roads.")
-    return (f'<svg class="map" viewBox="0 0 400 300"{tipattr(tip)} aria-label="Map of the twelve zones and every truck route">'
-            f'{cells}{marks}<g class="v-night">{"".join(layers["night"])}</g><g class="v-ran">{"".join(layers["ran"])}</g></svg>')
+           "route is drawn faint and the chosen one bold, with an arrow on each leg from the dot where it starts. A stop "
+           "sits inside its zone; drive times run zone to zone, not on roads.")
+    label = f"Map of the {len(world.ZONES)} zones and every truck route; the board beside it holds every call"
+    return (f'<section class="panel map-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>The route map</h3>'
+            f'<div class="scroll"><svg class="map" viewBox="0 0 400 300" role="img" aria-label="{e(label)}"{tipattr(tip)}>'
+            f'{cells}{marks}<g class="v-night">{"".join(layers["night"])}</g><g class="v-ran">{"".join(layers["ran"])}</g></svg></div></section>')
 
 
 def sheet_html(d, tech, ctx, shown):
@@ -876,19 +895,22 @@ def sheet_html(d, tech, ctx, shown):
     spare = Counter(ctx.kind[r["part"]] for r in keep if not r["calls"])
     aboard = (f"{len(keep)} parts. For tomorrow's calls: {e(', '.join(needed)) or 'none'}. Stock for unplanned calls: "
               + (", ".join(f"{e(k)} {n}" for k, n in sorted(spare.items())) or "none"))
-    title = f"Truck {info['truck']} · {tech}, {info['level']} {info['profile']}" + (", certified" if info["certified"] else "")
-    table = f'<table class="load"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>' if moves else "<p>No change to the load tonight.</p>"
-    return (f'<div class="sheet" data-sheet="{tech}"{"" if shown else " hidden"}><h4>{e(title)}</h4>'
-            f'<p class="sub">{s["space"]} of {s["capacity"]} space units · {dollars(s["value"])} of stock aboard · put on '
-            f'{sum(r["status"] == "put on" for r in rows)}, take off {sum(r["status"] == "take off" for r in rows)}, keep {len(keep)}</p>'
-            f'{table}<p class="keep"><strong>Keep aboard:</strong> {aboard}.</p><p class="sub">{plan.counted(len(calls), "call").capitalize()} tomorrow; '
-            f'the board and the map show the route.</p></div>')
+    on, off = (sum(r["status"] == status for r in rows) for status in ("put on", "take off"))
+    title = f"Load sheet · truck {info['truck']}: put on {on}, take off {off}, keep {len(keep)}"
+    tip = (f"{title}\nWhat the parts room does to {tech}'s truck tonight, with each part's worth and the booked calls "
+           "behind it. Click to open or close the list.")
+    table = (f'<div class="scroll"><table class="load"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+             if moves else "<p>No change to the load tonight.</p>")
+    return (f'<details class="sheet" data-sheet="{tech}"{"" if shown else " hidden"}><summary{tipattr(tip)}>{e(title)}</summary>'
+            f'<p class="sub">{s["space"]} of {s["capacity"]} space units · {dollars(s["value"])} of stock aboard · '
+            f'{plan.counted(len(calls), "call")} tomorrow</p>'
+            f'{table}<p class="keep"><strong>Keep aboard:</strong> {aboard}.</p></details>')
 
 
 TODO_PROOF = {"Parts room": "inventory_roi", "Call center": "ai_step", "Dispatch": "dispatch_scorecard", "Buyer": "backorder_exposure"}
 
 
-def ai_panel(d, ctx):
+def ai_panel(d, ctx, shown):
     a = d["ai"]
     cards = []
     for c in a["calls"]:
@@ -906,7 +928,7 @@ def ai_panel(d, ctx):
                   else f"No offered answer fit, so the call runs on {c['problem']} and goes to the call center."))
         parts = (f'<p class="parts"><span>First guess would load</span> {e(before)}<br><span>Now loads</span> {e(now)}</p>'
                  if now and before and now != before else "")
-        cards.append(f'<div class="ask"{" data-tech=" + chr(34) + c["tech"] + chr(34) if c.get("tech") else ""}{tipattr(tip)}>'
+        cards.append(f'<div class="ask" data-call="{c["job"]}"{" data-tech=" + chr(34) + c["tech"] + chr(34) if c.get("tech") else ""}{tipattr(tip, focus=True)}>'
                      f'<p class="said">{e(c["type"].capitalize())}: &ldquo;{e(c["words"])}&rdquo;</p><p>Claude read <strong>{e(first)}</strong> '
                      f'<span class="conf"><i style="width:{100 * ai["first_confidence"]:.0f}%"></i></span> {ai["first_confidence"]:.0%}</p>'
                      f'<p class="asked">It asked: &ldquo;{e(ai["question"])}&rdquo;</p>'
@@ -915,31 +937,39 @@ def ai_panel(d, ctx):
     tip = (f"AI at booking\n{triage.MODEL_NAME} ({triage.MODEL}) read every booking's own words and picked the problem code "
            f"this plan runs on. Below {triage.BLEND_BELOW:.0%} sure, it asked the customer one question. Its answers were "
            "made once by the model and saved with the code, so this page calls no model and holds no key.")
-    return (f'<section class="panel ai-panel"><h3{tipattr(tip)}>AI at booking: Claude coded all {a["coded"]} bookings{q("follow-up question")}</h3>'
-            f'<p>{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more were coded at once. '
+    return (f'<section class="panel ai-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>AI at booking: '
+            f'Claude coded all {a["coded"]} bookings{q("follow-up question")}</h3>'
+            f'<p class="sub">{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more were coded at once. '
             + (f'{a["asked"]} {"was" if a["asked"] == 1 else "were"} unsure, so Claude asked each customer one question: '
                f'{plan.counted(a["settled"], "answer")} settled the code, and {some(left)} {"goes" if left == 1 else "go"} to '
-               f'the call center. Each unsure call is below, and wears a yellow corner on the board.</p>' if a["asked"] else
+               f'the call center. Each unsure call is below, and wears a marked corner on the night plan\'s board. Click one '
+               f'to open it there.</p>' if a["asked"] else
                'None were unsure, so Claude asked no customer a question.</p>')
             + f'<div class="asks">{"".join(cards)}</div></section>')
 
 
-def todo_panel(d):
+def todo_panel(d, shown, titles):
+    """The day's to-do list by owner, in a box that scrolls inside itself. An item opens the truck or the call it names.
+    titles holds each evidence card's heading, so an owner's link names the card it opens."""
     groups = []
-    for owner in TODO_PROOF:
+    for owner, proof in TODO_PROOF.items():
         items = [i for i in d["todo"] if i["owner"] == owner]
         if not items:
             continue
         tag = '<b class="ai-tag">AI</b>' if owner == "Call center" else ""
-        lis = "".join(f'<li class="todo-item"{" data-tech=" + chr(34) + i["tech"] + chr(34) if i["tech"] else ""} data-proof="{TODO_PROOF[owner]}"'
-                      f'{tipattr(i["text"] + chr(10) + i["detail"])}>{tag}{e(i["text"])}</li>' for i in items)
-        groups.append(f'<div class="todo-group"><h4>{e(owner)} · {e(items[0]["when"])} · {len(items)}</h4><ul>{lis}</ul></div>')
-    tip = ("To do before 08:00\nWhat people act on, by owner. Click an item to light up its truck, route and load sheet, "
-           "and to open the evidence behind that kind of action on the right.")
-    return f'<section class="panel"><h3{tipattr(tip)}>To do before 08:00</h3><div class="todo">{"".join(groups)}</div></section>'
+        lis = "".join(f'<li class="todo-item"{" data-tech=" + chr(34) + i["tech"] + chr(34) if i["tech"] else ""}'
+                      f'{" data-call=" + chr(34) + str(i["job"]) + chr(34) if i["job"] else ""}'
+                      f'{tipattr(i["text"] + chr(10) + i["detail"], focus=True)}>{tag}{e(i["text"])}</li>' for i in items)
+        why = f"Why these items\nOpens the evidence card behind this kind of action: {titles[proof]}."
+        groups.append(f'<div class="todo-group"><h3>{e(owner)} · {e(items[0]["when"])} · {len(items)} '
+                      f'<a class="why" href="#proof-{proof}" data-proof="{proof}"{tipattr(why)}>evidence</a></h3><ul>{lis}</ul></div>')
+    tip = ("To do before 08:00\nWhat people act on, by owner. Click an item to light up its truck and open the call or the "
+           "load sheet it names in the plan below. Each owner's evidence link opens the card behind that kind of action.")
+    return (f'<section class="panel todo-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h2{tipattr(tip)}>To do before 08:00'
+            f'<span class="count">{plan.counted(len(d["todo"]), "item")}</span></h2><div class="todo box">{"".join(groups)}</div></section>')
 
 
-def morning_panel(d, ctx):
+def morning_panel(d, ctx, shown):
     m = d["morning"]
     items = []
 
@@ -949,14 +979,14 @@ def morning_panel(d, ctx):
                        + "</li>" for x in m["moved"] if x["from"] == tech)
     for tech in m["sick"]:
         n = sum(x["from"] == tech for x in m["moved"])
-        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(f"{tech} called out sick at {SICK_AT}" + chr(10) + "The night plan and the loads were already made, so each call moved by the same rule to a truck that could take it, using only the parts that truck carried. Click to see it on the board.")}>'
+        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(f"{tech} called out sick at {SICK_AT}" + chr(10) + "The night plan and the loads were already made, so each call moved by the same rule to a truck that could take it, using only the parts that truck carried. Click to see it on the board.", focus=True)}>'
                      f'<strong>{tech} called out sick at {SICK_AT}</strong>: {plan.counted(n, "call")} moved<ul>{moves(tech, True)}</ul></li>')
     for tech, when in m["broken"].items():
         n = sum(x["from"] == tech for x in m["moved"])
         broke_tip = (f"Truck {ctx.techs[tech]['truck']} broke down at {plan.clock(when)}\n"
                      f"{plan.counted(m['stranded'][tech], 'part').capitalize()} stranded with it. The calls it had not reached moved to other trucks. "
                      "Click to see it on the board.")
-        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(broke_tip)}>'
+        items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(broke_tip, focus=True)}>'
                      f'<strong>Truck {ctx.techs[tech]["truck"]} ({tech}) broke down at {plan.clock(when)}</strong>: '
                      f'{plan.counted(m["stranded"][tech], "part")} stranded, {plan.counted(n, "call")} moved<ul>{moves(tech, True)}</ul></li>')
     if not m["sick"] and not m["broken"]:
@@ -966,52 +996,57 @@ def morning_panel(d, ctx):
                  + (f', {up if up else "none"} of them escalated to urgent (&#9650; on the board)' if m["changed"] else "") + ".</li>")
     tip = (f"{SICK_AT} and after\nWhat changed after the plan was made: sick calls at {SICK_AT}, breakdowns during the day and "
            "priority changes. Switch the board to As the day ran to see each call move.")
-    return f'<section class="panel"><h3{tipattr(tip)}>{SICK_AT} and after: what changed</h3><ul class="morning">{"".join(items)}</ul></section>'
+    return (f'<section class="panel changed-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>{SICK_AT} and '
+            f'after: what changed</h3><ul class="morning">{"".join(items)}</ul></section>')
 
 
-def summary_tiles(d):
+def day_line(d, added, shown):
+    """The day in one line under the day buttons: its calls, how many were booked the night before and how many came in
+    on the day, then the plan against the current rules. added is the count of calls that came in on the day."""
     o, b = d["ours"], d["base"]
+    calls, rolled, theirs = int(o["calls"]), int(o["rolled"]), int(b["rolled"])
     saved = gap(b["served"] - b["fixes"], o["served"] - o["fixes"], 1)
-    rolled, theirs = int(o["rolled"]), int(b["rolled"])
-    return "".join([
-        tile("Booked calls", "rolled call", f"{int(o['calls'])}", f"on {len(d['trucks'])} trucks; {rolled if rolled else 'none'} rolled",
-             f"{int(o['calls'])} calls booked for {day_name(d['day'])}\nAll invented. "
+
+    def fact(value, words, tip):
+        return f'<span class="fact"{tipattr(tip)}><b>{e(value)}</b>{"" if words.startswith(",") else " "}{e(words)}</span>'
+    facts = [
+        fact(plan.counted(calls, "call"), f"on the day: {calls - added} booked the night before, {added} added on the day",
+             f"{plan.counted(calls, 'call')} on {day_name(d['day'])}\nAll invented. The night plan saw the {calls - added} booked by "
+             f"then; the other {added} came in during the day, after the plan was made. "
              + (f"{rolled} could not fit any route and {'rolls' if rolled == 1 else 'roll'} to tomorrow" if rolled else
                 "Every one fits a route")
              + f"; under the current rules {plan.counted(theirs, 'call')} {'rolls' if theirs == 1 else 'roll'}."),
-        tile("Fixed on the first visit", "first-time fix", f"{100 * o['fixes'] / o['calls']:.1f}%",
-             f"against {100 * b['fixes'] / b['calls']:.1f}% under the current rules",
-             f"{o['fixes']:.0f} of {int(o['calls'])} calls expected fixed first time\nThe current rules, the nearest technician on "
+        fact(plan.counted(len(d["trucks"]), "truck"), f", with {plan.counted(rolled, 'call') if rolled else 'no call'} rolled to tomorrow",
+             f"{plan.counted(len(d['trucks']), 'truck')}, one to a technician\n{GLOSSARY['rolled call']}"),
+        fact(f"{100 * o['fixes'] / o['calls']:.1f}%", f"fixed on the first visit, against {100 * b['fixes'] / b['calls']:.1f}% under the current rules",
+             f"{o['fixes']:.0f} of {calls} calls expected fixed first time\nThe current rules, the nearest technician on "
              f"today's fixed stock: {b['fixes']:.0f}. Same calls, same sick calls and breakdowns, both on Claude's codes."),
-        tile("Repeat visits avoided", "repeat visit", f"{saved:.1f}", f"at a made-up {dollars(load.REPEAT_VISIT)} each",
+        fact(f"{saved:.1f}", f"repeat visits avoided, at a made-up {dollars(load.REPEAT_VISIT)} each",
              f"Expected: {fewer(saved)}\nCost a call {cents(o['cost'] / o['served'])} "
              f"against {cents(b['cost'] / b['served'])}."),
-        tile("Parts moved tonight", "load sheet", f"{d['moves']}", "put on or taken off at the centers",
-             f"{d['moves']} parts moved overnight across the fleet\nA truck keeps a part only while it is worth more than its "
-             "space, its holding cost and a move.")])
+        fact(f"{d['moves']}", "parts moved tonight",
+             f"{d['moves']} parts put on or taken off overnight across the fleet\nA truck keeps a part only while it is worth "
+             "more than its space, its holding cost and a move.")]
+    return f'<p class="dayline" data-day="{d["day"]}"{"" if shown else " hidden"}>{" · ".join(facts)}</p>'
 
 
-def day_section(d, ctx, centers, shown, chosen):
-    views = (("night", "Plan at night", "Routes and loads as planned the night before, from the booked calls."),
-             ("ran", "As the day ran", f"After the {SICK_AT} sick calls, the breakdowns, the calls added on the day and the priority changes."))
-    pick = "".join(f'<button class="vbtn{" on" if v == "night" else ""}" data-view="{v}"{tipattr(t + chr(10) + h)}>{t}</button>' for v, t, h in views)
+def board_panel(d, ctx, shown):
+    """One day's board, as planned at night and as the day ran, with the legend for the view that shows."""
+    def key(name, mark=""):
+        return f'<span><span class="sw {mark}"></span>{name}</span>'
     legend = ('<p class="legend-line"' + tipattr("Reading the board\nEach block is a call, from its start to its end. Its shade is "
               "the plan's first-time fix chance. Marks show what Claude asked, what moved, what was added and what went wrong.")
-              + '>First-time fix chance: <span class="sw c1"></span>under 50% <span class="sw c2"></span>50% <span class="sw c3"></span>70% '
-              '<span class="sw c4"></span>80% <span class="sw c5"></span>90%+ · <span class="sw ai-sw"></span>Claude asked · '
-              '<span class="sw moved-sw"></span>moved · <span class="sw unpl-sw"></span>added on the day · '
-              '<span class="sw miss-sw"></span>part missing · &#9650; escalated</p>')
-    sheets = "".join(sheet_html(d, tech, ctx, tech == chosen) for tech in ctx.crew.techs)
-    heading = "The plan for " + day_name(d["day"])
-    return (f'<section class="day" data-day="{d["day"]}"{"" if shown else " hidden"}>'
-            f'<h2{tipattr(heading + chr(10) + "An invented day, coded by Claude and planned call by call.")}>{e(heading)} '
-            f'<span class="invented"{tipattr("Invented day" + chr(10) + "Every call, technician, part and figure on this day is invented. The method is real.")}>invented</span></h2>'
-            f'<div class="tiles small">{summary_tiles(d)}</div>{ai_panel(d, ctx)}{todo_panel(d)}{morning_panel(d, ctx)}'
-            f'<section class="panel"><h3{tipattr("Routes and the board" + chr(10) + "Click a technician, a block or a route to light up that truck everywhere.")}>Routes and the board</h3>'
-            f'<div class="switch">{pick}</div><div class="mapboard">{route_map(d, ctx, centers)}<div>{board(d, ctx, "night")}'
-            f'{board(d, ctx, "ran")}</div></div>{legend}</section>'
-            f'<section class="panel"><h3{tipattr("Load sheet" + chr(10) + "The chosen truck: what the parts room loads tonight, and the route it runs tomorrow.")}>'
-            f'Load sheet{q("load sheet")}</h3>{sheets}</section></section>')
+              + '><span>First-time fix chance:</span>' + key("under 50%", "c1") + key("50%", "c2") + key("70%", "c3") + key("80%", "c4")
+              + key("90%+", "c5") + f'<span class="v-night">{key("Claude asked", "c2 ai")}</span><span class="v-ran">'
+              + key("moved", "c2 moved") + key("added on the day", "c2 unpl") + key("part missing", "c2 miss")
+              + key("escalated to urgent", "c2 up") + '</span></p>')
+    calls, ran = (sum(len(t[k]) for t in d["trucks"].values()) for k in ("calls", "ran"))
+    count = (f'<span class="count v-night">{calls} calls on {len(d["trucks"])} trucks</span>'
+             f'<span class="count v-ran">{ran} calls on {len(d["trucks"])} trucks</span>')
+    tip = ("The board\nEach row is a technician from " + plan.clock(0) + " to " + plan.clock(dispatch.DAY) + " and each block "
+           "a call. Click a call to open it beside the board. Click a technician to light up that truck and open its load sheet.")
+    return (f'<section class="panel board-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>The board{count}</h3>'
+            f'{board(d, ctx, "night")}{board(d, ctx, "ran")}{legend}</section>')
 
 
 def day_proof(d, shown):
@@ -1040,12 +1075,12 @@ def day_proof(d, shown):
     saved = gap(b["served"] - b["fixes"], o["served"] - o["fixes"], 1)
     tip = (f"{day_name(d['day'])}, against the current rules\nBoth replays of this day run on Claude's codes, with the same sick "
            "calls, breakdowns and calls added on the day.")
-    return (f'<div class="card day-proof" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
+    return (f'<section class="panel day-proof" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
             f'{e(day_name(d["day"]))}, against the current rules</h3><p class="sub">Both on Claude\'s codes, with the same surprises.</p>'
-            f'<table class="cmp"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+            f'<div class="scroll"><table class="cmp"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
             f'<p class="do"><strong>What it means:</strong> on this invented day the plan expects {fewer(saved)}. '
             f'That is how the method does on invented data, not a result: the same comparison on real history is the first '
-            f'thing to run.</p></div>')
+            f'thing to run.</p></section>')
 
 
 def tech_card(tech, ctx, shown):
@@ -1053,14 +1088,25 @@ def tech_card(tech, ctx, shown):
     skills = sorted((t, r, s) for (x, t), (r, s) in ctx.crew.belief.items() if x == tech)
     head = "".join(f"<th{tipattr(t + chr(10) + h)}>{e(t)}</th>" for t, h in (
         ("Appliance", "An appliance this technician can repair."), ("Fixes first time", "Their success rate with the parts aboard, learned from the training history."),
-        ("Speed", "Their repair time against an average technician's; below 1 is faster.")))
+        ("Speed", "Their repair time against an average technician's; below 1 is faster. It is given to the rule, not "
+                  "learned, because the invented history records no repair minutes.")))
     body = "".join(f"<tr><td>{e(t)}</td><td>{r:.0%}</td><td>{s:.2f}</td></tr>" for t, r, s in skills)
     tip = f"{tech}\nThe chosen technician: what the dispatch rule knows about them. Choose another on the board or the map."
-    return (f'<div class="card tech-card" data-tech-card="{tech}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
+    return (f'<div class="tech-card" data-tech-card="{tech}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
             f'{tech} · {e(info["level"])} {e(info["profile"])}{", certified" if info["certified"] else ""}, truck {info["truck"]}</h3>'
             f'<table class="cmp"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
-            f'<p class="do"><strong>Why it matters:</strong> each call goes to the technician with the lowest expected cost, so '
-            f'a specialist fast and sure on one appliance draws those calls even from farther away.</p></div>')
+            f'<p class="sub">Each call goes to the technician with the lowest expected cost, so a specialist fast and sure '
+            f'on one appliance draws those calls even from farther away.</p></div>')
+
+
+def detail_panel(week, ctx, chosen):
+    """What a click opens, beside the board: the call, then the chosen technician and that truck's load sheet."""
+    cards = "".join(tech_card(t, ctx, t == chosen) for t in ctx.crew.techs)
+    sheets = "".join(f'<div class="sheets" data-day="{d["day"]}"{"" if d["day"] == week["open"] else " hidden"}>'
+                     + "".join(sheet_html(d, t, ctx, t == chosen) for t in ctx.crew.techs) + "</div>" for d in week["days"])
+    return ('<section class="detail" id="detail" aria-label="The opened call, its technician and the truck\'s load sheet">'
+            '<div class="call-open" aria-live="polite"><p class="empty">No call is open. Click a call on the board and '
+            f'it opens here.</p></div>{cards}{sheets}</section>')
 
 
 def build_report(results, week, stamp_text, day):
@@ -1204,7 +1250,10 @@ def build_report(results, week, stamp_text, day):
     this_week = {d["day"] for d in week["days"]}
     stuck_week = [r for r in results["backorder_exposure"][1] if r[0] in this_week]
 
+    titles = {}    # each evidence card's heading by its query, for the links that open it
+
     def card(name, heading, text, fig, do):
+        titles[name] = heading
         tip = f"{heading}\nSource: sql/metrics/{name}.sql. {about(name)}"
         return (f'<section class="card" id="proof-{name}"><h3{tipattr(tip)}>{e(heading)}</h3><p>{text}</p>{fig}'
                 f'<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
@@ -1275,7 +1324,7 @@ def build_report(results, week, stamp_text, day):
             figure("inventory_roi", "Cost a truck-day: repeat visits, parts moved overnight, and money tied up", load_bars,
                    results["inventory_roi"]),
             "switch the overnight load from a fixed stock list to tomorrow's booked calls, so the parts room works from a load "
-            "sheet per truck like the one on the left."),
+            "sheet per truck, like the one the plan opens beside the board."),
         card("ai_step", "Claude coding the bookings", join(
             f"{triage.MODEL_NAME} ({triage.MODEL}) reads the customer's own words and picks a problem code with a confidence. "
             "On that code alone its 3-part list covers ",
@@ -1411,34 +1460,46 @@ def build_report(results, week, stamp_text, day):
             "run every control on its own history before crediting a gain, and credit a gain to a link only where "
             "breaking that link takes the gain away."),
     ]
-    adopt = ('<section class="card"><h3' + tipattr("How a fleet would adopt it\nThe order I would run it in on real history, "
-             "each step with the result that decides the next.") + '>How a fleet would adopt it</h3><ol class="steps">'
+    adopt = ('<section class="panel"><h2' + tipattr("How a fleet would adopt it\nThe order I would run it in on real history, "
+             "each step with the result that decides the next.") + '>How a fleet would adopt it</h2><ol class="steps">'
              '<li><strong>Back-test on its own history.</strong> The same replay on real calls, parts and technicians, before '
              'any truck changes. If the gains vanish there, it stops here.</li>'
              '<li><strong>Pilot one region.</strong> Load and dispatch one region by this plan for six weeks against a matched '
              'region left as it is, and compare first-time fix, parts-caused repeat visits and stock value.</li>'
              '<li><strong>Roll out region by region.</strong> Each region goes live only after the one before it beat its match.</li></ol></section>')
-    limits = ('<section class="card"><h3' + tipattr("What this shows, and what it does not\nThe instruction manual's last sections "
-              "list every limit; the methods page names each corner cut on purpose and its upgrade.") + '>What this shows, and what it does not</h3>'
-              f'<p>The plan on the left runs on Claude\'s codes for one invented week. The evidence above runs on the call-taker\'s '
-              f'booked codes for all {world.TEST_DAYS} held-back days, so it measures the planning apart from the reading. Every '
-              f'result reproduces from one seed, and each gain is shown beside a control that breaks the link it should come '
-              f'from: {len(controls) - len(held)} of the {len(controls)} fall back, and the last card above names the '
+    limits = ('<section class="panel"><h2' + tipattr("What this shows, and what it does not\nThe instruction manual's last sections "
+              "list every limit; the methods page names each corner cut on purpose and its upgrade.") + '>What this shows, and what it does not</h2>'
+              f'<p>The plan for each day runs on Claude\'s codes, over one invented week. The scorecard and the evidence run on the '
+              f'call-taker\'s booked codes for all {world.TEST_DAYS} held-back days, so they measure the planning apart from the '
+              f'reading. Every result reproduces from one seed, and each gain is shown beside a control that breaks the link it '
+              f'should come from: {len(controls) - len(held)} of the {len(controls)} fall back, and the last evidence card names the '
               f'{"one that does" if len(held) == 1 else "ones that do"} not. None of it shows the gains on a real fleet, '
               f'because the history is invented. The method cuts {len(method_corners())} corners on purpose, each marked in '
               f'the code and <a href="{FILES["method"]}#corners" target="_blank" rel="noopener">listed on the methods page</a> '
               'with the upgrade that would lift it. Among them: counting instead of a trained model, zone-to-zone drive '
               'times instead of road routing, and a call-by-call night plan instead of a solver.</p></section>')
 
+    def pressed(on):
+        return f' aria-pressed="{"true" if on else "false"}"'
+
+    def shown(d):
+        return d["day"] == open_day
     dbtn = []
     for d in week["days"]:
         m = d["morning"]
         sick, broken = len(m["sick"]), len(m["broken"])
-        tip = (f"{day_name(d['day'])}\n{int(d['ours']['calls'])} calls; "
-               + (f"{sick} sick call{'s' * (sick > 1)}" if sick else "no sick calls") + ", "
-               + (f"{broken} breakdown{'s' * (broken > 1)}" if broken else "no breakdowns") + ".")
-        dbtn.append(f'<button class="day-btn{" on" if d["day"] == open_day else ""}" data-day="{d["day"]}"{tipattr(tip)}>'
-                    f'{e(day_name(d["day"]))}{"<i class=ev-s>&#10010;</i>" * sick}{"<i class=ev-b>&#9888;</i>" * broken}</button>')
+        name = day_name(d["day"])
+        events = ((f"{sick} sick call{'s' * (sick > 1)}" if sick else "no sick calls") + ", "
+                  + (f"{broken} breakdown{'s' * (broken > 1)}" if broken else "no breakdowns"))
+        weekday, _, date = name.replace(",", "").split()
+        tip = f"{name}\n{int(d['ours']['calls'])} calls; {events}."
+        dbtn.append(f'<button type="button" class="day-btn" data-day="{d["day"]}" data-name="{e(name)}"{pressed(shown(d))} '
+                    f'aria-label="{e(name)}: {events}"{tipattr(tip)}>'
+                    f'{weekday} {date}{"<i class=ev-s>&#10010;</i>" * sick}{"<i class=ev-b>&#9888;</i>" * broken}</button>')
+    views = (("night", "Plan at night", "Routes and loads as planned the night before, from the calls booked by then."),
+             ("ran", "As the day ran", f"After the {SICK_AT} sick calls, the breakdowns, the calls added on the day and the priority changes."))
+    vbtn = "".join(f'<button type="button" class="vbtn" data-view="{v}"{pressed(v == "night")}{tipattr(t + chr(10) + h)}>{t}</button>'
+                   for v, t, h in views)
     steps = "".join(f'<li{tipattr(t + chr(10) + h)}><strong>{e(t)}</strong>{e(s)}</li>' for t, s, h in (
         ("1. Claude codes every booking.", "It reads the customer's own words and picks the problem, asking one question when unsure.",
          f"{triage.MODEL_NAME}, on answers made once by the model and saved with the code. The AI at booking panel shows each unsure call."),
@@ -1446,22 +1507,42 @@ def build_report(results, week, stamp_text, day):
          "The dispatch rule and the balanced truck, replayed call by call. The board, the map and the load sheet show it."),
         ("3. People act before 08:00.", "The parts room loads, the call center and dispatch ring customers, the buyer chases back-orders.",
          "The to-do list names each action, its owner and the truck or call it concerns.")))
-    madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}, with wrong descriptions, thin model histories and "
-              "patternless failures planted on purpose. No real company, customer, part or technician.")
-    week_tip = (f"Day\nThe most recent {plan.WEEK} held-back days, not hand-picked. The page opens on the most recent day with "
-                "a sick call and a breakdown that both moved calls. &#10010; marks a sick call, &#9888; a breakdown.")
-    sides = "".join(f'<button class="side-btn{" on" if s == "plan" else ""}" data-side="{s}"{tipattr(t + chr(10) + h)}>{t}</button>'
-                    for s, t, h in (("plan", "Plan", "What to do tonight."), ("proof", "Proof", "Why the plan beats the current rules.")))
-    intro = (f'<div class="intro"><ol class="how">{steps}</ol><div class="pickers"><span class="pick-label"{tipattr(html.unescape(week_tip))}>'
-             f'Day</span>{"".join(dbtn)}<span class="invented"{tipattr(madeup)}>every name and figure is invented; the method is real</span>'
-             f'<span class="sides">{sides}</span></div></div>')
-    left = "".join(day_section(d, ctx, week["centers"], d["day"] == open_day, chosen) for d in week["days"])
-    across = scorecard(results)
-    right = ("".join(day_proof(d, d["day"] == open_day) for d in week["days"])
-             + "".join(tech_card(t, ctx, t == chosen) for t in ctx.crew.techs) + across + "".join(proof) + adopt + limits)
-    body = (f'{intro}<div class="panes"><div class="pane plan-pane"><p class="pane-label">The plan · one invented week, '
-            f'on Claude\'s codes</p>{left}</div><div class="pane proof-pane"><p class="pane-label">The proof · why it beats '
-            f'the current rules</p>{right}</div></div>')
+    week_tip = (f"The plan for one day\nAn invented day, coded by Claude and planned call by call. The buttons pick one of the "
+                f"most recent {plan.WEEK} held-back days, which are not hand-picked. The page opens on the most recent day with "
+                "a sick call and a breakdown that both moved calls. ✚ marks a sick call, ⚠ a breakdown.")
+    added = Counter(j["day"] for j in week["jobs"] if j["unplanned"])    # the calls that came in on each day
+    daybar = (f'<div class="daybar" id="plan"><h2{tipattr(week_tip)}>The plan for <span class="day-name">{e(day_name(open_day))}</span></h2>'
+              f'<div class="days" role="group" aria-label="Day">{"".join(dbtn)}</div>'
+              f'<div class="views" role="group" aria-label="Board view">{vbtn}</div>'
+              + "".join(day_line(d, added[d["day"]], shown(d)) for d in week["days"]) + "</div>")
+    todos = "".join(todo_panel(d, shown(d), titles) for d in week["days"])
+    boards = "".join(board_panel(d, ctx, shown(d)) for d in week["days"])
+    maps = "".join(route_map(d, ctx, week["centers"], shown(d)) for d in week["days"])
+    asked = "".join(ai_panel(d, ctx, shown(d)) for d in week["days"])
+    changed = "".join(morning_panel(d, ctx, shown(d)) for d in week["days"])
+    compared = "".join(day_proof(d, shown(d)) for d in week["days"])
+    evidence_tip = (f"The evidence\n{len(proof)} cards over all {world.TEST_DAYS} held-back days. Each has its chart, the table "
+                    "the chart is drawn from, and its control.")
+    evidence = (f'<section class="evidence-head" id="evidence"><h2{tipattr(evidence_tip)}>The evidence</h2>'
+                f'<p class="sub">{len(proof)} cards over all {world.TEST_DAYS} held-back days, on the call-taker\'s booked codes, '
+                f'so they measure the planning apart from the reading. Each has its chart, the table the chart is drawn from, '
+                f'and its control.</p></section><div class="evidence">{"".join(proof)}</div>')
+    out = ' target="_blank" rel="noopener"'
+    run_tip = "Run it yourself\nThe two commands that rebuild and check everything on this page, and where the code is kept."
+    run = (f'<section class="panel" id="run"><h2{tipattr(run_tip)}>Run it yourself</h2>'
+           f'<p>Staple needs Python {PYTHON[0]}.{PYTHON[1]} or newer and installs nothing. <code>python run.py</code> invents the '
+           f'history and builds every figure and page here. <code>python check.py</code> then checks them, and plants faults to '
+           f'prove its checks can fail. The code is at <a href="{REPO}"{out}>{REPO.split("//")[1]}</a>, and the '
+           f'<a href="{FILES["manual"]}#run"{out}>instruction manual</a> walks through a first run.</p>'
+           f'<p>Designed and directed by <a href="{SITE}"{out}>{AUTHOR}</a>, built with Claude Code.</p></section>')
+    # The arrow a chosen route wears on each leg, drawn once here and used by every day's map.
+    arrow = ('<svg class="defs" aria-hidden="true" focusable="false"><defs><marker id="leg" viewBox="0 0 8 8" refX="4" refY="4" '
+             'markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path class="leg" d="M1 1 7 4 1 7z"/>'
+             '</marker></defs></svg>')
+    body = (f'{arrow}<div class="grid split-top">{scorecard(results)}<div class="slot">{todos}</div></div>{daybar}'
+            f'<div class="grid work"><div class="grid">{boards}{compared}</div><div class="grid">{detail_panel(week, ctx, chosen)}{maps}</div></div>'
+            f'<div class="grid two"><div class="grid">{asked}</div><div class="grid">{changed}</div></div>'
+            f'<ol class="how">{steps}</ol>{evidence}<div class="grid pair">{adopt}{limits}</div>{run}')
     return shell("report", "Staple report", LEDE, body, stamp_text, day, chosen)
 
 

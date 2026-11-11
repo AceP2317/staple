@@ -2379,11 +2379,12 @@ def corners_listed():
 
 class Hints(HTMLParser):
     """Every element a reader would hover that carries no hint. A dotted value may borrow its cell's hint;
-    everything else must carry its own, because the hover layer shows the innermost hint it finds."""
+    everything else must carry its own, because the hover layer shows the innermost hint it finds. A drawing
+    marked as hidden from readers, such as the arrow the maps share, is never hovered and needs none."""
     VOID = {"meta", "br", "img", "input", "hr", "link", "wbr"}
     CLASSES = {"tile", "bar-row", "key", "madeup", "hv", "q", "btn", "build-stamp", "content-day", "fig-title",
-               "blk", "stop", "who", "ask", "todo-item", "evt", "day-btn", "side-btn", "vbtn", "lane-note", "brk",
-               "invented", "pick-label", "legend-line"}
+               "blk", "stop", "who", "ask", "todo-item", "evt", "day-btn", "vbtn", "lane-note", "brk",
+               "invented", "legend-line", "fact", "why"}
 
     def __init__(self, tags):
         super().__init__()
@@ -2393,7 +2394,7 @@ class Hints(HTMLParser):
         a = dict(attrs)
         own = "data-tip" in a or (tag == "svg" and "data-curve" in a)
         classes = set((a.get("class") or "").split())
-        needs = tag in self.tags or bool(classes & self.CLASSES)
+        needs = (tag in self.tags and a.get("aria-hidden") != "true") or bool(classes & self.CLASSES)
         covered = own or ("hv" in classes and any(t for _, t in self.stack))
         if needs and not covered:
             self.missing.append(f"<{tag} class=\"{a.get('class') or ''}\"> at line {self.getpos()[0]}")
@@ -2410,6 +2411,11 @@ def missing_hints(page, kind):
     parser = Hints({"h1", "summary", "svg"} | ({"h2", "th"} if kind == "report" else set()))
     parser.feed(page)
     return parser.missing
+
+
+# What a page would load from another site as it opens: a script, a stylesheet, a picture or a font. A link a
+# reader chooses to follow is not one, so an <a> is left out.
+FETCHED = r"""<(?!a[\s>])[a-z][a-z0-9]*\b[^>]*?\s(?:src|href)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//|@import"""
 
 
 def page_faults(page, pattern, kind="report"):
@@ -2436,7 +2442,7 @@ def page_faults(page, pattern, kind="report"):
         faults.append(f"{len(missing)} elements without a hint, first {missing[0]}")
     if "{{" in page:
         faults.append("a placeholder left unfilled")
-    if re.search(r"""(?:src|href)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//|@import""", page):
+    if re.search(FETCHED, page):
         faults.append("something fetched from the network")
     style = re.search(r"<style>(.*?)</style>", page, re.S)
     faults += selected_faults(style.group(1)) if style else ["no styles"]
@@ -2485,13 +2491,14 @@ def contrast(a, b):
 
 def selected_faults(css):
     """Selected states that would not stand out. In every scheme a selected fill or edge must reach 3:1 against the
-    page and the panels, the accessibility floor for a control's state, and selected text 4.5:1 against its fill."""
+    page and the panels, the accessibility floor for a control's state, and selected text 4.5:1 against its fill. A
+    pressed switch is a selected state, and a button on the band is measured against the band."""
     themes = schemes(css)
     if set(themes) != {"light", "dark"}:
         return [f"color schemes found: {sorted(themes)}, not just light and dark"]
     faults = []
     for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
-        if not re.search(r"\.(?:on|sel)\b", selector):
+        if not re.search(r'\.(?:on|sel)\b|\[aria-pressed="true"\]', selector):
             continue
         fill = re.search(r"background(?:-color)?:\s*var\((--[\w-]+)\)", body)
         marks = re.findall(r"(?:background(?:-color)?|border[\w-]*|outline|box-shadow):[^;}]*?var\((--[\w-]+)\)", body)
@@ -2499,12 +2506,13 @@ def selected_faults(css):
             continue
         ink = re.search(r"(?<![-\w])color:\s*var\((--[\w-]+)\)", body)
         where = selector.strip().split(",")[0]
+        grounds = ["--band"] if ".btn" in selector or ".band" in selector else ["--page", "--surface"]
         for name, t in themes.items():
-            colors = [t.get(m, "").strip() for m in marks + ([ink[1]] if ink else [])] + [t["--page"], t["--surface"]]
+            colors = [t.get(m, "").strip() for m in marks + ([ink[1]] if ink else []) + grounds]
             if not all(re.fullmatch(r"#[0-9a-fA-F]{6}", c) for c in colors):
                 faults.append(f"{where} in {name}: a color that is not a plain hex code, so it cannot be measured")
                 continue
-            best = max(min(contrast(t[m], t["--page"]), contrast(t[m], t["--surface"])) for m in marks)
+            best = max(min(contrast(t[m], t[g]) for g in grounds) for m in marks)
             if best < 3:
                 faults.append(f"{where} in {name}: selected stands out only {best:.2f}:1 from the page and panels")
             if fill and ink and contrast(t[ink[1]], t[fill[1]]) < 4.5:
@@ -2515,7 +2523,7 @@ def selected_faults(css):
 def opening_faults(page):
     """What the day the page opens on must show of its morning: a sick technician's hatched row, a broken-down
     truck's marker, and calls tagged with the technician they moved from."""
-    shown = re.findall(r'<section class="day" data-day="[^"]+">(.*?)(?=<section class="day"|<div class="pane proof-pane")', page, re.S)
+    shown = re.findall(r'<section class="panel board-panel" data-day="[^"]+">(.*?)</section>', page, re.S)
     if len(shown) != 1:
         return [f"{len(shown)} days shown at once"]
     day = shown[0]
@@ -2666,8 +2674,10 @@ def report_check():
         print(f"  the page opens on {week['open']}: {'; '.join(shows) or 'a sick row, a broken-down truck and moved calls on its board'}")
         require(not shows, f"the opening day does not show its morning: {shows}")
         quiet = next(d["day"] for d in week["days"] if not d["morning"]["sick"] and not d["morning"]["broken"])
-        swapped = page.replace(f'<section class="day" data-day="{week["open"]}">', f'<section class="day" data-day="{week["open"]}" hidden>', 1)
-        swapped = swapped.replace(f'<section class="day" data-day="{quiet}" hidden>', f'<section class="day" data-day="{quiet}">', 1)
+        board = '<section class="panel board-panel" data-day="{}"{}>'
+        swapped = page.replace(board.format(week["open"], ""), board.format(week["open"], " hidden"), 1)
+        swapped = swapped.replace(board.format(quiet, " hidden"), board.format(quiet, ""), 1)
+        require(swapped != page and swapped.count(" hidden>") == page.count(" hidden>"), "control: the two days' boards were not swapped")
         require(opening_faults(swapped), "control: a page opening on a day with no sick call or breakdown passed")
         print(f"  control: a page opening on {quiet}, which had no sick call or breakdown, is refused")
 
@@ -2691,7 +2701,7 @@ def report_check():
         require(any("photographed from other words" in f for f in reworded), "control: a card older than its words passed")
         print("  control: a share card photographed before its words changed is refused")
 
-        tip = r'data-tip="[^"]*" tabindex="0"'
+        tip = r'data-tip="[^"]*"'
         planted = {"stamp taken out": re.sub(r'(<span class="build-stamp"[^>]*>)[^<]*', r"\1nothing", page, count=1),
                    "a made-up label taken out": re.sub(r'<span class="madeup"[^>]*>made-up data</span>', "", page, count=1),
                    "a script fetched from the network": page.replace("<script>", '<script src="https://example.com/x.js"></script><script>', 1),
@@ -2699,8 +2709,10 @@ def report_check():
                    "a dotted value's hint taken off": re.sub(rf'<span class="hv" {tip}>', '<span class="hv">', page, count=1),
                    "a placeholder left in": page.replace("</main>", "{{seed}}</main>", 1),
                    "a selected button the color of the page in dark mode": page.replace(
-                       ".vbtn.on{background:var(--s1);color:var(--on-hi);border-color:var(--s1)",
-                       ".vbtn.on{background:var(--band);color:var(--band-ink);border-color:var(--band)", 1),
+                       '.vbtn[aria-pressed="true"]{background:var(--s1);color:var(--on-hi);border-color:var(--s1)',
+                       '.vbtn[aria-pressed="true"]{background:var(--band);color:var(--band-ink);border-color:var(--band)', 1),
+                   "a stylesheet fetched from the network": page.replace(
+                       "<style>", '<link rel="stylesheet" href="https://example.com/x.css"><style>', 1),
                    "a page that opens dark": page.replace('<html lang="en" data-theme="light">', '<html lang="en" data-theme="dark">', 1),
                    "the light/dark switch taken out": re.sub(r"<button[^>]*data-theme-toggle.*?</button>", "", page, count=1, flags=re.S),
                    "the tab icon taken out": page.replace('<link rel="icon" href="icon.svg"', '<link rel="x" href="none.svg"', 1),
@@ -2716,6 +2728,380 @@ def report_check():
             (drifted / name).write_text(changed, encoding="utf-8")
         require(stale_pages(pages, drifted) == ["index.html"], "control: a published copy with one figure changed passed as current")
         print("  control: a published copy with one figure changed is refused as stale")
+
+
+PHONE = 360                         # px: the narrow screen the pages are held to
+TEXT_FLOOR, LABEL_FLOOR = 14, 12    # px: the smallest text anywhere, and the smallest label on the board
+TAB_STOPS = 150                     # the report's Tab order holds fewer stops than this, on any day and view
+BOARD_LABELS = {"board", "ticks", "blk", "lane-note", "brk", "who"}    # the classes whose text is a label on the board
+SURFACES = ("--page", "--surface", "--tint", "--code")    # what ordinary text sits on
+GROUNDS = ("--page", "--surface", "--tint")               # what a mark is seen against
+RULE = r"@(?:media|container)\s*([^{]+)\{((?:[^{}]*\{[^{}]*\})*)\s*\}|@keyframes[^{]+\{(?:[^{}]*\{[^{}]*\})*\s*\}|([^{}@]+)\{([^{}]*)\}"
+SIZE = re.compile(r"(?:font-size:\s*|(?<![-\w])font:\s*(?:[^;}]*?\s)?)(\d*\.?\d+)(px|rem|em|pt|%)")
+MARKS = (   # every mark a reader must tell apart: what it is, its rule's selector, the property that draws it, its color
+    ("a call's edge", ".blk", "border", "--edge"),
+    ("a legend swatch's edge", ".sw", "border", "--edge"),
+    ("the corner on a call Claude asked about", ".blk.ai::before,.sw.ai::before", "background", "--ask"),
+    ("the ring on a moved call", ".blk.moved,.sw.moved", "box-shadow", "--warn"),
+    ("the dashed edge of a call added on the day", ".blk.unpl,.sw.unpl", "border", "--edge"),
+    ("the bar under a visit missing a part", ".blk.miss,.sw.miss", "box-shadow", "--crit"),
+    ("the triangle on an escalated call", ".blk.up::after,.sw.up::after", "border", "--ink"),
+    ("the outline of the open call", ".blk.on", "outline", "--ink"),
+    ("a chart bar", ".bar", "background", "--dim"),
+    ("the leading chart bar", ".lead .bar", "background", "--s1"),
+    ("the confidence meter", ".conf i", "background", "--s1"),
+    ("a route", ".rt polyline", "stroke", "--s1"),
+    ("the arrow on a route's leg", ".leg", "fill", "--s1"),
+    ("a stop", ".rt .stop", "stroke", "--s1"),
+    ("a stop Claude asked about", ".rt .stop.ai", "stroke", "--ask"),
+    ("a moved stop", ".rt .stop.moved", "stroke", "--warn"),
+    ("the line to a moved stop", ".rt .hand", "stroke", "--warn"),
+    ("a zone's edge", ".map .zone", "stroke", "--edge"),
+    ("a switch's edge", ".day-btn,.vbtn", "border", "--edge"),
+    ("the keyboard's focus ring", ":focus-visible", "outline", "--s1"),
+)
+
+
+def css_rules(css):
+    """Every rule of a stylesheet as (the media query it sits in, its selector, its declarations)."""
+    found = []
+    for m in re.finditer(RULE, css):
+        if m.group(3):
+            found.append(("", m.group(3).strip(), m.group(4)))
+        elif m.group(1):
+            found += [(m.group(1).strip(), s.strip(), b) for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", m.group(2))]
+    return found
+
+
+class Drawn(HTMLParser):
+    """What a page draws, for the readable check: each drawing with its width in its own units and whether it sits
+    in a box that scrolls sideways, the classes of the text inside each drawing, and every stop in the Tab order
+    with the day and the view it belongs to."""
+
+    def __init__(self):
+        super().__init__()
+        self.stack, self.svgs, self.texts, self.stops, self.days, self.sized_inline = [], {}, {}, [], set(), 0
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        classes = set((a.get("class") or "").split())
+        self.sized_inline += "font-size" in (a.get("style") or "")
+        if tag == "svg" and "viewbox" in a:    # the parser hands every attribute name over in lower case
+            self.svgs[" ".join(sorted(classes))] = (float(a["viewbox"].split()[2]), any("scroll" in c for _, c, _ in self.stack))
+        inside = next((c for t, c, _ in reversed(self.stack) if t == "svg"), None)
+        if tag == "text" and inside is not None:
+            self.texts.update({c: " ".join(sorted(inside)) for c in classes})
+        chain = self.stack + [(tag, classes, a)]
+        scoped = [x["data-day"] for _, c, x in chain if "data-day" in x and "day-btn" not in c]
+        self.days.update(scoped)
+        if tag in ("button", "summary", "input", "select", "textarea") or (tag == "a" and "href" in a) or a.get("tabindex") == "0":
+            view = next((v for _, c, _ in chain for v in ("night", "ran") if "v-" + v in c), None)
+            hidden = any("hidden" in x and "data-day" not in x for _, _, x in chain)
+            self.stops.append((scoped[-1] if scoped else None, view, hidden))
+        if tag not in Hints.VOID:
+            self.stack.append((tag, classes, a))
+
+    def handle_endtag(self, tag):
+        while self.stack:
+            if self.stack.pop()[0] == tag:
+                break
+
+
+def drawn(page):
+    parser = Drawn()
+    parser.feed(page)
+    return parser
+
+
+def text_sizes(css, pages):
+    """Every text size the styles set for the screen, as (the px a reader sees at the least, its floor, where), then
+    what could not be measured. A drawing's text is sized in the drawing's own units, so it is taken at the drawing's
+    least width; text on the board is a label and has the lower floor. Print sizes are left out."""
+    from staple import report
+    rules, unread, sizes = css_rules(css), [], []
+    if re.sub(RULE, "", css).strip():
+        unread.append("a part of the stylesheet this check cannot read")
+    svgs, texts = {}, {}
+    for page in pages:
+        d = drawn(page)
+        svgs.update(d.svgs)
+        texts.update(d.texts)
+        if d.sized_inline:
+            unread.append(f"{d.sized_inline} text sizes written on elements, outside the stylesheet")
+    least = {s[1:]: int(m.group(1)) for media, s, b in rules if not media and re.fullmatch(r"\.[\w-]+", s)
+             for m in [re.search(r"(?<![-\w])min-width:\s*(\d+)px", b)] if m}
+    for media, selector, body in rules:
+        if "print" in media:
+            continue
+        for size, unit in SIZE.findall(body):
+            if unit not in ("px", "rem"):
+                unread.append(f"{selector}: a text size in {unit}, which depends on what holds it")
+                continue
+            px = float(size) * (16 if unit == "rem" else 1)
+            for part in selector.split(","):
+                names = set(re.findall(r"\.([\w-]+)", part))
+                drawing = next((texts[n] for n in sorted(names) if n in texts), None)
+                if drawing is None:
+                    sizes.append((px, LABEL_FLOOR if names & BOARD_LABELS else TEXT_FLOOR, part.strip()))
+                elif drawing not in least:
+                    unread.append(f"{part.strip()}: its drawing .{drawing} sets no least width, so its text has no least size")
+                else:
+                    width, scrolls = svgs[drawing]
+                    if least[drawing] > report.PHONE_COLUMN and not scrolls:
+                        unread.append(f".{drawing}: wider than a phone's column and not in a box that scrolls sideways")
+                    sizes.append((px * least[drawing] / width, TEXT_FLOOR, f"{part.strip()} in .{drawing} at {least[drawing]} px wide"))
+    return sizes, unread
+
+
+def text_faults(css, pages):
+    sizes, unread = text_sizes(css, pages)
+    return unread + [f"{where}: {px:.1f} px, under the {floor} px floor" for px, floor, where in sizes if px < floor - 1e-9]
+
+
+def contrasts(css, pages):
+    """Every pairing of a color with what it is seen against, in both schemes, as (the ratio, the ratio it needs,
+    where), then what could not be measured. Text is taken against its own rule's fill, against the band for what
+    sits on the band, and otherwise against every surface text sits on. A mark is taken against the page, the panels
+    and the tint, and its rule must still draw it in the color named here."""
+    themes = schemes(css)
+    rules = [(s, b) for media, s, b in css_rules(css) if "print" not in media]
+    texts = {c for page in pages for c in drawn(page).texts}
+    found, unread = [], []
+
+    def measure(need, ink, grounds, where):
+        for name, t in themes.items():
+            for g in grounds:
+                if not all(re.fullmatch(r"#[0-9a-fA-F]{6}", t.get(c, "").strip()) for c in (ink, g)):
+                    unread.append(f"{where} in {name}: {ink} or {g} is not a plain hex color, so it cannot be measured")
+                else:
+                    found.append((contrast(t[ink].strip(), t[g].strip()), need, f"{where} in {name}: {ink} on {g}"))
+
+    for selector, body in rules:
+        ink = re.search(r"(?<![-\w])color:\s*var\((--[\w-]+)\)", body)
+        if not ink and set(re.findall(r"\.([\w-]+)", selector)) & texts:    # a drawing's text is colored by its fill
+            ink = re.search(r"(?<![-\w])fill:\s*var\((--[\w-]+)\)", body)
+        if not ink:
+            continue
+        fills = re.findall(r"var\((--[\w-]+)\)", " ".join(re.findall(r"(?<![-\w])background(?:-color)?:([^;}]*)", body)))
+        on_band = re.search(r"\.band\b|\.btn\b", selector)
+        measure(4.5, ink.group(1), fills or (["--band"] if on_band else SURFACES), f"text of {selector}")
+    for what, selector, prop, token in MARKS:
+        body = " ".join(b for s, b in rules if s == selector)
+        if not re.search(rf"(?<![-\w]){prop}[\w-]*:[^;}}]*var\({token}\)", body):
+            unread.append(f"{what}: the styles no longer draw it in {token}, in the rule {selector}")
+        else:
+            measure(3, token, GROUNDS, what)
+    for token in sorted({c for page in pages for c in re.findall(r'style="(?:stroke|fill|background):var\((--[\w-]+)\)"', page)}):
+        measure(3, token, GROUNDS, "a chart line or key")
+    return found, unread
+
+
+def contrast_faults(css, pages):
+    found, unread = contrasts(css, pages)
+    return unread + [f"{where} is {ratio:.2f}:1, under {need}:1" for ratio, need, where in found if ratio < need]
+
+
+def tab_stops(page):
+    """How many stops the Tab order holds on each day and view of the report, as {(day, view): count}. A stop inside
+    a closed list still counts, so the count can only run high."""
+    d = drawn(page)
+    return {(day, view): sum(1 for at, shows, hidden in d.stops if not hidden and at in (None, day) and shows in (None, view))
+            for day in sorted(d.days) for view in ("night", "ran")}
+
+
+def switch_faults(page, kind="report"):
+    """Switches that do not say whether they are pressed, and a row of them with none or several pressed."""
+    faults = []
+    kinds = [("light and dark switch", r"<button[^>]*data-theme-toggle[^>]*>", False)]
+    if kind == "report":
+        kinds += [("day button", r'<button[^>]*class="day-btn"[^>]*>', True), ("view button", r'<button[^>]*class="vbtn"[^>]*>', True)]
+    for what, pattern, one_of in kinds:
+        states = [re.search(r'aria-pressed="(true|false)"', tag) for tag in re.findall(pattern, page)]
+        if not states or not all(states):
+            faults.append(f"a {what} that does not say whether it is pressed")
+        elif one_of and sum(s.group(1) == "true" for s in states) != 1:
+            faults.append(f"{what}s: {sum(s.group(1) == 'true' for s in states)} are pressed, not one")
+    scripts = " ".join(re.findall(r"<script>(.*?)</script>", page, re.S))
+    if scripts.count("setAttribute('aria-pressed'") < len(kinds):
+        faults.append("a script that changes a switch without saying so")
+    return faults
+
+
+def byline_faults(page):
+    """A page that does not carry the author's name with a link to his site and to the repository, or that links
+    to any other site."""
+    from staple import report
+    footer = re.search(r"<footer>.*?</footer>", page, re.S)
+    foot = footer.group(0) if footer else ""
+    faults = [] if report.AUTHOR in foot else ["no author named in the footer"]
+    faults += [f"no link to {what} in the footer" for what, url in (("the author's site", report.SITE), ("the repository", report.REPO))
+               if f'href="{url}"' not in foot]
+    others = set(re.findall(r'<a\b[^>]*\shref="(https?://[^"]+)"', page)) - {report.SITE, report.REPO}
+    return faults + ([f"a link to another site: {', '.join(sorted(others))}"] if others else [])
+
+
+def print_faults(css, script):
+    """A stylesheet with no layout for paper, or one that still prints the controls or clips a list."""
+    block = re.search(r"@media print\{((?:[^{}]*\{[^{}]*\})*)\s*\}", css)
+    if not block:
+        return ["no layout for printing"]
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", block.group(1))
+    def has(selector, declaration):
+        return any(selector in [p.strip() for p in s.split(",")] and declaration in b.replace(" ", "") for s, b in rules)
+    faults = [f"print still shows {s}" for s in (".actions", "#tip", ".days", ".views") if not has(s, "display:none")]
+    faults += [f"print still clips {s}" for s in (".todo.box", ".asks", ".scroll") if not has(s, "overflow:visible")]
+    if "beforeprint" not in script or "afterprint" not in script:
+        faults.append("nothing opens the closed lists for printing and shuts them after")
+    return faults
+
+
+def fold_faults(css, page):
+    """On a phone the scorecard's control must fold under the difference: its heading hidden, its cell moved under
+    the three figures and named."""
+    narrow = [(s, b.replace(" ", "")) for media, s, b in css_rules(css)
+              for m in [re.search(r"max-width:\s*(\d+)px", media)] if m and int(m.group(1)) >= PHONE]
+    faults = []
+    if not any(s == ".score thead .ctl" and "display:none" in b for s, b in narrow):
+        faults.append("on a phone the control's heading still shows")
+    if not any(s == ".score td.ctl" and "grid-column:2/-1" in b for s, b in narrow):
+        faults.append("on a phone the control does not fold under the difference")
+    if not any(s == ".score td.ctl::before" and "control" in b for s, b in narrow):
+        faults.append("on a phone the folded control is not named")
+    rows = len(score_cells(page))
+    if page.count('<th class="ctl"') != 1 or page.count('<td class="ctl"') != rows or not rows:
+        faults.append("the scorecard's control column is not marked for folding")
+    return faults
+
+
+def day_line_faults(page, week):
+    """Each day's line must give the day's calls as those booked the night before plus those added on the day, with
+    the plan's own counts."""
+    faults = []
+    for d in week["days"]:
+        calls = int(d["ours"]["calls"])
+        added = sum(1 for j in week["jobs"] if j["day"] == d["day"] and j["unplanned"])
+        line = re.search(rf'<p class="dayline" data-day="{d["day"]}"[^>]*>(.*?)</p>', page, re.S)
+        said = line and re.search(r"<b>(\d+) calls?</b> on the day: (\d+) booked the night before, (\d+) added on the day",
+                                  re.sub(r"<span[^>]*>", "", line.group(1)))
+        if not said:
+            faults.append(f"{d['day']}: no line giving the day's calls")
+        elif tuple(map(int, said.groups())) != (calls, calls - added, added):
+            faults.append(f"{d['day']}: the line says {said.group(1)} calls, {said.group(2)} booked and {said.group(3)} added, "
+                          f"and the plan holds {calls}, {calls - added} and {added}")
+    if "Booked calls" in page:
+        faults.append("a figure still labeled 'Booked calls', which counts the calls added on the day too")
+    return faults
+
+
+def open_call_faults(page):
+    """A call must open in a panel beside the board on a click. The panel is filled from the call's own hint and found
+    by the call number that opens it, so every block's hint must open with that number."""
+    faults = []
+    if page.count('class="call-open" aria-live="polite"') != 1:
+        faults.append("no panel that an opened call fills and announces")
+    hints = re.findall(r'<span (?:tabindex="0" )?class="blk [^"]*"[^>]*data-tip="([^"]*)"', page)
+    bad = [h[:40] for h in hints if not re.match(r"Call \d+ ", h)]
+    if not hints or bad:
+        faults.append(f"{len(bad)} of {len(hints)} blocks whose hint does not open with the call's number")
+    scripts = " ".join(re.findall(r"<script>(.*?)</script>", page, re.S))
+    if "function openCall" not in scripts or 'data-tip^="Call ${job} "' not in scripts:
+        faults.append("no script that opens a call from its block")
+    return faults
+
+
+@check("readable")
+def readable_check():
+    """The pages can be read and used: text no smaller than its floor, contrast in both schemes, a short Tab order,
+    switches that say their state, a layout for paper, the author on every page, and a report whose first screen
+    leads with the scorecard beside the day's list."""
+    from staple import metrics, report
+    conn = shared_world()
+    results_written(conn)
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    text, day, _, _ = report.stamp()
+    week, _ = shared_week()
+    pages = report.build(results, week, text, day)
+    page, every = pages["report"], list(pages.values())
+    css = re.search(r"<style>(.*?)</style>", page, re.S).group(1)
+    script = " ".join(re.findall(r"<script>(.*?)</script>", page, re.S))
+
+    def refused(what, faults, word):
+        require(any(word in f for f in faults), f"control: {what} passed" + (f", with only {faults}" if faults else ""))
+
+    def restyled(old, new):
+        require(css.count(old) == 1, f"control: the stylesheet holds '{old}' {css.count(old)} times, not once")
+        return css.replace(old, new)
+
+    sizes, unread = text_sizes(css, every)
+    plain = min(px for px, floor, where in sizes if floor == TEXT_FLOOR and " in ." not in where)
+    label = min(px for px, floor, _ in sizes if floor == LABEL_FLOOR)
+    in_drawing = min(px for px, _, where in sizes if " in ." in where)
+    faults = text_faults(css, every)
+    print(f"  text: {len(sizes)} sizes set for the screen. The smallest is {plain:.1f} px, a board label {label:.1f} px, and the "
+          f"text of a drawing at its least width {in_drawing:.1f} px; floors {TEXT_FLOOR} and {LABEL_FLOOR} px: {len(faults)} faults")
+    require(not faults, f"text too small to read: {faults[:4]}")
+    refused("ordinary text at 12.8 px", text_faults(restyled(".sub{font-size:.875rem", ".sub{font-size:.8rem"), every), ".sub")
+    refused("a board label at 11 px", text_faults(restyled(".board{font-size:.75rem", ".board{font-size:.6875rem"), every), ".board")
+    require(not any(".board" in f for f in faults) and any(px == 12 for px, floor, where in sizes if where == ".board"),
+            "control: the board's 12 px labels were not measured against the label floor")
+    refused("a size that depends on what holds it", text_faults(restyled("font-size:.875rem;background:var(--code)",
+                                                                     "font-size:.875em;background:var(--code)"), every), "depends")
+    refused("a chart's labels at 12 units", text_faults(restyled(".tick{fill:var(--muted);font-size:17px", ".tick{fill:var(--muted);font-size:12px"), every), ".tick")
+    refused("a chart let shrink to 300 px", text_faults(restyled(".curve{min-width:480px", ".curve{min-width:300px"), every), ".curve")
+    print("  control: ordinary text at 12.8 px, a board label at 11 px, a size in em, a chart's labels at 12 units and a chart "
+          "let shrink to 300 px are each refused; the board's own 12 px labels pass")
+
+    found, unread = contrasts(css, every)
+    low_text = min((r, w) for r, need, w in found if need == 4.5)
+    low_mark = min((r, w) for r, need, w in found if need == 3)
+    faults = contrast_faults(css, every)
+    print(f"  contrast: {len(found)} pairings in light and dark. The lowest text is {low_text[0]:.2f}:1 ({low_text[1]}); the "
+          f"lowest mark is {low_mark[0]:.2f}:1 ({low_mark[1]}): {len(faults)} faults")
+    require(not faults, f"contrast too low: {faults[:4]}")
+    refused("pale text in light", contrast_faults(restyled("--muted:#56697f", "--muted:#8a97a6"), every), "in light")
+    refused("dim text in dark", contrast_faults(restyled("--muted:#97a8bc", "--muted:#4a5a6e"), every), "in dark")
+    refused("a pale edge on every call", contrast_faults(restyled("--edge:#677f9e", "--edge:#c5ccd4"), every), "a call's edge")
+    refused("a call's edge drawn in the grid's color", contrast_faults(restyled("border:1px solid var(--edge);border-radius:2px;overflow",
+                                                                           "border:1px solid var(--grid);border-radius:2px;overflow"), every), "no longer draw")
+    print("  control: pale text in light, dim text in dark, a pale edge on every call and an edge drawn in another color are each refused")
+
+    stops = tab_stops(page)
+    print(f"  tab stops: between {min(stops.values())} and {max(stops.values())} across {len(week['days'])} days and 2 views, "
+          f"under {TAB_STOPS}; the page holds {page.count('data-tip=')} hints")
+    require(len(stops) == 2 * len(week["days"]), f"the Tab order was counted on {len(stops)} day views, not {2 * len(week['days'])}")
+    require(max(stops.values()) < TAB_STOPS, f"the Tab order holds {max(stops.values())} stops on its longest day")
+    every_hint = tab_stops(re.sub(r'(data-tip="[^"]*")(?! tabindex)', r'\1 tabindex="0"', page))
+    require(min(every_hint.values()) >= TAB_STOPS, f"control: a page with every hint in the Tab order counted {min(every_hint.values())} stops")
+    print(f"  control: with every hint in the Tab order the count is {max(every_hint.values())}, which is refused")
+
+    for kind, one in pages.items():
+        faults = switch_faults(one, kind) + byline_faults(one)
+        require(not faults, f"{report.FILES[kind]}: {faults}")
+    first_view = re.search(r'<button[^>]*class="vbtn"[^>]*>', page).group(0)
+    refused("a view switch that does not say its state", switch_faults(page.replace(first_view, first_view.replace(' aria-pressed="true"', ""), 1)), "view button")
+    refused("two days pressed at once", switch_faults(page.replace('aria-pressed="false" aria-label', 'aria-pressed="true" aria-label', 1)), "day buttons")
+    site = f'<a href="{report.SITE}" target="_blank" rel="noopener">{report.AUTHOR}</a>'
+    require(site in page, "control: the author's link is not written as the control expects")
+    refused("a page with no link to the author's site", byline_faults(page.replace(site, report.AUTHOR)), "the author's site")
+    refused("a page linking to another site", byline_faults(page.replace("</footer>", '<a href="https://example.com/">x</a></footer>', 1)), "another site")
+    print(f"  all {len(pages)} pages: every switch says whether it is pressed, and each carries {report.AUTHOR} with a link to "
+          f"{report.SITE} and to {report.REPO}, and to no other site; four planted faults refused")
+
+    faults = print_faults(css, script) + fold_faults(css, page) + day_line_faults(page, week) + open_call_faults(page)
+    require(not faults, f"the report: {faults}")
+    no_print = re.sub(r"@media print\{(?:[^{}]*\{[^{}]*\})*\s*\}", "", css)
+    require(no_print != css, "control: the print layout was not taken out")
+    refused("a stylesheet with no print layout", print_faults(no_print, script), "no layout for printing")
+    refused("a print layout that keeps the buttons", print_faults(restyled(".actions,#tip,.days,.views,.q,.why{display:none}", ".q,.why{display:none}"), script), ".actions")
+    refused("a scorecard that does not fold", fold_faults(restyled(".score td.ctl{grid-column:2/-1;", ".score td.ctl{"), page), "does not fold")
+    line = re.search(r"(\d+) booked the night before", page).group(0)
+    refused("a day's line that does not add up", day_line_faults(page.replace(line, f"{int(line.split()[0]) + 1} booked the night before", 1), week), "the plan holds")
+    refused("a block whose hint names no call", open_call_faults(re.sub(r'(class="blk [^"]*"[^>]*data-tip=")Call \d+ ', r"\1A call ", page, count=1)), "does not open with")
+    opening = next(d for d in week["days"] if d["day"] == week["open"])
+    print(f"  the report prints on paper with its controls hidden and its lists open, folds the control under the difference "
+          f"on a phone, opens a call beside the board, and gives {week['open']} as {int(opening['ours']['calls'])} calls, booked "
+          "and added; five planted faults refused")
 
 
 def columns_of(conn):

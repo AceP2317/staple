@@ -20,52 +20,70 @@ stock lives on the trucks, those are one decision, so Staple scores them togethe
 {{types}} appliance types and {{techs}} technicians. The last {{test_days}} days are held back. Each method learns
 from the earlier days only, and is then scored on the held-back days as if they had not happened yet. That is a
 back-test, and it is the same test I would run first on real history.</p>
-<p><strong>What to do first.</strong> The report is one screen with two sides. On the left is the plan for one invented day: read the three steps across the top, then the to-do list, which says what each team does before {{day_start}}. On the right is the proof: that day against the current rules, then the evidence from all {{test_days}} held-back days. The next section walks through every part of the screen.</p>
+<p><strong>What to do first.</strong> The report is one page that scrolls. At the top is the scorecard: the whole
+plan against the current rules over all {{test_days}} held-back days. Beside it is the to-do list, which says what each team
+does before {{day_start}} on one invented day. Under them is that day's plan, call by call, and under the plan is the
+evidence. The next section walks through every part of the page.</p>
 <p><strong>Hover over anything with a dotted underline, or anything that turns your pointer into a question
 mark.</strong> The hint shows the figures behind it and the query they come from. A blue <span class="q"{{sample_q}}>?</span>
 opens this manual at the word it explains. Under every chart, "Show the numbers" opens the table the chart is
 drawn from.</p></section>
 
 <section id="plan"><h2>How to read the plan screen</h2>
-<p>The report is one screen with two sides, and on a desktop each side scrolls on its own, so the page itself never
-does. The left side is the plan for one invented day. The right side is the proof that the plan beats the current rules.
-Choosing a technician anywhere on the left lights up their route, their row and their load sheet, and shows their card
-on the right. Every page opens light. The Dark mode button at the top switches it, and your browser remembers the choice.</p>
-<h3>Across the top</h3>
-<p>Three steps say what Staple does, in order: Claude codes every booking, Staple plans the trucks, and people act
-before {{day_start}}. Under them, the day buttons pick one of the most recent {{week}} held-back days. They are not picked by
-hand. A ✚ marks a technician who called out sick and a ⚠ a truck that broke down, so the days with surprises show
-before a click. The page opens on the most recent day on which a sick call and a breakdown both moved calls to other
-trucks.</p>
-<h3>The left side, top to bottom</h3>
+<p>The report is one page, read from the top down: the scorecard beside the to-do list, then the plan for one invented
+day, then the evidence, then how to run it. Choosing a technician anywhere lights up their row on the board, their
+route on the map and their to-do items, and shows their card and their truck's load sheet beside the board. Every page
+opens light. The Dark mode button at the top switches it, and your browser remembers the choice.</p>
+<h3>At the top</h3>
+<p>The band says what Staple does in one sentence, and that every call, technician, part and dollar is invented. Under
+it, on the left, is the scorecard, which the section on numbers explains. On the right is the to-do list.</p>
 <ul>
-<li><strong>The day's four tiles</strong>: booked calls, the share expected fixed on the first visit, repeat visits
-avoided, and parts moved overnight. The first three compare the plan with the current rules on the same day; the last counts the plan's own moves.</li>
+<li><strong>To do before {{day_start}}</strong>: every action for the chosen day, grouped by who takes it, in a box that
+scrolls inside itself. The next section lists every kind. Clicking an item lights up its truck and opens the call or
+the load sheet it names in the plan below. Each group's evidence link opens the card behind that kind of action.</li>
+</ul>
+<h3>The plan for one day</h3>
+<p>The day buttons pick one of the most recent {{week}} held-back days. They are not picked by hand. A ✚ marks a
+technician who called out sick and a ⚠ a truck that broke down, so the days with surprises show before a click. The
+page opens on the most recent day on which a sick call and a breakdown both moved calls to other trucks. The switch
+beside the day buttons shows the plan as made at night or the day as it ran.</p>
+<ul>
+<li><strong>The line under the buttons</strong>: the day's calls, how many were booked the night before and how many
+came in on the day, the share expected fixed on the first visit, repeat visits avoided, and parts moved overnight. The
+share and the repeat visits compare the plan with the current rules on the same day.</li>
+<li><strong>The board</strong>: a row for each technician from {{day_start}} to {{day_end}}. Each block is a call, shaded by
+its first-time fix chance, on the scale the legend under the board shows. On the plan at night, a marked corner shows
+a call Claude asked about. On the day as it ran, a sick technician's row is hatched, a broken truck's row stops at a ⚠
+marker, a moved call is ringed and, where its block has room, tagged with the technician it came from, a call added on the day has a dashed
+edge, a visit missing a needed part has a red bar along its foot, and a small triangle marks a call escalated to
+urgent. Clicking a call opens it beside the board. On a keyboard the board is one stop: the arrow keys move between
+calls and technicians, and Enter opens one.</li>
+<li><strong>Beside the board</strong>: the opened call, in the customer's words, with Claude's reading, the parts and
+their odds, the first-time fix chance and why that technician took it. Under it is the chosen technician's card:
+their appliances, how often they fix each first time, and how fast. Under that is the truck's load sheet for the parts
+room tonight, which opens on a click. Each row says put on or take off, the part and its made-up cost, its worth, and
+the booked calls behind it with each one's chance of needing it. Under the rows are the parts kept aboard: those
+tomorrow's calls may need, and a count by appliance of the stock kept for unplanned calls.</li>
+<li><strong>The route map</strong>: the {{zones}} zones, numbered, with every truck's route drawn faint and the chosen
+one bold, an arrow on each leg. On the day as it ran, a dashed line joins a moved call to its new truck.</li>
+<li><strong>The day against the current rules</strong>: both replays of the day on Claude's codes, with the same
+surprises, under the board.</li>
 <li><strong>AI at booking</strong>: how many bookings Claude coded at once, and a card for every booking it was unsure
 of. A card shows the customer's words, Claude's first reading with its confidence, the one question it asked, the
 answers offered with the one taken in yellow, and the code the call runs on. Where the answer changed the carry list,
-the card shows what the first guess would have loaded and what the truck loads now.</li>
-<li><strong>To do before {{day_start}}</strong>: every action, grouped by who takes it. The next section lists every kind.
-Clicking an item lights up its truck and opens, on the right, the evidence behind that kind of action.</li>
+the card shows what the first guess would have loaded and what the truck loads now. Clicking a card opens its call on
+the board.</li>
 <li><strong>{{sick_by}} and after</strong>: each sick call and breakdown, every call it moved, from whom to whom, and its
 first-time fix chance before and after. A moved call can use only the parts its new truck already carries.</li>
-<li><strong>Routes and the board</strong>: the map of the {{zones}} zones beside a row for each technician from {{day_start}} to
-{{day_end}}. Each block is a call, shaded by its first-time fix chance, on the scale the legend above the board shows. The switch shows the plan as made
-at night or the day as it ran. On the day as it ran, a sick technician's row is hatched, a broken truck's row stops at
-a ⚠ marker, a moved call is outlined and tagged with the technician it came from, and on the map a dashed line joins
-it to its new truck. A yellow corner marks a call Claude asked about, a hatched block a call added on the day, a red
-underline a visit missing a needed part, and ▲ a call escalated to urgent.</li>
-<li><strong>Load sheet</strong>: the chosen truck's list for the parts room tonight. Each row says put on or take off,
-the part and its made-up cost, its worth, and the booked calls behind it with each one's chance of needing it. Under
-it, the parts kept aboard: those tomorrow's calls may need, and a count by appliance of the stock kept for unplanned
-calls.</li>
 </ul>
-<h3>The right side</h3>
-<p>First, the day against the current rules, with both replays on Claude's codes and the same surprises. Then the
-chosen technician's card: their appliances, how often they fix each first time, and how fast. Then the evidence from
-all {{test_days}} held-back days, which runs on the call-taker's booked codes so it measures the planning apart from the
-reading. A card that leads to an action ends with what a fleet does with it. The last two cards say how a fleet would adopt Staple, and
-what this does and does not show.</p></section>
+<h3>Under the plan</h3>
+<p>Three steps say what Staple does, in order: Claude codes every booking, Staple plans the trucks, and people act
+before {{day_start}}. Then comes the evidence from all {{test_days}} held-back days, which runs on the call-taker's booked
+codes so it measures the planning apart from the reading. A card that leads to an action ends with what a fleet does
+with it. The last sections say how a fleet would adopt Staple, what this does and does not show, and how to run it.</p>
+<h3>On paper and on a phone</h3>
+<p>Printing the report hides the buttons, opens every list and uses the light colors. On a phone the page is one
+column, and the scorecard folds each control under its difference.</p></section>
 
 <section id="todo"><h2>Every to-do, and who does it</h2>
 <div class="scroll"><table class="wrap"><thead><tr><th>Owner and when</th><th>The item</th><th>Why it appears</th><th>What to do</th></tr></thead><tbody>
@@ -79,7 +97,7 @@ what this does and does not show.</p></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
 <h3>The scorecard across all held-back days</h3>
-<p>It sits on the right side, under the day's comparison and the technician's card, and runs on the call-taker's
+<p>It sits at the top of the report, beside the to-do list, and runs on the call-taker's
 booked codes. Each row is one measure of the whole plan, replayed over every held-back day with the same made-up
 sick calls and breakdowns. It gives the measure under the current rules, under Staple, the difference, and the
 control.</p>

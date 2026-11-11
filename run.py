@@ -16,17 +16,22 @@ CHROMES = ["chrome", "google-chrome", "chromium", r"C:\Program Files\Google\Chro
            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
 
 
+def chrome():
+    """Where Chrome is on this machine, or None."""
+    return next((c for c in (shutil.which(n) or (n if Path(n).exists() else None) for n in CHROMES) if c), None)
+
+
 def card():
     """Photographs the share card page at its exact size with headless Chrome, the one step not in Python."""
-    chrome = next((c for c in (shutil.which(n) or (n if Path(n).exists() else None) for n in CHROMES) if c), None)
-    if not chrome:
+    exe = chrome()
+    if not exe:
         sys.exit("no Chrome found, so the share card was not photographed; looked for: " + ", ".join(CHROMES))
     db.OUT.mkdir(parents=True, exist_ok=True)
     page, shot = db.OUT / "card.html", report.PAGES / report.CARD
     page.write_text(report.card_html(), encoding="utf-8")
     w, h = report.CARD_SIZE
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
-        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
+        subprocess.run([exe, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1",
                         f"--user-data-dir={profile}", f"--window-size={w},{h}", f"--screenshot={shot.resolve()}",
                         page.resolve().as_uri()], check=True, capture_output=True, timeout=120)
     (report.PAGES / "card.sha").write_text(report.card_fingerprint() + "\n", encoding="utf-8")

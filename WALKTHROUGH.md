@@ -146,16 +146,17 @@ replay's own record of the most recent week, so every route and load on it is on
 ## The pages
 
 - `staple/report.py` builds the four pages from the query results, the week's plan and the code's own
-  constants. The report is one screen: the plan on the left, its proof on the right, each scrolling on its
-  own. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
+  constants. The report is one page that scrolls: the scorecard beside the day's to-do list, then the day's
+  board with the opened call beside it, then the evidence, then how to run it. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
   it. The manual and the methods page quote every number, prompt, query and check straight from the code, so
   they cannot disagree with what ran, and a check refuses a numeral typed into either.
-- `staple/pages/style.css` is the look: colors as named tokens, light and dark, the hover marker and the
-  phone layout.
+- `staple/pages/style.css` is the look: colors as named tokens, light and dark, the hover marker, the
+  phone layout and the layout for paper.
 - `staple/pages/tips.js` shows a hint on hover, keyboard focus or tap, moves the chart's crosshair, and runs the
   light/dark switch: every page opens light, and the browser remembers a reader who picks dark.
-- `staple/pages/plan.js` switches the plan screen: the day, the chosen technician, the night plan or the day
-  as it ran, and on a phone the plan or the proof. Every day is already in the page; it only shows and hides.
+- `staple/pages/plan.js` switches the plan screen: the day, the chosen technician, the call opened beside the
+  board, and the night plan or the day as it ran. It moves the arrow keys around the board, and opens every list
+  for printing. Every day is already in the page; it only shows and hides.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the
   code goes.
 - `staple/pages/method.html` is the methods page's text: every formula, rule, prompt and check, filled the

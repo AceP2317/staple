@@ -106,7 +106,7 @@ curves.forEach((c, svg) => {
 const themeBtn = document.querySelector('[data-theme-toggle]')
 function setTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  themeBtn.textContent = dark ? 'Light mode' : 'Dark mode'
+  themeBtn.setAttribute('aria-pressed', dark)
 }
 if (themeBtn) {
   setTheme(document.documentElement.dataset.theme === 'dark')
