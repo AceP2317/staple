@@ -733,7 +733,8 @@ def picture_pages(page):
     t = tokens()
     w, h = PICTURE_SIZE
     events = re.search(r'class="day-btn"[^>]*aria-pressed="true" aria-label="[^":]*: ([^"]*)"', page).group(1)
-    hide = ("<style>html{scrollbar-width:none}.band,.split-top,.day-proof,.map-panel,.grid.two,.how,.evidence-head,"
+    # The photograph is taken at once, so the page it is taken of never glides to its place.
+    hide = ("<style>html{scrollbar-width:none;scroll-behavior:auto!important}.band,.split-top,.day-proof,.map-panel,.grid.two,.how,.evidence-head,"
             ".evidence,.pair,#run,footer,#tip{display:none!important}.report main{padding-top:12px}</style>")
     act = ("<script>addEventListener('load', () => {document.querySelector('.vbtn[data-view=ran]').click();"
            "const moved = [...document.querySelectorAll('.board-panel:not([hidden]) .v-ran .blk.moved')];"

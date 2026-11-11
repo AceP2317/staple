@@ -7,6 +7,7 @@
 --grid:#1c3557;--axis:#2a4a72;--edge:#7c98c4;--dim:#6f89ac;--s1:#5b8def;--s2:#c99700;--ask:#ffcd00;--ring:rgba(255,255,255,.12);--link:#8fb3ff;--code:#132c52;
 --c1:#18335c;--c2:#27508f;--c3:#5087da;--c4:#7ea5ea;--c5:#bfd4fa;--on-lo:#f0f4fa;--on-3:#00142e;--on-hi:#00142e;--warn:#fb923c;--crit:#f87171;--good:#4ade80;--faint:.55}
 *{box-sizing:border-box}[hidden]{display:none!important}
+html{scroll-behavior:smooth}
 body{margin:0;background:var(--page);color:var(--ink-2);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--link)}
 :focus-visible{outline:2px solid var(--s1);outline-offset:1px}
@@ -173,7 +174,7 @@ border-radius:6px;padding:8px 10px;font-size:.875rem;line-height:1.4}
 .score th,.score td{border-bottom:0;padding-right:0}.score .gain{white-space:normal}
 .score td.ctl{grid-column:2/-1;text-align:right;padding-top:0;color:var(--muted)}.score td.ctl::before{content:"control "}
 .score td.ctl .keeps{display:inline;margin-left:6px}}
-@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.flash{animation:none}}
 @media print{body{background:#fff;font-size:11pt}.band{background:none;color:#000;border-bottom:1px solid #000}
 .band h1,.band .lede,.band .inv,.band .stamp,.band .invented{color:#000}
 .actions,#tip,.days,.views,.q,.why{display:none}.call-open:not([data-call]){display:none}.band-in,main,.report main{max-width:none;padding-left:0;padding-right:0}
