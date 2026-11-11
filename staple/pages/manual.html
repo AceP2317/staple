@@ -188,8 +188,9 @@ customer, part number or technician appears anywhere.</p>
 tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
 before it is committed.</p>
 <p>The AI step's answers were produced once by {{model}} and ship in the repository, so a run needs no key and
-sends nothing anywhere. Only <code>python run.py --live</code> calls the Claude API, with the reader's own key, and
-it sends the made-up booking words and problem labels and nothing else.</p></section>
+sends nothing anywhere. Only <code>python run.py --live</code> and <code>python -m staple.agent</code> call the
+Claude API, each with the reader's own key. The first sends the made-up booking words and problem labels, the
+second the made-up facts of a back-ordered part, and neither sends anything else.</p></section>
 
 <section id="thresholds"><h2>Every threshold, and what sets it</h2>
 <p>Read from the code at build time, so this table cannot disagree with what ran. "Made up" means a stand-in to

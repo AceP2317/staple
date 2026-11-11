@@ -88,6 +88,12 @@ replay's own record of the most recent week, so every route and load on it is on
   5.5, so a run needs no network and no key.
 - `data/followup-cache.json` holds the follow-up question Claude wrote for each unsure phrasing, with the
   answer choices and the problem code each one points to.
+- `staple/agent.py` puts Claude in the buyer's seat. It holds one conversation for each back-ordered part.
+  Claude asks for the forecast, the trucks and the waiting calls through lookups that return counts, days and
+  odds and never a price, then commits one action, a reason and a note a person could send. The scorer in
+  `staple/buyer.py` prices what it chose. A run asks the Claude API with the reader's own key, saves each
+  decision as it comes, and stops before the dollars spent could pass the cap it was given. No answers are
+  saved in the repository yet.
 
 ## The week's plan
 

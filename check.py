@@ -3313,6 +3313,393 @@ def buyer_scorer():
     print(f"  the worked example, by hand: {example.show(example.by_hand)}; the engine agrees")
 
 
+def scripted_buyer(script="reads", skip=()):
+    """A scripted stand-in for Claude as the buyer: a function of one request that answers as the API would. It
+    knows only what the request holds, the opening line and the answers its own tool calls got. As a reader it
+    asks for the lookups, prices the four actions from what they returned and commits the cheapest; skip names
+    lookups it never asks for. The other scripts each break the loop's agreed form in one way."""
+    import itertools
+    import json
+    from staple import agent, buyer, load
+    ids = itertools.count(1)
+    dollars = (load.REPEAT_VISIT, load.MOVE, buyer.EXPEDITE, buyer.EXPEDITE_DAYS, buyer.WAIT_DAY)
+
+    def call(name, **given):
+        return {"type": "tool_use", "id": f"toolu_{next(ids):06d}", "name": name, "input": given}
+
+    def reply(blocks, stop="tool_use"):
+        thinking = {"type": "thinking", "thinking": "", "signature": f"signed-{next(ids)}"}
+        return {"role": "assistant", "content": [thinking, *blocks], "stop_reason": stop, "usage": dict(STAND_IN_USAGE)}
+
+    def respond(body):
+        messages = body["messages"]
+        part = messages[0]["content"].split("The part ", 1)[1].split(" is back-ordered", 1)[0]
+        asked = {b["id"]: b["name"] for m in messages if m["role"] == "assistant" for b in m["content"]
+                 if b["type"] == "tool_use"}
+        got = {asked[r["tool_use_id"]]: json.loads(r["content"]) for m in messages
+               if m["role"] == "user" and isinstance(m["content"], list) for r in m["content"] if not r.get("is_error")}
+        turn = sum(m["role"] == "assistant" for m in messages)
+        if script == "never commits":
+            return reply([call(agent.FORECAST, part=part)])
+        if script == "talks first" and turn == 0:
+            return reply([{"type": "text", "text": "I would expedite it."}], "end_turn")
+        if script == "bad calls first" and turn == 0:
+            return reply([call(agent.FORECAST, part="no such part"),
+                          call(agent.COMMIT, action="wait and see", reason="It may ship sooner.", note="Hold on.")])
+        if script == "cut off":
+            return reply([call(agent.FORECAST, part=part)], "max_tokens")
+        if script == "declines":
+            return reply([], "refusal")
+        wanted = [n for n in (agent.FORECAST, agent.TRUCKS, agent.WAITING) if n not in skip]
+        if any(n not in got for n in wanted):
+            return reply([call(n, part=part) for n in wanted])
+        forecast, trucks, waiting = got[agent.FORECAST], got.get(agent.TRUCKS), got.get(agent.WAITING)
+        move = trucks and trucks["move_on_offer"]
+        seen = {"stuck": forecast["calls_expected_to_be_stuck"], "days_left": forecast["days_until_it_ships"],
+                "move": move and {"stuck": move["calls_expected_to_be_stuck_after"]},
+                "waiting": [(c["call"], c["odds_it_needs_the_part"]) for c in (waiting or {"calls_waiting": []})["calls_waiting"]]}
+        priced = buyer_by_hand(seen, *dollars)
+        action = min((a for a in buyer.ACTIONS if priced[a] is not None), key=lambda a: priced[a])
+        note = f"{part} ships on {forecast['ships_on']}."
+        if action == buyer.SHIFT:
+            note += f" Move one from {move['from_truck']} to {move['to_truck']}."
+        return reply([call(agent.COMMIT, action=action, reason=f"It is the cheapest, at ${priced[action]:.2f}.", note=note)])
+    return respond
+
+
+STAND_IN_USAGE = {"input_tokens": 400, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 900, "output_tokens": 350}
+
+
+@check("buyer-loop")
+def buyer_loop():
+    import json
+    from staple import agent, buyer, triage
+    conn = shared_world()
+    cases = buyer.cases(conn)
+    model, other_model = agent.MODELS
+    best = [buyer.cheapest(buyer.prices(c)) for c in cases]
+
+    def put(case, respond):
+        """One case through the loop: the decision, and every request and reply as they crossed."""
+        sent, came = [], []
+
+        def ask(body):
+            sent.append(json.loads(json.dumps(body)))
+            came.append(respond(body))
+            return came[-1]
+        return agent.decide(case, ask, model), sent, came
+
+    # Every case, read by a stand-in that sees only what the loop sends it.
+    reader = scripted_buyer()
+    runs = [put(c, reader) for c in cases]
+    answers = {agent.name_of(c): d for c, (d, _, _) in zip(cases, runs)}
+    agree = sum(d["action"] == b for (d, _, _), b in zip(runs, best))
+    lookups = [agent.FORECAST, agent.TRUCKS, agent.WAITING]
+    score = buyer.score(cases, agent.chooser(answers))
+    short = scripted_buyer(skip=(agent.TRUCKS,))
+    without = {agent.name_of(c): put(c, short)[0] for c in cases}
+    short_agree = sum(without[agent.name_of(c)]["action"] == b for c, b in zip(cases, best))
+    short_score = buyer.score(cases, agent.chooser(without))
+    print(f"  a stand-in that reads only the lookups' answers and prices the four actions from them names the engine's "
+          f"cheapest on {agree} of {len(cases)} cases, in {sum(d['rounds'] for d, _, _ in runs)} requests, and loses "
+          f"${score['lost']:.2f}; control: never asking about the trucks, it agrees on {short_agree} and loses "
+          f"${short_score['lost']:,.0f}")
+    require(agree == len(cases) and score["lost"] == 0 and not score["invalid"],
+            "the lookups do not carry enough to reach the engine's cheapest action")
+    require(all(d["rounds"] == 2 and d["lookups"] == lookups and "stopped" not in d for d, _, _ in runs),
+            "a case read by the stand-in did not take its three lookups and a commit, in two requests")
+    require(short_agree < len(cases) and short_score["lost"] > 0, "control: a reader that never asks about the trucks passes")
+
+    # What a lookup returns is the case's own facts and nothing else, and nothing else in a request differs by case.
+    def by_hand(case):
+        ships = datetime.date.fromisoformat(case["day"]) + datetime.timedelta(days=case["days_left"])
+        move = case["move"] and {"from_truck": case["move"]["giver"], "to_truck": case["move"]["taker"],
+                                 "calls_expected_to_be_stuck_after": round(case["move"]["stuck"], agent.PLACES)}
+        return {agent.FORECAST: {"part": case["part"], "today": case["day"], "ships_on": str(ships),
+                                 "days_until_it_ships": case["days_left"],
+                                 "calls_expected_to_need_it": round(case["expected"], agent.PLACES),
+                                 "calls_expected_to_be_stuck": round(case["stuck"], agent.PLACES)},
+                agent.TRUCKS: {"trucks_holding_it": case["holders"], "zones_with_no_holder_nearby": case["open_zones"],
+                               "move_on_offer": move},
+                agent.WAITING: {"calls_waiting": [{"call": job, "odds_it_needs_the_part": round(odds, agent.PLACES)}
+                                                  for job, odds in case["waiting"]]}}
+
+    def beyond_facts(case, sent):
+        """The lookups whose answer in the last request is not exactly the case's own facts."""
+        asked = {b["id"]: b["name"] for m in sent[-1]["messages"] if m["role"] == "assistant" for b in m["content"]
+                 if b["type"] == "tool_use"}
+        told = {asked[r["tool_use_id"]]: json.loads(r["content"]) for m in sent[-1]["messages"]
+                if m["role"] == "user" and isinstance(m["content"], list) for r in m["content"]}
+        return [name for name, facts in by_hand(case).items() if told.get(name) != facts]
+
+    leaks = [agent.name_of(c) for c, (_, sent, _) in zip(cases, runs) if beyond_facts(c, sent)]
+    frame = [agent.name_of(c) for c, (_, sent, _) in zip(cases, runs) for body in sent
+             if body["system"][0]["text"] != agent.SYSTEM or body["tools"] != agent.TOOLS or body["model"] != model
+             or "tool_choice" in body or body["messages"][0] != {"role": "user", "content": agent.OPENING.format(
+                 day=c["day"], part=c["part"])}]
+    honest = agent.facts
+    agent.facts = lambda case, lookup: {**honest(case, lookup), **({"dollars_at_risk": case["at_risk"]}
+                                                                  if lookup == agent.FORECAST else {})}
+    try:
+        planted = sum(bool(beyond_facts(c, put(c, reader)[1])) for c in cases[:40])
+    finally:
+        agent.facts = honest
+    print(f"  what the lookups returned on {len(cases)} cases: {len(leaks)} answers hold anything but the case's own counts, "
+          f"days and odds; every request carries the same instructions and tools, and only its opening line and the "
+          f"lookups' answers differ by case; control: a forecast that also gives the dollars at risk is refused on "
+          f"{planted} of 40 cases")
+    require(not leaks and not frame, f"a lookup returns more than the case's facts, or a request differs by case: {(leaks + frame)[:3]}")
+    require(planted == 40, "control: a lookup that also gives a price passes")
+    echoed = sum(sent[1]["messages"][1] == {"role": "assistant", "content": came[0]["content"]} for _, sent, came in runs)
+    require(echoed == len(cases), "a reply does not go back whole, with its thinking, in the next request")
+
+    # Each way a reply can break the agreed form.
+    case = next(c for c in cases if c["move"] and c["waiting"])
+    cheapest = buyer.cheapest(buyer.prices(case))
+    bad, bad_sent, _ = put(case, scripted_buyer("bad calls first"))
+    errors = [r for r in bad_sent[1]["messages"][-1]["content"] if r.get("is_error")]
+    shapes = {"a tool that does not exist": {"name": "price_everything", "input": {"part": case["part"]}},
+              "an input that is not a set of fields": {"name": agent.FORECAST, "input": [case["part"]]},
+              "a missing field": {"name": agent.COMMIT, "input": {"action": buyer.SEND, "reason": "It is cheapest."}},
+              "a field too many": {"name": agent.WAITING, "input": {"part": case["part"], "day": case["day"]}},
+              "an empty reason": {"name": agent.COMMIT, "input": {"action": buyer.SEND, "reason": " ", "note": "Go."}},
+              "a part that is not a text": {"name": agent.TRUCKS, "input": {"part": 7}}}
+    refused = []
+    for name, shape in shapes.items():
+        try:
+            agent.answer(case, shape)
+        except agent.BadCall:
+            refused.append(name)
+    require(agent.answer(case, {"name": agent.FORECAST, "input": {"part": case["part"]}}) == by_hand(case)[agent.FORECAST],
+            "control: a lookup in the agreed form is refused")
+    print(f"  a reply that asks about another part and commits an action that is not one of the four: {len(errors)} errors go "
+          f"back in plain words, and the case still ends on {bad['action']} in {bad['rounds']} requests; {len(refused)} of "
+          f"{len(shapes)} other malformed calls are refused, and one in the agreed form is answered")
+    require(len(errors) == 2 and "this case is about" in errors[0]["content"] and "must be one of" in errors[1]["content"]
+            and bad["action"] == cheapest and bad["rounds"] == 3, "a bad tool call is not answered with an error the next reply can use")
+    require(len(refused) == len(shapes), f"a malformed call is answered: {sorted(set(shapes) - set(refused))}")
+
+    endless, endless_sent, _ = put(case, scripted_buyer("never commits"))
+    charged = buyer.score([case], agent.chooser({agent.name_of(case): endless}))
+    talk, talk_sent, _ = put(case, scripted_buyer("talks first"))
+    cut, _, _ = put(case, scripted_buyer("cut off"))
+    declined, _, _ = put(case, scripted_buyer("declines"))
+    print(f"  a reply that never commits is stopped after {endless['rounds']} requests and scored as sending anyway; one that "
+          f"only talks is asked to commit and does, in {talk['rounds']}; one cut off at the token limit, and one that "
+          f"declines, each end the case undecided with no call run")
+    require(endless["stopped"] == agent.ROUND_LIMIT and endless["action"] is None and endless["rounds"] == agent.MAX_ROUNDS
+            and len(endless_sent) == agent.MAX_ROUNDS, "a case that never commits is not stopped at the round limit")
+    require(charged["invalid"] == 1 and charged["cost"] == buyer.prices(case)[buyer.SEND],
+            "an undecided case is not counted and charged as sending anyway")
+    require(talk["action"] == cheapest and talk["rounds"] == 3 and talk_sent[1]["messages"][-1]["content"] == agent.NUDGE,
+            "a reply with no tool call is not asked to commit")
+    require((cut["stopped"], cut["lookups"], cut["action"]) == (agent.CUT_OFF, [], None)
+            and (declined["stopped"], declined["action"]) == (agent.DECLINED, None),
+            "a reply cut off or declined does not end the case undecided, or its half-made call was run")
+
+    # A run over the wire: saved by model and prompt, picked up where it stopped, and plain about each failure.
+    few, usage = cases[:6], STAND_IN_USAGE
+    into, out = agent.PRICES[model]
+    a_request = (usage["input_tokens"] * into + usage["cache_read_input_tokens"] * into * agent.CACHE_READ
+                 + usage["output_tokens"] * out) / 1e6
+    home = agent.DATA
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
+        agent.DATA = Path(folder)
+        try:
+            with stand_in_api(scripted_buyer()) as (url, seen):
+                first = agent.run(few, model, "test-key", 5.0, url)
+                once, headers, body = seen["requests"], seen["headers"], seen["body"]
+                again = agent.run(few, model, "test-key", 5.0, url)
+                twice = seen["requests"]
+                agent.run(few[:2], other_model, "test-key", 5.0, url)
+                file = json.loads(agent.path(model).read_text(encoding="utf-8"))
+                require(headers.get("x-api-key") == "test-key" and headers.get("anthropic-version") == triage.API_VERSION
+                        and body["model"] == model and body["tools"] == agent.TOOLS and "tool_choice" not in body,
+                        "a request over the wire lacks the key, the version, the model or the tools")
+                require(once == 2 * len(few) and twice == once and again == first == agent.saved(model),
+                        "a second run asks again for decisions that are saved")
+                require(file["prompt_id"] == agent.PROMPT_ID and file["model"] == model
+                        and sorted(file["answers"]) == sorted(agent.name_of(c) for c in few) and len(agent.saved(other_model)) == 2,
+                        "the answers are not saved by model and prompt")
+                require(all(a["action"] == buyer.cheapest(buyer.prices(c)) and a["reason"] and a["note"] and a["rounds"] == 2
+                            for c, a in ((c, file["answers"][agent.name_of(c)]) for c in few)),
+                        "a saved answer lacks its action, reason or note")
+                require(a_request > 0 and abs(agent.cost(model, first) - 2 * len(few) * a_request) < 1e-12
+                        and abs(file["spent"] - 2 * len(few) * a_request) < 1e-12,
+                        "the dollars spent are not the saved token counts at the listed prices")
+                agent.path(model).write_text(json.dumps({**file, "prompt_id": "another prompt"}), encoding="utf-8")
+                before, stale = seen["requests"], agent.saved(model)
+                try:
+                    agent.run(few, model, "test-key", 5.0, url)
+                    kept_safe = None
+                except SystemExit as halt:
+                    kept_safe = str(halt.code)
+                require(stale is None and kept_safe and "different prompt" in kept_safe and seen["requests"] == before,
+                        "answers made with another prompt are read as this prompt's, or are replaced without being asked")
+                require(agent.run(few, model, "test-key", 5.0, url, fresh=True) == first == agent.saved(model),
+                        "a fresh run does not replace answers made with another prompt")
+            print(f"  over the wire, {len(few)} cases take {once} requests and are saved under the model and the prompt's "
+                  f"name; a second run asks for {twice - once}; answers made with another prompt are not read, and are "
+                  f"not replaced until asked; the saved token counts price the run at ${2 * len(few) * a_request:.6f}, as by hand")
+
+            # A failure part way: one case's request fails, the rest stay saved, and the next run asks only for that one.
+            sore, healthy = few[-1], scripted_buyer()
+
+            def fails_on_one(body):
+                if body["messages"][0]["content"] == agent.OPENING.format(day=sore["day"], part=sore["part"]):
+                    return "<html>busy</html>"
+                return healthy(body)
+            agent.path(model).unlink()
+            with stand_in_api(fails_on_one) as (url, _):
+                try:
+                    agent.run(few, model, "test-key", 5.0, url)
+                    part_way = None
+                except SystemExit as halt:
+                    part_way = str(halt.code)
+            left = agent.saved(model)
+            with stand_in_api(healthy) as (url, seen):
+                whole, resumed = agent.run(few, model, "test-key", 5.0, url), seen["requests"]
+            require(part_way and "not JSON" in part_way and f"{len(few) - 1} of {len(few)} decisions are saved" in part_way
+                    and sorted(left) == sorted(agent.name_of(c) for c in few[:-1]),
+                    f"a run that fails part way does not keep the decisions made before it: {part_way}")
+            require(whole == first and resumed == 2, "the next run does not ask only for the case that failed")
+
+            def stop(reply, status=200, down=False):
+                """The sentence a run stops on when the API answers with reply, or when nothing answers."""
+                with stand_in_api(reply, status) as (url, _):
+                    if not down:
+                        try:
+                            agent.run(cases[6:7], other_model, "test-key", 5.0, url)
+                        except SystemExit as halt:
+                            return str(halt.code)
+                        return None
+                try:    # the stand-in is gone by now, so nothing answers at its address
+                    agent.run(cases[6:7], other_model, "test-key", 5.0, url)
+                except SystemExit as halt:
+                    return str(halt.code)
+                return None
+            stops = {"answered 500": stop({"error": {"message": "an internal error"}}, 500),
+                     "ANTHROPIC_API_KEY": stop({"error": {"message": "invalid x-api-key"}}, 401),
+                     "not JSON": stop("<html>busy</html>"), "could not be reached": stop({}, down=True)}
+            require(all(said and said.startswith("the buyer run stopped: ") and words in said and "Traceback" not in said
+                        for words, said in stops.items()), f"a failed run does not stop in one plain sentence: {stops}")
+            require(stop(scripted_buyer()) is None, "control: a run against a healthy stand-in stops")
+
+            waits = {}
+            for label, status, good_after in (("busy twice", 529, 2), ("always at its limit", 429, None), ("a bad key", 401, None)):
+                waited, tries = [], []
+
+                def send(body, status=status, good_after=good_after, tries=tries):
+                    tries.append(1)
+                    if good_after is None or len(tries) <= good_after:
+                        raise triage.LiveError("no", status)
+                    return {"content": []}
+                try:
+                    agent.patient(send, sleep=waited.append)({})
+                    waits[label] = (waited, True)
+                except triage.LiveError:
+                    waits[label] = (waited, False)
+            require(waits == {"busy twice": (list(agent.WAITS[:2]), True), "always at its limit": (list(agent.WAITS), False),
+                              "a bad key": ([], False)}, f"a busy API is not asked again after a wait, or another failure is: {waits}")
+            print(f"  a failure part way keeps {len(left)} of {len(few)} decisions and the next run asks only for the one that "
+                  f"failed; a 500, a bad key, a reply that is not JSON and no answer at all each stop the run in one plain "
+                  f"sentence; a busy API is asked again after {' and '.join(str(w) for w in agent.WAITS[:2])} seconds, and a "
+                  f"bad key is not")
+
+            # The cap: a request goes out only while the most it could cost still fits under it.
+            request = runs[0][1][-1]
+            most = agent.ceiling(other_model, request)
+
+            def silent(body):
+                return {"content": []}       # a reply that does not say what it used
+            budget, passed = agent.Budget(other_model, 3.5 * most), 0
+            try:
+                for _ in range(10):
+                    budget.ask(request, silent)
+                    passed += 1
+            except agent.CapReached:
+                pass
+
+            def beside(cap):
+                """Whether a second request is let out while a first is still out, under this cap."""
+                held = agent.Budget(other_model, cap)
+
+                def second(body):
+                    try:
+                        held.ask(request, silent)
+                    except agent.CapReached:
+                        return {"content": [], "second": False}
+                    return {"content": [], "second": True}
+                return held.ask(request, second)["second"]
+            counted = agent.Budget(model, 1.0)
+            counted.ask(request, lambda body: {"usage": dict(usage)})
+            into_other, out_other = agent.PRICES[other_model]
+            require(most >= (len(json.dumps(request)) * into_other + agent.MAX_TOKENS * out_other) / 1e6,
+                    "the most a request can cost is under its characters as tokens and a full reply")
+            require(passed == 3 and abs(budget.spent - 3 * most) < 1e-12 and budget.spent <= budget.cap,
+                    "the cap is passed, or a reply that says nothing of its use is charged less than the most it could cost")
+            require(not beside(1.5 * most) and beside(2.5 * most), "the cap does not hold room for a request still out")
+            require(abs(counted.spent - a_request) < 1e-15, "a reply's own token counts are not what the cap charges")
+            # A case cut short between its two requests: what its first request cost stays on the books.
+            agent.path(model).unlink()
+            tight = agent.ceiling(model, runs[0][1][1]) + 0.5 * a_request
+            with stand_in_api(scripted_buyer()) as (url, seen):
+                try:
+                    agent.run(few[:1], model, "test-key", tight, url)
+                    cut_short = None
+                except SystemExit as halt:
+                    cut_short = str(halt.code)
+                half = agent.kept(model)
+                require(cut_short and "cap" in cut_short and seen["requests"] == 1 and not half["answers"]
+                        and abs(half["spent"] - a_request) < 1e-15,
+                        f"a case the cap cut short does not leave its spending in the saved file: {cut_short}, {half}")
+            # A cap with room for a few requests' real cost beside the most one could cost, run until a run asks nothing.
+            agent.path(model).unlink()
+            small = max(agent.ceiling(model, body) for _, sent, _ in runs[:len(few)] for body in sent) + 3.5 * a_request
+            with stand_in_api(scripted_buyer()) as (url, seen):
+                capped = []
+                while len(capped) < 8 and (len(capped) < 2 or capped[-1][1] != capped[-2][1]):
+                    try:
+                        agent.run(few, model, "test-key", small, url)
+                        capped.append((None, seen["requests"]))
+                    except SystemExit as halt:
+                        capped.append((str(halt.code), seen["requests"]))
+            under = agent.kept(model)
+            require(all(said and "cap" in said for said, _ in capped) and capped[-1][1] == capped[-2][1] > 0
+                    and abs(under["spent"] - capped[-1][1] * a_request) < 1e-12 and under["spent"] <= small
+                    and len(under["answers"]) < len(few),
+                    f"runs under a small cap pass it, or lose count of a request: {capped}")
+            print(f"  the cap: with room for three and a half requests at the most each could cost, {passed} go out and the next "
+                  f"is refused; a second request is held back while a first is still out; a case cut short after one request "
+                  f"leaves its ${half['spent']:.6f} in the saved file; {len(capped)} runs capped at ${small:.6f} send "
+                  f"{capped[-1][1]} requests between them, spend ${under['spent']:.6f}, and the last sends none")
+        finally:
+            agent.DATA = home
+
+    # The manual says which commands call the Claude API, so it must name every one that can.
+    sources = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
+               for p in [ROOT / "run.py", *sorted((ROOT / "staple").glob("*.py"))]}
+    manual = (ROOT / "staple" / "pages" / "manual.html").read_text(encoding="utf-8")
+    unnamed = api_senders_unnamed(sources, manual)
+    extra = api_senders_unnamed({**sources, "staple/extra.py": "reply = triage.post(body, key)\n"}, manual)
+    dropped = api_senders_unnamed(sources, manual.replace(API_COMMANDS["staple/agent.py"], "python -m staple.other"))
+    print(f"  {len(API_COMMANDS)} files can send a request to the Claude API, and the manual names the command for each; "
+          f"control: a planted file that sends one, and a manual with a command taken out, are each refused")
+    require(not unnamed, f"the manual does not name the command for a file that calls the Claude API: {unnamed}")
+    require(extra == ["staple/extra.py"] and dropped == ["staple/agent.py"],
+            "control: a file that calls the API unnamed, or a manual that drops a command, passes")
+
+
+API_COMMANDS = {"staple/triage.py": "python run.py --live", "staple/agent.py": "python -m staple.agent"}
+
+
+def api_senders_unnamed(sources, manual):
+    """The files that send a request to the Claude API whose command the manual does not name."""
+    senders = [name for name, text in sources.items() if re.search(r"urlopen\(|\btriage\.post\(", text)]
+    return sorted(name for name in senders
+                  if name not in API_COMMANDS or f"<code>{API_COMMANDS[name]}</code>" not in manual)
+
+
 @check("data")
 def data():
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

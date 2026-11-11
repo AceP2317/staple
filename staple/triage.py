@@ -152,13 +152,16 @@ def ask_claude_code(text, system=SYSTEM):
 
 
 class LiveError(Exception):
-    """The Claude API could not be asked, or did not answer in the agreed form. The message is for a person."""
+    """The Claude API could not be asked, or did not answer in the agreed form. The message is for a person, and
+    status is the API's own answer code when it gave one."""
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
 
 
-def ask_api(text, key, url=API_URL, system=SYSTEM):
-    """One prompt through the Claude API, standard library only, with the reader's own key."""
-    body = {"model": MODEL, "max_tokens": 16000, "system": system, "output_config": {"effort": EFFORT},
-            "messages": [{"role": "user", "content": text}]}
+def post(body, key, url=API_URL):
+    """One request to the Claude API, standard library only, with the reader's own key: the reply as it came."""
     request = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST", headers={
         "content-type": "application/json", "x-api-key": key, "anthropic-version": API_VERSION})
     try:
@@ -172,11 +175,20 @@ def ask_api(text, key, url=API_URL, system=SYSTEM):
             said = said[:200]
         hint = {401: " Check that ANTHROPIC_API_KEY holds a working key.", 429: " The key's rate limit was reached; wait and run again.",
                 529: " The API is overloaded; wait and run again."}.get(err.code, "")
-        raise LiveError(f"the Claude API answered {err.code}: {said}.{hint}") from None
+        raise LiveError(f"the Claude API answered {err.code}: {said}.{hint}", err.code) from None
     except (urllib.error.URLError, TimeoutError) as err:
         raise LiveError(f"the Claude API could not be reached at {url}: {getattr(err, 'reason', err)}") from None
     except ValueError:
         raise LiveError("the Claude API sent a reply that is not JSON") from None
+    if not isinstance(reply, dict):
+        raise LiveError("the Claude API sent a reply that is not a message")
+    return reply
+
+
+def ask_api(text, key, url=API_URL, system=SYSTEM):
+    """One prompt through the Claude API: the text of its answer."""
+    reply = post({"model": MODEL, "max_tokens": 16000, "system": system, "output_config": {"effort": EFFORT},
+                  "messages": [{"role": "user", "content": text}]}, key, url)
     if reply.get("stop_reason") == "refusal":
         raise LiveError(f"Claude declined the request: {reply.get('stop_details')}")
     if reply.get("stop_reason") == "max_tokens":
