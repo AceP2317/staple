@@ -25,7 +25,7 @@ real history would record. A real history records only the booked code.</p>
 method uses is read from the earlier days (<code>split = 'train'</code>), and the method is then scored on the
 held-back days. No held-back fact reaches a method. One row breaks that rule on purpose and is never a result: the
 leak test scores the predictor with the held-back jobs in its history, to measure what the hold-out is worth.</p>
-<p><strong>A control for every gain.</strong> Each claimed gain has a control that breaks the link the gain should
+<p id="controls"><strong>A control for every gain.</strong> Each claimed gain has a control that breaks the link the gain should
 come from: shuffled history, shuffled technician skills, shuffled AI answers, random follow-up replies. The share of
 a gain its control keeps is:</p>
 <code class="formula">kept = (with the control − without the method) / (with the method − without the method)</code>
@@ -33,6 +33,10 @@ a gain its control keeps is:</p>
 falls back. <code>controls.sql</code> lists every control with the share it kept, and the report names the ones
 that do not fall back and what those gains rest on. Where a check could pass without looking, it also runs a
 planted input that must make it fail.</p>
+<p>A control that shuffles the history still keeps what each appliance usually needs. So where a method gains partly
+by knowing tomorrow's appliances, that control keeps that part of the gain and loses only what the links to model
+family and problem add. The carry list's own control falls back because the list it is measured against, the
+national top parts, already knows the appliance.</p>
 <p><strong>One seed, one source.</strong> Seed {{seed}} reproduces every row. Every figure on an evidence card is
 read from the result of a SQL query in <code>sql/metrics/</code>, or is one of the made-up values in the
 <code>assumptions</code> table. The plan, the day's comparison and the technician cards are the dispatch replay's own
@@ -378,7 +382,13 @@ lead time from the day a center can ship it, and the repeat visit waits for the 
 <p>The check <code>cycle-time</code> holds that mean to the history: over every recorded wait, the mean and the
 recorded days must agree within the spread chance allows. Every row of the query draws on the same lead times. So
 a way of handing out calls can change how many repairs wait and which parts they wait for, never how long a
-supplier takes.</p></section>
+supplier takes.</p>
+<p>A repair that still waits under a better load waits longer on average. A truck cannot load a part no center can
+ship, so a better load removes most other waits and leaves the waits on back-order. Those become a larger share of
+what is left, and each is longer, because a part on back-order waits first for the day a center can ship it and then
+for its lead time. A row can also leave fewer repairs waiting than Staple and still fix fewer calls on the first
+visit. The report names each such row beside the calls it fixes. Each is a rule that does not know who is good at
+what, and the build stops on a row that waits less for any other reason.</p></section>
 
 <section id="scorecard"><h2>The scorecard</h2>
 <p>Source: <code>sql/metrics/scorecard.sql</code>, over the dispatch replay's table. The scorecard gives five

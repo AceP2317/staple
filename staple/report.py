@@ -251,7 +251,7 @@ CHECK_ABOUT = {
     "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
     "plain-words": "The public copy holds no word from the author's private setup, and the guard runner keeps its contract. The private list of names and words is scanned over every file git would publish. Each entry is then planted in a copy of the README in turn and must be caught, so the list holds no entry the scan cannot see; a copy with no list tries the scan on stand-in words and says so. The runner is tried on a scratch folder of planted guards: one that passes, one that fails, an argument it does not know, an empty folder, a parked guard that now passes, one that still finds its mistake and one that is broken, a guard that hangs, a guard slower than its allowance, and guards chosen by the files a commit stages. A copy of the runner that lets a failing guard through must be refused.",
     "corners": "The corners cut on purpose are read from the comments that mark them. Only a real comment counts, so the marker written inside a string is not a corner: every corner found must be a line that opens with the marker, a planted file with the marker in a string and in a comment must give one corner, and a comment that runs on must be read whole. Every corner must name its upgrade. The methods page must list each corner once and write the marker once, where it defines it, and the report must state the count the method cuts. A page with one corner dropped, and a report with the wrong count, must be refused.",
-    "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
+    "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Every evidence card must open with its finding, keep each piece under it short and link to the section of the methods page that works it out. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point, and the reason the report gives for that is measured: odds that know only the appliance must score within half a point of the shuffled ones, and the parts odds handed over for same-day calls alone must keep more than half the gain. No control may win by overbooking the day.",
@@ -312,6 +312,8 @@ def pct(v):
 
 
 SICK_AT = plan.clock(dispatch.SICK_BY)    # the hour sick calls are known, as the pages write it
+# An evidence card's shape: the most words its finding, any one piece under it, and the whole card before its chart may hold.
+CARD_FINDING, CARD_PIECE, CARD_WORDS = 40, 65, 230
 PYTHON = (3, 10)                          # the oldest Python the checks have run on
 
 
@@ -478,9 +480,9 @@ def scorecard(results):
             f'<p class="sub">Every row is the whole plan replayed with the same made-up sick calls and breakdowns. '
             f'<span class="invented"{tipattr(madeup)}>made-up data</span></p>'
             f'<div class="scroll"><table class="score"><thead><tr>{head}</tr></thead><tbody>{"".join(line(r) for r in score)}'
-            f'</tbody></table></div><p class="sub after">The control is Staple with the history behind its part odds shuffled, so it knows what '
-            f'each appliance usually needs and nothing finer. It keeps {spread} of each gain. So most of each gain needs '
-            f'only what each appliance usually needs, and the history\'s links to model family and problem add the rest.</p>'
+            f'</tbody></table></div><p class="sub after">The control is Staple with the history behind its part odds shuffled, so it knows only '
+            f'what each appliance usually needs. It keeps {spread} of each gain, and the history\'s links to model family '
+            f'and problem add the rest.</p>'
             '</section>')
 
 
@@ -1196,11 +1198,11 @@ def build_report(results, week, stamp_text, day):
     runs = [r for r in bands if r["staple_then"] == "runs on the code"]
     spare = [r for r in bands if r not in runs and runs and r["agrees_booked_pct"] >= min(x["agrees_booked_pct"] for x in runs)]
     cautious = "".join(f" Where it states {r['stated_confidence']} it matches on {pct(r['agrees_booked_pct'])} of "
-                       f"{r['jobs']:,} bookings, as often as the surer bands, and Staple still asks its question there."
+                       f"{r['jobs']:,} bookings, and Staple still asks its question there."
                        for r in spare)
     if spare:
-        cautious += (f" Staple asks below {triage.BLEND_BELOW}, so that line is cautious on this data. It is a stated choice "
-                     "and it is not moved to fit, because it would then be tuned on the jobs it is scored on.")
+        cautious += (f" Staple asks below {triage.BLEND_BELOW}, a stated choice that is not moved to fit the jobs it is "
+                     "scored on.")
     said = f"{claude['phrasings']} distinct descriptions across {claude['jobs']:,} held-back bookings"
     shuffled_ai = next(r for m, r in ai.items() if m.startswith("Claude answers shuffled"))
     asked, random_replies = ai[triage.ASKED], ai[triage.RANDOM_REPLIES]
@@ -1225,9 +1227,12 @@ def build_report(results, week, stamp_text, day):
                          "at what, and fixes fewer calls for it, and the query now shows another: rewrite the card")
     fixes = [f"{r['policy']} {'fixes ' * (i == 0)}{pct(disp[r['policy']]['first_time_fix_pct'])}{' of calls on the first visit' * (i == 0)}"
              for i, r in enumerate(less)]
-    wait_less = ("" if not less else
-                 f" Of the other rows, {len(less)} {'waits' if len(less) == 1 else 'wait'} less than Staple without knowing "
-                 f"who is good at what: {' and '.join(fixes)}, against Staple's {pct(ours['first_time_fix_pct'])}.")
+    named = f"{' and '.join(fixes)}, against Staple's {pct(ours['first_time_fix_pct'])}."
+    wait_less = "" if not less else join(
+        f"{counted(len(less), 'other row')} {'waits' if len(less) == 1 else 'wait'} less than Staple without knowing who "
+        "is good at what, and ",
+        hv(f"{'fixes' if len(less) == 1 else 'fix'} fewer calls on the first visit",
+           f"The rows that wait less than Staple\n{named[0].upper()}{named[1:]}"), ".")
     points = rows(results, "carry_list_curve")
     three = next(p for p in points if p["k"] == load.SHOWN_K)
     stuck = rows(results, "backorder_exposure")
@@ -1373,142 +1378,174 @@ def build_report(results, week, stamp_text, day):
 
     titles = {}    # each evidence card's heading by its query, for the links that open it
 
-    def card(name, heading, text, fig, do, anchor=None, take=None, points=(), note=None):
-        """One evidence card. anchor gives its heading a short id, for a link from outside the page. take is the card's
-        finding in a line, set above its text; points are short lines under the text, and note closes them."""
+    def card(name, heading, text, fig, do, method, anchor=None, take=None, points=(), note=None):
+        """One evidence card, in the shape every card keeps: its finding in a line, a short setup, short lines under
+        it, a closing limit, the chart, and a link to the part of the methods page that holds the detail. anchor
+        gives its heading a short id, for a link from outside the page."""
         titles[name] = heading
         tip = f"{heading}\nSource: sql/metrics/{name}.sql. {about(name)}"
         named = f' id="{anchor}"' if anchor else ""
         finding = f'<p class="take">{take}</p>' if take else ""
         listed = '<ul class="points">' + "".join(f"<li>{point}</li>" for point in points) + "</ul>" if points else ""
         closing = f"<p>{note}</p>" if note else ""
+        more = (f'<p class="more"><a href="{FILES["method"]}#{method}" target="_blank" rel="noopener" '
+                f'aria-label="How this is worked out: {e(heading)}">How this is worked out</a></p>')
         return (f'<section class="card" id="proof-{name}"><h3{named}{tipattr(tip)}>{e(heading)}</h3>{finding}<p>{text}</p>'
-                f'{listed}{closing}{fig}<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
+                f'{listed}{closing}{fig}{more}<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
+
+    def label(words):
+        """The bold words that open a point."""
+        return Raw(f"<strong>{e(words)}</strong> ")
+
+    keeps = "; ".join(f"{r['control']} {kept(r)}" for r in held)    # each control that does not fall back, with its share
 
     proof = [
         card("dispatch_scorecard", "Who takes the call", join(
-            "Every held-back day replayed with the same made-up sick calls, breakdowns and priority changes. Staple sends "
-            "each call to the technician with the lowest expected cost: drive and repair minutes, plus a repeat visit times the "
-            "chance that technician's skill or truck fails it, placing first the call with most to lose", q("regret insertion"),
-            ". Shuffling the technicians' skills drops it to ",
-            hv(pct(shuffled_skills["first_time_fix_pct"]), f"{pct(shuffled_skills['first_time_fix_pct'])} with shuffled skills\n"
-               f"Each technician read another's success rate and speed; {cents(shuffled_skills['cost_per_call'])} a call."),
-            ", below the parts-only rule's ",
-            hv(pct(parts_only["first_time_fix_pct"]), f"{pct(parts_only['first_time_fix_pct'])} on parts alone\nEvery technician "
-               f"taken as average; {cents(parts_only['cost_per_call'])} a call."),
-            ", so what skills add to that rule comes from knowing who is good at what. Shuffling the history behind the parts odds it "
-            "reads leaves it at ",
-            hv(pct(shuffled_odds["first_time_fix_pct"]), f"{pct(shuffled_odds['first_time_fix_pct'])} with shuffled-history parts odds\n"
-               f"Against {pct(skills['first_time_fix_pct'])} with no parts judgment at all. The control keeps "
-               f"{kept(controls[dispatch.SHUFFLED_ODDS])} of that gain: it {controls[dispatch.SHUFFLED_ODDS]['verdict']}."),
-            ", so that control does not fall back. The parts judgment earns most of its gain during the day, by sending a "
-            "call that comes in or is moved to a truck already loaded for that appliance. That needs only what each "
-            "appliance usually needs, which the shuffle keeps. Calls moved by a sick day or a breakdown were fixed first time ",
-            hv(pct(ours["moved_fix_pct"]), f"{pct(ours['moved_fix_pct'])} of {ours['moved']} moved calls fixed first time\n"
-               f"The nearest technician on today's stock, facing the same surprises: {pct(now['moved_fix_pct'])} of {now['moved']}."),
-            f" of the time, against {pct(now['moved_fix_pct'])} for the current rules. A rolled call", q("rolled call"),
-            " counts as not fixed."),
+            "Every held-back day is replayed with the same made-up sick calls, breakdowns and priority changes. Staple "
+            "sends each call to the technician with the lowest expected cost: the drive, the repair, and the risk of a "
+            "repeat visit. It places first the call with most to lose", q("regret insertion"), "."),
             figure("dispatch_scorecard", "Calls fixed on the first visit, with a rolled call counted as not fixed", dispatch_bars,
                    results["dispatch_scorecard"]),
             "keep the routing system dispatch already owns, and hand it this expected-cost score for each technician and call, "
-            "so its routes carry the skill and parts judgment."),
+            "so its routes carry the skill and parts judgment.", "dispatch",
+            take=join(
+                "Staple fixes ",
+                hv(pct(ours["first_time_fix_pct"]), f"{pct(ours['first_time_fix_pct'])} of calls fixed on the first visit by Staple\n"
+                   f"Skills and parts, on balanced loads; {cents(ours['cost_per_call'])} a call."),
+                " of calls on the first visit, against ",
+                hv(pct(now["first_time_fix_pct"]), f"{pct(now['first_time_fix_pct'])} under the current rules\nThe nearest technician "
+                   f"on today's stock; {cents(now['cost_per_call'])} a call."),
+                " under the current rules", q("current rules"), ", on the same days with the same surprises."),
+            points=[
+                join(label("Skills."), "With the technicians' skills shuffled it falls to ",
+                     hv(pct(shuffled_skills["first_time_fix_pct"]), f"{pct(shuffled_skills['first_time_fix_pct'])} with shuffled skills\n"
+                        f"Each technician read another's success rate and speed; {cents(shuffled_skills['cost_per_call'])} a call."),
+                     ", below the parts-only rule's ",
+                     hv(pct(parts_only["first_time_fix_pct"]), f"{pct(parts_only['first_time_fix_pct'])} on parts alone\nEvery technician "
+                        f"taken as average; {cents(parts_only['cost_per_call'])} a call."),
+                     ", so what skills add comes from knowing who is good at what."),
+                join(label("Parts."), "With the history behind its parts odds shuffled it stays at ",
+                     hv(pct(shuffled_odds["first_time_fix_pct"]), f"{pct(shuffled_odds['first_time_fix_pct'])} with shuffled-history parts odds\n"
+                        f"Against {pct(skills['first_time_fix_pct'])} with no parts judgment at all. The control keeps "
+                        f"{kept(controls[dispatch.SHUFFLED_ODDS])} of that gain: it {controls[dispatch.SHUFFLED_ODDS]['verdict']}.\n"
+                        "Sending a same-day call to a truck already loaded for its appliance needs only what each appliance "
+                        "usually needs, which the shuffle keeps."),
+                     ", so that control does not fall back. Most of the parts gain comes from sending a same-day call "
+                     "to a truck already loaded for its appliance."),
+                join(label("Surprises."), "Calls moved by a sick day or a breakdown were fixed first time ",
+                     hv(pct(ours["moved_fix_pct"]), f"{pct(ours['moved_fix_pct'])} of {ours['moved']} moved calls fixed first time\n"
+                        f"The nearest technician on today's stock, facing the same surprises: {pct(now['moved_fix_pct'])} of {now['moved']}."),
+                     f" of the time, against {pct(now['moved_fix_pct'])} under the current rules.")],
+            note=join("A rolled call", q("rolled call"), " counts as not fixed.")),
         card("inventory_roi", "What to load tonight", join(
-            "Each night the balanced truck ranks every part by its worth", q("worth"), " per unit of space. It covers ",
-            hv(pct(bal["covered_pct"]), f"{pct(bal['covered_pct'])} of jobs covered\nAgainst {pct(fixed['covered_pct'])} on today's trucks."),
-            " of jobs for ", hv(f"{cents(bal['cost_a_truck_day'])} a truck-day", f"{cents(bal['cost_a_truck_day'])} a truck-day\nRepeat "
-                               f"${bal['repeat_cost']:.2f}, moves ${bal['handling_cost']:.2f}, holding ${bal['holding_cost']:.2f}."),
-            q("truck-day"), f", against {pct(fixed['covered_pct'])} and ",
-            hv(f"{cents(fixed['cost_a_truck_day'])}", f"{cents(fixed['cost_a_truck_day'])} a truck-day on today's stock\nRepeat "
-               f"${fixed['repeat_cost']:.2f}, moves ${fixed['handling_cost']:.2f}, holding ${fixed['holding_cost']:.2f}."),
-            " for today's fixed stock, while holding ",
+            "Each night it ranks every part by its worth", q("worth"), " per unit of space. It holds ",
             hv(f"${bal['stock_value']:,.0f}", f"${bal['stock_value']:,.0f} of stock on the balanced truck\n{bal['parts_aboard']:.0f} parts, "
                f"{some(bal['permanent_parts'])} of them aboard nearly every day."),
-            f" against ${fixed['stock_value']:,.0f}. Three tests of that gain follow. Loaded from shuffled history, the control",
-            q("control"), ", it still covers ",
-            hv(pct(shuffled_load["covered_pct"]), f"{pct(shuffled_load['covered_pct'])} of jobs, loaded from shuffled history\n"
-               f"{cents(shuffled_load['cost_a_truck_day'])} a truck-day. The shuffle keeps what each appliance usually needs "
-               "and breaks every link to model family and problem."),
-            f" for {cents(shuffled_load['cost_a_truck_day'])} and keeps ",
-            hv(kept(controls[load.CONTROL_BALANCED]), f"{kept(controls[load.CONTROL_BALANCED])} of the saving kept\n"
-               f"{cents(fixed['cost_a_truck_day'])} on today's stock, {cents(bal['cost_a_truck_day'])} balanced, "
-               f"{cents(shuffled_load['cost_a_truck_day'])} from shuffled history: it {controls[load.CONTROL_BALANCED]['verdict']}.\n"
-               "From controls.sql."),
-            " of the saving. So that share comes from loading each truck for the appliances it will meet tomorrow, and "
-            "the rest from the predictor's odds for each model family and problem. The balanced truck also fills ",
-            hv(f"{bal['space_used']:.0f} units", f"{bal['space_used']} units of space used, of {world.CAPACITY} on a truck\n"
-               f"Today's stock uses {fixed['space_used']}."),
-            f" of space where today's stock uses {fixed['space_used']:.0f}; held to today's space it covers ",
-            hv(pct(equal["covered_pct"]), f"{pct(equal['covered_pct'])} of jobs in the space today's stock uses\n"
-               f"{cents(equal['cost_a_truck_day'])} a truck-day on {equal['space_used']} units, against "
-               f"{cents(bal['cost_a_truck_day'])} with the whole truck."),
-            f" for {cents(equal['cost_a_truck_day'])}. And the saving leans on the made-up ${load.MOVE:.0f} for moving one part: ",
-            Raw(", ".join(f"at ${m:.0f} it costs " + hv(f"{cents(r['cost_a_truck_day'])}",
-                          f"{cents(r['cost_a_truck_day'])} a truck-day when one move costs ${m:.0f}\nIt covers "
-                          f"{pct(r['covered_pct'])} of jobs and moves {r['moves_a_night']} parts a night, against "
-                          f"{bal['moves_a_night']} at ${load.MOVE:.0f}.") for m, r in priced)),
-            (", each still under" if all(r["cost_a_truck_day"] < fixed["cost_a_truck_day"] for _, r in priced)
-             else ", no longer all under"), f" today's {cents(fixed['cost_a_truck_day'])}."),
+            f" of stock against ${fixed['stock_value']:,.0f}. Three tests of its gain follow."),
             figure("inventory_roi", "Cost a truck-day: repeat visits, parts moved overnight, and money tied up", load_bars,
                    results["inventory_roi"]),
             "switch the overnight load from a fixed stock list to tomorrow's booked calls, so the parts room works from a load "
-            "sheet per truck, like the one the plan opens beside the board."),
+            "sheet per truck, like the one the plan opens beside the board.", "loads",
+            take=join(
+                "The balanced truck covers ",
+                hv(pct(bal["covered_pct"]), f"{pct(bal['covered_pct'])} of jobs covered\nAgainst {pct(fixed['covered_pct'])} on today's trucks."),
+                " of jobs for ", hv(f"{cents(bal['cost_a_truck_day'])} a truck-day", f"{cents(bal['cost_a_truck_day'])} a truck-day\nRepeat "
+                                   f"${bal['repeat_cost']:.2f}, moves ${bal['handling_cost']:.2f}, holding ${bal['holding_cost']:.2f}."),
+                q("truck-day"), f", against {pct(fixed['covered_pct'])} and ",
+                hv(f"{cents(fixed['cost_a_truck_day'])}", f"{cents(fixed['cost_a_truck_day'])} a truck-day on today's stock\nRepeat "
+                   f"${fixed['repeat_cost']:.2f}, moves ${fixed['handling_cost']:.2f}, holding ${fixed['holding_cost']:.2f}."),
+                " on today's fixed stock."),
+            points=[
+                join(label("Shuffled history."), "Loaded from shuffled history, the control", q("control"), ", it still covers ",
+                     hv(pct(shuffled_load["covered_pct"]), f"{pct(shuffled_load['covered_pct'])} of jobs, loaded from shuffled history\n"
+                        f"{cents(shuffled_load['cost_a_truck_day'])} a truck-day. The shuffle keeps what each appliance usually needs "
+                        "and breaks every link to model family and problem."),
+                     f" for {cents(shuffled_load['cost_a_truck_day'])} and keeps ",
+                     hv(kept(controls[load.CONTROL_BALANCED]), f"{kept(controls[load.CONTROL_BALANCED])} of the saving kept\n"
+                        f"{cents(fixed['cost_a_truck_day'])} on today's stock, {cents(bal['cost_a_truck_day'])} balanced, "
+                        f"{cents(shuffled_load['cost_a_truck_day'])} from shuffled history: it {controls[load.CONTROL_BALANCED]['verdict']}.\n"
+                        "From controls.sql."),
+                     " of the saving. That share comes from knowing tomorrow's appliances, and the rest from the "
+                     "predictor's odds for each model family and problem."),
+                join(label("Same space."), "It fills ",
+                     hv(f"{bal['space_used']:.0f} units", f"{bal['space_used']} units of space used, of {world.CAPACITY} on a truck\n"
+                        f"Today's stock uses {fixed['space_used']}."),
+                     f" of space where today's stock uses {fixed['space_used']:.0f}. Held to today's space it covers ",
+                     hv(pct(equal["covered_pct"]), f"{pct(equal['covered_pct'])} of jobs in the space today's stock uses\n"
+                        f"{cents(equal['cost_a_truck_day'])} a truck-day on {equal['space_used']} units, against "
+                        f"{cents(bal['cost_a_truck_day'])} with the whole truck."),
+                     f" for {cents(equal['cost_a_truck_day'])}."),
+                join(label("Move price."), f"The saving leans on the made-up ${load.MOVE:.0f} for moving one part: ",
+                     Raw(", ".join(f"at ${m:.0f} it costs " + hv(f"{cents(r['cost_a_truck_day'])}",
+                                   f"{cents(r['cost_a_truck_day'])} a truck-day when one move costs ${m:.0f}\nIt covers "
+                                   f"{pct(r['covered_pct'])} of jobs and moves {r['moves_a_night']} parts a night, against "
+                                   f"{bal['moves_a_night']} at ${load.MOVE:.0f}.") for m, r in priced)),
+                     (", each still under" if all(r["cost_a_truck_day"] < fixed["cost_a_truck_day"] for _, r in priced)
+                      else ", no longer all under"), f" today's {cents(fixed['cost_a_truck_day'])}.")]),
         card("ai_step", "Claude coding the bookings", join(
-            f"{triage.MODEL_NAME} ({triage.MODEL}) reads the customer's own words and picks a problem code with a confidence. "
-            "On that code alone its 3-part list covers ",
-            hv(pct(claude["coverage_pct"]), f"{pct(claude['coverage_pct'])} of jobs on Claude's code\nIts code matches the booked "
-               f"code on {pct(claude['agrees_booked_pct'])} of bookings."),
-            " of jobs, against ", hv(pct(booked["coverage_pct"]), f"{pct(booked['coverage_pct'])} with the booked code\nThe code a "
-                                     "call-taker picked, taken as given."), " for the booked code", q("booked code"), " and ",
-            hv(pct(keywords["coverage_pct"]), f"{pct(keywords['coverage_pct'])} for a plain keyword matcher\nThe code whose label "
-               "shares the most words with the customer's. It is a floor to beat, not a picture of any booking screen."),
-            " for a plain keyword matcher. These bookings describe their problems in only ",
+            hv(triage.MODEL_NAME, f"{triage.MODEL_NAME}\nThe model {triage.MODEL}."),
+            " reads each booking and gives a problem code with a confidence. The bookings describe their problems in only ",
             hv(f"{claude['phrasings']} ways", f"{said}\nThe invented customers say each problem a few ways, so every score here "
                "is a score over that many readings, weighted by how often each is said."),
-            ", so each figure is a score over that many readings and not over thousands of separate ones. When Claude is "
-            "unsure it asks one question. With a customer who always picks the matching answer, its list covers ",
-            hv(pct(asked["coverage_pct"]), f"{pct(asked['coverage_pct'])} with ideal replies\nAn upper bound: the customer here is "
-               "simulated and always picks the offered answer that matches the booking."),
-            ", an upper bound. With random replies, the control, it covers ",
-            hv(pct(random_replies["coverage_pct"]), f"{pct(random_replies['coverage_pct'])} with random replies\nThe control, and "
-               "the lower end: the question only helps when the answer is real."),
-            ". A real customer lands between the two. Shuffling Claude's answers between bookings drops its list to ",
-            hv(pct(shuffled_ai["coverage_pct"]), f"{pct(shuffled_ai['coverage_pct'])} with shuffled answers\nThe control: the reading "
-               "only helps when it belongs to the words."),
-            ". The second chart holds Claude to the confidence it states. Where it states ", surest["stated_confidence"],
-            ", its first reading matches the booked code on ",
-            hv(pct(surest["agrees_booked_pct"]), f"{pct(surest['agrees_booked_pct'])} right at {surest['stated_confidence']}\n"
-               f"{surest['jobs']:,} bookings in {surest['phrasings']} distinct phrasings."),
-            " of bookings. Where it states ", least["stated_confidence"], ", on ",
-            hv(pct(least["agrees_booked_pct"]), f"{pct(least['agrees_booked_pct'])} right at {least['stated_confidence']}\n"
-               f"{least['jobs']:,} bookings in {least['phrasings']} distinct phrasings."),
-            "." + cautious + " The answers are saved with the code, so these pages rebuild without a key."),
+            ", so each figure is a score over that many readings."),
             figure("ai_step", "Jobs whose every needed part is on the 3-part list, by how the words were read", ai_bars, results["ai_step"])
             + figure("ai_calibration", "How often Claude's first reading matches the booked code, by the confidence it stated",
                      calibration_bars, results["ai_calibration"]),
             "let Claude code the bookings and ask its one question at the moment of booking, and keep a person on the few calls "
-            "its question cannot settle."),
+            "its question cannot settle.", "ai",
+            take=join(
+                "Reading only the customer's own words, Claude picks a problem code whose 3-part list covers ",
+                hv(pct(claude["coverage_pct"]), f"{pct(claude['coverage_pct'])} of jobs on Claude's code\nIts code matches the booked "
+                   f"code on {pct(claude['agrees_booked_pct'])} of bookings."),
+                " of jobs, against ", hv(pct(booked["coverage_pct"]), f"{pct(booked['coverage_pct'])} with the booked code\nThe code a "
+                                         "call-taker picked, taken as given."), " for the booked code", q("booked code"), " and ",
+                hv(pct(keywords["coverage_pct"]), f"{pct(keywords['coverage_pct'])} for a plain keyword matcher\nThe code whose label "
+                   "shares the most words with the customer's. It is a floor to beat, not a picture of any booking screen."),
+                " for a plain keyword matcher."),
+            points=[
+                join(label("Its one question."), "Claude asks it when unsure. With a customer who always picks the matching "
+                     "answer, its list covers ",
+                     hv(pct(asked["coverage_pct"]), f"{pct(asked['coverage_pct'])} with ideal replies\nAn upper bound: the customer here is "
+                        "simulated and always picks the offered answer that matches the booking."),
+                     ", an upper bound. With random replies, the control, it covers ",
+                     hv(pct(random_replies["coverage_pct"]), f"{pct(random_replies['coverage_pct'])} with random replies\nThe control, and "
+                        "the lower end: the question only helps when the answer is real."),
+                     ". A real customer lands between the two."),
+                join(label("The control."), "Shuffling Claude's answers between bookings drops its list to ",
+                     hv(pct(shuffled_ai["coverage_pct"]), f"{pct(shuffled_ai['coverage_pct'])} with shuffled answers\nThe control: the reading "
+                        "only helps when it belongs to the words."), "."),
+                join(label("Its confidence."), "Where it states ", surest["stated_confidence"],
+                     ", its first reading matches the booked code on ",
+                     hv(pct(surest["agrees_booked_pct"]), f"{pct(surest['agrees_booked_pct'])} right at {surest['stated_confidence']}\n"
+                        f"{surest['jobs']:,} bookings in {surest['phrasings']} distinct phrasings."),
+                     " of bookings. Where it states ", least["stated_confidence"], ", on ",
+                     hv(pct(least["agrees_booked_pct"]), f"{pct(least['agrees_booked_pct'])} right at {least['stated_confidence']}\n"
+                        f"{least['jobs']:,} bookings in {least['phrasings']} distinct phrasings."), ".")]
+            + ([join(label("A cautious line."), cautious.strip())] if cautious else []),
+            note=join("The answers are saved with the code, so these pages rebuild without a key.")),
         card("backorder_exposure", "Back-orders to chase first", join(
-            "A back-order", q("back-order"), " starts on one day and ships on another, so the list is made again every day: "
-            "the days left count down, and a part drops off the day it ships. For each stuck part the list forecasts the "
-            "calls that will need it before it ships, from training history only, and how many have no truck nearby "
-            f"holding one. Across the {len(scored)} back-orders that shipped inside the held-back days it expected ",
-            hv(f"{exp_calls:.1f} calls and {exp_stuck:.1f} stuck", f"{exp_calls:.1f} calls, {exp_stuck:.1f} stuck\n"
-               f"${sum(r['dollars_at_risk'] for r in scored):,.0f} at risk across {len(scored)} back-orders, each scored "
-               "on the first day it was listed."),
-            "; the days then brought ", hv(f"{act_calls} and {act_stuck}", f"{act_calls} calls, {act_stuck} stuck\nCounted on the "
-                                         "held-back days, which the forecast never saw."),
-            f". A single booking is flagged when its odds of needing a stuck part reach {load.BACKORDER_FLAG:.0%}. Of "
-            f"{flag['bookings']:,} held-back bookings, ",
-            hv(f"{flag['flagged']} were flagged and {flag['flagged_and_stuck']} of those were stuck",
-               f"{pct(flag['flags_right_pct'])} of flags marked a booking that was stuck\n{flag['were_stuck']} bookings were stuck "
-               f"in all, against a forecast of {flag['forecast_stuck']}."),
-            ". So the count can be forecast and the single booking cannot: a flag is a reason to warn a customer, never a "
-            "prediction for that call."),
+            "A back-order", q("back-order"), " starts on one day and ships on another, so the list is made again every day. "
+            "For each stuck part it forecasts, from training history only, the calls that will need it before it ships "
+            "and how many have no truck nearby holding one."),
             figure("backorder_exposure", "Back-ordered parts on each day of this week, by repeat-visit dollars at risk", "",
                    results["backorder_exposure"], row_tip=stuck_tip, shown=stuck_week)
             + figure("backorder_flag", "The back-order flag on single bookings, scored on the held-back days", "",
                      results["backorder_flag"]),
-            "expedite from the top of this list, and move spares toward the zones where no truck holds one."),
+            "expedite from the top of this list, and move spares toward the zones where no truck holds one.", "backorders",
+            take=join("The count of calls stuck on a back-order can be forecast. A single booking cannot."),
+            points=[
+                join(label("The count."), f"Across the {len(scored)} back-orders that shipped inside the held-back days it expected ",
+                     hv(f"{exp_calls:.1f} calls and {exp_stuck:.1f} stuck", f"{exp_calls:.1f} calls, {exp_stuck:.1f} stuck\n"
+                        f"${sum(r['dollars_at_risk'] for r in scored):,.0f} at risk across {len(scored)} back-orders, each scored "
+                        "on the first day it was listed."),
+                     "; the days then brought ", hv(f"{act_calls} and {act_stuck}", f"{act_calls} calls, {act_stuck} stuck\nCounted on the "
+                                                  "held-back days, which the forecast never saw."), "."),
+                join(label("The single booking."), f"A booking is flagged when its odds of needing a stuck part reach "
+                     f"{load.BACKORDER_FLAG:.0%}. Of {flag['bookings']:,} held-back bookings, ",
+                     hv(f"{flag['flagged']} were flagged and {flag['flagged_and_stuck']} of those were stuck",
+                        f"{pct(flag['flags_right_pct'])} of flags marked a booking that was stuck\n{flag['were_stuck']} bookings were stuck "
+                        f"in all, against a forecast of {flag['forecast_stuck']}."),
+                     ". A flag is a reason to warn a customer, never a prediction for that call.")]),
         card("buyer_scorecard", "Claude as the buyer", join(
             "Each case is one back-ordered part on one held-back day. The engine prices the buyer's four actions in "
             "expected dollars: send the calls anyway, expedite, move a part from another truck, or rebook. A decider",
@@ -1519,7 +1556,7 @@ def build_report(results, week, stamp_text, day):
             figure("buyer_scorecard", "Dollars lost a decision over the cheapest action, by who decides", buyer_bars,
                    results["buyer_scorecard"]),
             "let a model work each back-order from the same lookups and draft the note, score its choices against the "
-            "arithmetic every night, and keep the buyer's sign-off on every note before it goes out.", anchor="buyer",
+            "arithmetic every night, and keep the buyer's sign-off on every note before it goes out.", "buyer", anchor="buyer",
             take=buyer_take,
             points=[model_point(m, r) for m, r in ranked] + [join(
                 "For scale, sending anyway every time loses ", hv(f"${sends['dollars_lost']:,.0f}", lost_tip(sends)),
@@ -1531,81 +1568,92 @@ def build_report(results, week, stamp_text, day):
                       "here sends a note.")),
         card("carry_list_curve", "Which parts to carry", join(
             "The predictor ranks parts by how often they fixed the same model family and problem, and leans", q("lean"),
-            " on the wider appliance group when a family's history is thin. Three parts on the carry list", q("carry list"),
-            " cover ", hv(pct(three["predictor_pct"]), f"{pct(three['predictor_pct'])} of held-back jobs\nEvery needed part on a "
-                          f"{load.SHOWN_K}-part list. With {points[-1]['k']} parts: {pct(points[-1]['predictor_pct'])}."),
-            " of held-back jobs; the national top three cover ",
-            hv(pct(three["national_pct"]), f"{pct(three['national_pct'])} with the national top {load.SHOWN_K}\nThe appliance's "
-               "most-used parts, whatever the problem."), ". Shuffling the history drops the predictor to ",
-            hv(pct(three["shuffled_pct"]), f"{pct(three['shuffled_pct'])} on shuffled history\nThe control falls to the national "
-               "line, so the gain comes from what the history links."),
-            ". Scored again with the held-back jobs already in its history, it covers ",
-            hv(pct(three["leaked_pct"]), f"{pct(three['leaked_pct'])} with the held-back jobs leaked in\n"
-               f"{three['leaked_pct'] - three['predictor_pct']:+.1f} points on the predictor's {pct(three['predictor_pct'])}. "
-               "No scored method is built this way; the row only measures what the hold-out is worth."),
-            f", {three['leaked_pct'] - three['predictor_pct']:+.1f} points. That gap is what holding the days back is worth. "
-            "It is small here because the invented failure rates never change; on real history it is the gap to watch."),
+            " on the wider appliance group when a family's history is thin."),
             figure("carry_list_curve", "Held-back jobs whose every needed part is on the list", curve(points, calls),
                    results["carry_list_curve"]),
             "rank each booked call's parts by model family and problem rather than by national usage, and feed those lists to "
-            "the overnight load."),
+            "the overnight load.", "backtest",
+            take=join(
+                "Three parts on the carry list", q("carry list"), " cover ",
+                hv(pct(three["predictor_pct"]), f"{pct(three['predictor_pct'])} of held-back jobs\nEvery needed part on a "
+                   f"{load.SHOWN_K}-part list. With {points[-1]['k']} parts: {pct(points[-1]['predictor_pct'])}."),
+                " of held-back jobs, against ",
+                hv(pct(three["national_pct"]), f"{pct(three['national_pct'])} with the national top {load.SHOWN_K}\nThe appliance's "
+                   "most-used parts, whatever the problem."), " for the national top three."),
+            points=[
+                join(label("The control."), "Shuffling the history drops the predictor to ",
+                     hv(pct(three["shuffled_pct"]), f"{pct(three['shuffled_pct'])} on shuffled history\nThe control falls to the national "
+                        "line, so the gain comes from what the history links."), "."),
+                join(label("The hold-out."), "Scored again with the held-back jobs already in its history, it covers ",
+                     hv(pct(three["leaked_pct"]), f"{pct(three['leaked_pct'])} with the held-back jobs leaked in\n"
+                        f"{three['leaked_pct'] - three['predictor_pct']:+.1f} points on the predictor's {pct(three['predictor_pct'])}. "
+                        "No scored method is built this way; the row only measures what the hold-out is worth."),
+                     f", {three['leaked_pct'] - three['predictor_pct']:+.1f} points. That gap is what holding the days back is "
+                     "worth, and on real history it is the gap to watch.")]),
         card("parts_caused_reschedules", "Where repeat visits come from", join(
-            "On today's trucks, a missing part causes ",
-            hv(f"{100 * caused / repeats:.0f}%", f"{caused:,} of {repeats:,} repeat visits\nAcross {all_jobs:,} jobs. The rest failed "
-               "on the technician's success rate with every part aboard."), " of repeat visits", q("repeat visit"), ". ",
             f"{worst['appliance'].capitalize()}s are worst: ",
             hv(f"{worst['parts_caused_per_100_jobs']:.0f} of every 100", f"{worst['parts_caused']:,} of {worst['jobs']:,} "
                f"{worst['appliance']} jobs\nOnly {pct(fill[worst['appliance']]['line_fill_pct'])} of the part lines they need "
                "are on the truck."), f" {worst['appliance']} jobs need a repeat visit because a part was not on board."),
             figure("parts_caused_reschedules", "Repeat visits caused by a missing part, per 100 jobs", cause_bars,
                    results["parts_caused_reschedules"]),
-            f"start the pilot on {worst['appliance']}s, where a missing part costs the most repeat visits."),
+            f"start the pilot on {worst['appliance']}s, where a missing part costs the most repeat visits.", "loads",
+            take=join(
+                "On today's trucks, a missing part causes ",
+                hv(f"{100 * caused / repeats:.0f}%", f"{caused:,} of {repeats:,} repeat visits\nAcross {all_jobs:,} jobs. The rest failed "
+                   "on the technician's success rate with every part aboard."), " of repeat visits", q("repeat visit"), ".")),
         card("parts_cycle_time", "How long a repair waits for its parts", join(
             "A repair whose truck lacked a part waits for it: the part is ordered, the supplier takes its lead time, and "
             "the technician comes back. Those days are the parts cycle time", q("parts cycle time"), ". In the held-back history ",
             hv(pct(past["repairs_waiting_pct"]), f"{pct(past['repairs_waiting_pct'])} of {past['repairs']:,} held-back repairs waited\n"
                f"Counted from the order day and the repeat-visit day the history records. Each waited "
                f"{past['days_when_waiting']:.2f} days, which is {past['days_a_repair']:.2f} days spread over every repair."),
-            f" of repairs waited, {past['days_when_waiting']:.2f} days each. Replayed over the same days, the current rules",
-            q("current rules"), " leave ",
-            hv(pct(wait_now["repairs_waiting_pct"]), f"{pct(wait_now['repairs_waiting_pct'])} of {wait_now['repairs']:,} repairs wait\n"
-               f"The nearest technician on today's stock. Each waits {wait_now['days_when_waiting']:.2f} days, which is "
-               f"{wait_now['days_a_repair']:.2f} days spread over every repair."),
-            " waiting and Staple ",
-            hv(pct(wait_ours["repairs_waiting_pct"]), f"{pct(wait_ours['repairs_waiting_pct'])} of {wait_ours['repairs']:,} repairs wait\n"
-               f"Skills and parts, on balanced loads. Each waits {wait_ours['days_when_waiting']:.2f} days."),
-            f". Spread over every repair, the wait falls from {wait_now['days_a_repair']:.2f} days to ",
-            hv(f"{wait_ours['days_a_repair']:.2f}", f"{wait_ours['days_a_repair']:.2f} days a repair under Staple\n"
-               f"Against {wait_now['days_a_repair']:.2f} under the current rules and {past['days_a_repair']:.2f} in the history as recorded."),
-            ". Staple changes how many repairs wait, not the supplier's days: every row draws on the same made-up lead "
-            "times, and no way of handing out calls shortens them. A repair that still waits under Staple waits ",
-            hv(f"{wait_ours['days_when_waiting']:.2f} days", f"{wait_ours['days_when_waiting']:.2f} days for a repair that waits under Staple\n"
-               f"Against {wait_now['days_when_waiting']:.2f} under the current rules. A part on back-order waits first for the "
-               "day a center can ship it, then its lead time."),
-            f" against {wait_now['days_when_waiting']:.2f}. That is longer because ",
-            hv(pct(wait_ours["waits_on_backorder_pct"]), f"{pct(wait_ours['waits_on_backorder_pct'])} of Staple's waits are on a back-ordered part\n"
-               f"Against {pct(wait_now['waits_on_backorder_pct'])} under the current rules. Staple removes most of the other "
-               "waits, so the ones on back-order are a larger share of what is left."),
-            f" of its waits are on a part no center can ship, against {pct(wait_now['waits_on_backorder_pct'])}. A truck "
-            "cannot load a part on back-order", q("back-order"), ", so those are the waits a better load does not remove.", wait_less),
+            f" of repairs waited, {past['days_when_waiting']:.2f} days each."),
             figure("parts_cycle_time", "Days a repair waits for its parts, spread over every repair", cycle_bars,
                    results["parts_cycle_time"]),
             "measure it from two days the history already holds, the order day and the repeat-visit day, and send the "
-            "back-ordered waits to the buyer's list, because loading cannot remove them."),
+            "back-ordered waits to the buyer's list, because loading cannot remove them.", "cycle",
+            take=join(
+                "Staple leaves ",
+                hv(pct(wait_ours["repairs_waiting_pct"]), f"{pct(wait_ours['repairs_waiting_pct'])} of {wait_ours['repairs']:,} repairs wait\n"
+                   f"Skills and parts, on balanced loads. Each waits {wait_ours['days_when_waiting']:.2f} days."),
+                " of repairs waiting for a part, against ",
+                hv(pct(wait_now["repairs_waiting_pct"]), f"{pct(wait_now['repairs_waiting_pct'])} of {wait_now['repairs']:,} repairs wait\n"
+                   f"The nearest technician on today's stock. Each waits {wait_now['days_when_waiting']:.2f} days, which is "
+                   f"{wait_now['days_a_repair']:.2f} days spread over every repair."),
+                " under the current rules", q("current rules"),
+                f". Spread over every repair, the wait falls from {wait_now['days_a_repair']:.2f} days to ",
+                hv(f"{wait_ours['days_a_repair']:.2f}", f"{wait_ours['days_a_repair']:.2f} days a repair under Staple\n"
+                   f"Against {wait_now['days_a_repair']:.2f} under the current rules and {past['days_a_repair']:.2f} in the history as recorded."),
+                "."),
+            points=[
+                join(label("Fewer waits, not shorter ones."), "Every row draws on the same made-up lead times, and no way of "
+                     "handing out calls shortens them."),
+                join(label("The waits that remain."), "A repair that still waits under Staple waits ",
+                     hv(f"{wait_ours['days_when_waiting']:.2f} days", f"{wait_ours['days_when_waiting']:.2f} days for a repair that waits under Staple\n"
+                        f"Against {wait_now['days_when_waiting']:.2f} under the current rules. A part on back-order waits first for the "
+                        "day a center can ship it, then its lead time."),
+                     f" against {wait_now['days_when_waiting']:.2f}, because ",
+                     hv(pct(wait_ours["waits_on_backorder_pct"]), f"{pct(wait_ours['waits_on_backorder_pct'])} of Staple's waits are on a back-ordered part\n"
+                        f"Against {pct(wait_now['waits_on_backorder_pct'])} under the current rules. Staple removes most of the other "
+                        "waits, so the ones on back-order are a larger share of what is left."),
+                     f" of its waits are on a part no center can ship, against {pct(wait_now['waits_on_backorder_pct'])}. A "
+                     "better load cannot remove a wait on back-order", q("back-order"), ".")]
+            + ([join(label("Where Staple is not lowest."), wait_less)] if wait_less else [])),
         card("controls", "Each gain against its control", join(
             "A control", q("control"), " is a method run again with one link in its data broken. Where the gain goes "
-            f"with the link, it came from the link. {len(controls) - len(held)} of these {len(controls)} controls fall back, "
-            f"each keeping under {metrics.FALLS_BACK:.0%} of its gain. ",
-            (f"{counted(len(held), 'control')} {'does' if len(held) == 1 else 'do'} not: "
-             + "; ".join(f"{r['control']} keeps {kept(r)}" for r in held)
-             + ". Each of them shuffles the history, and that shuffle keeps what every appliance usually needs. So the "
-               "share a control keeps is what knowing tomorrow's appliances is worth, and the rest is what the links to "
-               "model family and problem add. The carry list's own control falls back because the list it is measured "
-               "against, the national top parts, already knows the appliance."
-             if held else "None keeps its gain.")),
+            "with the link, it came from the link."),
             figure("controls", "The share of each gain its control keeps", control_bars, results["controls"]),
             "run every control on its own history before crediting a gain, and credit a gain to a link only where "
-            "breaking that link takes the gain away."),
+            "breaking that link takes the gain away.", "controls",
+            take=join(f"{len(controls) - len(held)} of the {len(controls)} controls fall back, each keeping under "
+                      f"{metrics.FALLS_BACK:.0%} of its gain. ",
+                      f"{counted(len(held), 'control')} {'does' if len(held) == 1 else 'do'} not." if held else "None keeps its gain."),
+            points=[
+                join(label("What the others keep."), keeps[0].upper() + keeps[1:] + "."),
+                join(label("Why."), "Each shuffles the history, which keeps what every appliance usually needs. So the "
+                     "share kept is what knowing tomorrow's appliances is worth, and the rest is what model family and "
+                     "problem add.")] if held else []),
     ]
     adopt = ('<section class="panel"><h2' + tipattr("How a fleet would adopt it\nThe order I would run it in on real history, "
              "each step with the result that decides the next.") + '>How a fleet would adopt it</h2><ol class="steps">'
@@ -1616,15 +1664,18 @@ def build_report(results, week, stamp_text, day):
              '<li><strong>Roll out region by region.</strong> Each region goes live only after the one before it beat its match.</li></ol></section>')
     limits = ('<section class="panel"><h2' + tipattr("What this shows, and what it does not\nThe instruction manual's last sections "
               "list every limit; the methods page names each corner cut on purpose and its upgrade.") + '>What this shows, and what it does not</h2>'
-              f'<p>The plan for each day runs on Claude\'s codes, over one invented week. The scorecard and the evidence run on the '
-              f'call-taker\'s booked codes for all {world.TEST_DAYS} held-back days, so they measure the planning apart from the '
-              f'reading. Every result reproduces from one seed, and each gain is shown beside a control that breaks the link it '
-              f'should come from: {len(controls) - len(held)} of the {len(controls)} fall back, and the last evidence card names the '
-              f'{"one that does" if len(held) == 1 else "ones that do"} not. None of it shows the gains on a real fleet, '
-              f'because the history is invented. The method cuts {len(method_corners())} corners on purpose, each marked in '
-              f'the code and <a href="{FILES["method"]}#corners" target="_blank" rel="noopener">listed on the methods page</a> '
-              'with the upgrade that would lift it. Among them: counting instead of a trained model, zone-to-zone drive '
-              'times instead of road routing, and a call-by-call night plan instead of a solver.</p></section>')
+              '<p class="take">Every result reproduces from one seed. None of it shows the gains on a real fleet, because the '
+              'history is invented.</p><ul class="points">'
+              '<li><strong>The plan.</strong> Each day\'s plan runs on Claude\'s codes, over one invented week.</li>'
+              f'<li><strong>The evidence.</strong> The scorecard and the evidence run on the call-taker\'s booked codes for all '
+              f'{world.TEST_DAYS} held-back days, so they measure the planning apart from the reading.</li>'
+              f'<li><strong>The controls.</strong> Each gain is shown beside a control that breaks the link it should come from: '
+              f'{len(controls) - len(held)} of the {len(controls)} fall back, and the last evidence card names the '
+              f'{"one that does" if len(held) == 1 else "ones that do"} not.</li>'
+              f'<li><strong>The corners.</strong> The method cuts {len(method_corners())} corners on purpose, each '
+              f'<a href="{FILES["method"]}#corners" target="_blank" rel="noopener">listed on the methods page</a> '
+              'with its upgrade. Among them: counting instead of a trained model, zone-to-zone drive times instead of '
+              'road routing, and a call-by-call night plan instead of a solver.</li></ul></section>')
 
     def pressed(on):
         return f' aria-pressed="{"true" if on else "false"}"'
@@ -1668,12 +1719,12 @@ def build_report(results, week, stamp_text, day):
     asked = "".join(ai_panel(d, ctx, shown(d)) for d in week["days"])
     changed = "".join(morning_panel(d, ctx, shown(d)) for d in week["days"])
     compared = "".join(day_proof(d, shown(d)) for d in week["days"])
-    evidence_tip = (f"The evidence\n{len(proof)} cards over all {world.TEST_DAYS} held-back days. Each has its chart, the table "
-                    "the chart is drawn from, and its control.")
+    evidence_tip = (f"The evidence\n{len(proof)} cards over all {world.TEST_DAYS} held-back days. Each opens with its finding, "
+                    "then its chart, the table the chart is drawn from, and its control.")
     evidence = (f'<section class="evidence-head" id="evidence"><h2{tipattr(evidence_tip)}>The evidence</h2>'
                 f'<p class="sub">{len(proof)} cards over all {world.TEST_DAYS} held-back days, on the call-taker\'s booked codes, '
-                f'so they measure the planning apart from the reading. Each has its chart, the table the chart is drawn from, '
-                f'and its control.</p></section><div class="evidence">{"".join(proof)}</div>')
+                f'so they measure the planning apart from the reading. Each opens with its finding, then its chart, the table '
+                f'the chart is drawn from, its control and a link to how it is worked out.</p></section><div class="evidence">{"".join(proof)}</div>')
     out = ' target="_blank" rel="noopener"'
     run_tip = "Run it yourself\nThe two commands that rebuild and check everything on this page, and where the code is kept."
     run = (f'<section class="panel" id="run"><h2{tipattr(run_tip)}>Run it yourself</h2>'

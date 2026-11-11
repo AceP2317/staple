@@ -2306,6 +2306,47 @@ def wording():
     print(f"  the back-order card quotes {quoted}, the sums over the {len(scored)} rows scored")
     require(quoted in card_words(page, "backorder_exposure"), "the back-order card does not quote the forecast its rows add up to")
 
+    # Every evidence card keeps one shape: its finding first, short pieces under it, and a link to how it is worked out.
+    cards = re.findall(r'<section class="card" id="proof-\w+">.*?</section>', page, flags=re.S)
+    shape = card_shape_faults(page, pages["method"])
+    print(f"  {len(cards)} evidence cards: {len(shape)} leave the shape a card keeps, which is a finding of at most "
+          f"{report.CARD_FINDING} words first, no piece over {report.CARD_PIECE}, at most {report.CARD_WORDS} words before "
+          "the chart, and a link to a section the methods page holds")
+    require(cards and not shape, f"an evidence card leaves the shape every card keeps: {shape[:4]}")
+    whole = cards[0]
+    bent = {"its finding made an ordinary line": whole.replace('<p class="take">', "<p>", 1),
+            "a piece padded past the limit": whole.replace("</p>", " word" * report.CARD_PIECE + "</p>", 1),
+            "a link to a section the methods page does not hold":
+                re.sub(r'(<p class="more"><a href="[^"#]*#)[\w-]+', r"\1nowhere", whole, count=1)}
+    passed = [what for what, card in bent.items() if card == whole or not card_shape_faults(page.replace(whole, card, 1), pages["method"])]
+    require(not passed, f"control: a card passed with {passed}")
+    print("  control: a card with its finding made an ordinary line, one with a piece padded past the limit, and one "
+          "linked to a section the methods page does not hold, are refused")
+
+
+def card_shape_faults(page, method):
+    """Where an evidence card leaves the shape every card keeps: its finding in its first line, short pieces under
+    it, no more words before its chart than a card may hold, and a link to a section the methods page holds."""
+    import html
+    from staple import report
+    count = lambda markup: len(html.unescape(re.sub(r"<[^>]+>", "", markup)).split())
+    faults = []
+    for name, body in re.findall(r'<section class="card" id="proof-(\w+)">(.*?)</section>', page, flags=re.S):
+        pieces = re.findall(r"<(p|li)\b([^>]*)>(.*?)</\1>", body.split("<figure", 1)[0], flags=re.S)
+        if not re.match(r'<h3\b[^>]*>.*?</h3><p class="take">', body, flags=re.S):
+            faults.append(f"{name}: no finding in its first line")
+        for _, attrs, inner in pieces:
+            most = report.CARD_FINDING if 'class="take"' in attrs else report.CARD_PIECE
+            if count(inner) > most:
+                faults.append(f"{name}: a piece of {count(inner)} words, where {most} is the most")
+        total = sum(count(inner) for _, _, inner in pieces)
+        if total > report.CARD_WORDS:
+            faults.append(f"{name}: {total} words before its chart, where {report.CARD_WORDS} is the most")
+        link = re.search(rf'<p class="more"><a href="{re.escape(report.FILES["method"])}#([\w-]+)"', body)
+        if not link or f'id="{link.group(1)}"' not in method:
+            faults.append(f"{name}: no link to a section the methods page holds")
+    return faults
+
 
 def unnamed(found):
     """Corners whose comment does not say what would lift them."""
