@@ -106,7 +106,13 @@ def main():
     print(f"the buyer's four actions priced on those {len(bought['cases']):,} part-days (dollars made up); each decider's "
           "choices against the cheapest:")
     for name, s in bought["scores"].items():
-        print(f"  {name}: ${s['lost'] / s['decisions']:.2f} lost a decision; {s['invalid'] or 'none'} could not be carried out")
+        print(f"  {name}: ${s['lost'] / s['decisions']:.2f} lost a decision; {s['invalid'] or 'none'} could not be carried out"
+              + (f"; asking cost ${s['asking']:.2f}, {s['notes_short'] or 'no'} notes leave out a fact and "
+                 f"{s['ran_on'] or 'no'} replies run on into stray markup" if name in bought["models"] else ""))
+    for line in bought["unscored"]:
+        print(f"  WARN buyer: {line}")
+    if not bought["models"]:
+        print("  no Claude model's decisions are saved for this prompt, so the buyer's card shows the rules alone")
     # Loaded once, so a live run's answers reach the scores and the week's plan alike.
     answers, followups = triage.load(conn, live="--live" in sys.argv[1:])
     tr = triage.run(conn, answers, followups)

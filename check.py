@@ -1453,6 +1453,14 @@ def hand_tables(conn, stock_as_replayed=True):
         # Every row the load replay wrote, none left out. The return is held to the replay's own figure, and for
         # today's trucks to the count made above from the jobs and the stock.
         "inventory_roi": loads,
+        "buyer_scorecard": {
+            decider: {"decisions": n, "could_not_be_done": invalid, "chose_cheapest": matched,
+                      "one_misreading_explains": misread, "cost_of_choices": to(cost, 0), "dollars_lost": to(lost, 0),
+                      "lost_a_decision": to(lost / n, 2), "asking_dollars": to(asking, 2),
+                      "asking_cents_a_decision": to(100 * asking / n, 2), "notes_short": short, "replies_run_on": ran}
+            for decider, n, invalid, matched, misread, cost, lost, asking, short, ran in
+            conn.execute("SELECT decider, decisions, invalid, matched, misread, cost, lost, asking, notes_short, ran_on "
+                         "FROM buyer_score")},
         "controls": controls,
         "parts_cycle_time": cycle,
         "scorecard": score,
@@ -1565,6 +1573,8 @@ WRONG_QUERIES = {
                 "reports agreement with the booked code as agreement with the true problem"),
     "backorder_exposure": ("ROUND(at_risk, 0)", "ROUND(expected_stuck, 0)", "reports stuck calls as dollars at risk"),
     "backorder_flag": ("measure = 'blocked'", "measure = 'flagged'", "reports the flagged bookings as the stuck ones"),
+    "buyer_scorecard": ("ROUND(lost / decisions, 2)", "ROUND(cost / decisions, 2)",
+                        "reports what a decider's choices cost as what they lost"),
     "carry_list_curve": ("WHERE k > 0", "WHERE k > 1", "drops the one-part carry list"),
     "dispatch_scorecard": ("100.0 * fixes_per_call", "100.0 * moved_fix_rate",
                            "reports the moved calls' fix rate as every call's"),
@@ -1613,7 +1623,7 @@ def mutants():
 
 WHOLE_TABLES = {"inventory_roi": ("load_policy", "policy, k"), "dispatch_scorecard": ("dispatch", "policy"),
                 "ai_step": ("triage", "method"), "backorder_exposure": ("backorder_list", "day, part"),
-                "parts_cycle_time": ("dispatch", "policy")}
+                "parts_cycle_time": ("dispatch", "policy"), "buyer_scorecard": ("buyer_score", "decider")}
 CONTROL_WORDS = ("control", "shuffled", "random")    # a results row whose name holds one of these is a control
 
 
@@ -2174,7 +2184,7 @@ def bare_part_names(page, parts_list):
     names = sorted({n for _, parts, _ in parts_list.values() for n, *_ in parts}, key=len, reverse=True)
     words, bare = page_words(page), []
     for m in re.finditer("|".join(map(re.escape, names)), words):
-        before = words[max(0, m.start() - 16):m.start()]
+        before = words[max(0, m.start() - 16):m.start()].lower()    # an appliance that opens a sentence is still the appliance
         if m.group(0) in world.SHARED_NAMES and not any(before.endswith(a + " ") or before.endswith(a + "/") for a in parts_list):
             bare.append(f"{m.group(0)} after '{before[-12:].strip()}'")
     return bare
@@ -2186,7 +2196,8 @@ def copy_faults(texts):
     faults = []
     for name, text in texts.items():
         faults += [f"{name}: '{m.group(0)}'" for m in re.finditer(rf"(?<![\d.,$])\b1 (?:{COUNTED})\b", text)]
-        faults += [f"{name}: '{m.group(0)}'" for m in re.finditer(r"\$[\d,]+(?:\.\d)?(?![\d.])\s+a\s+(?:call|truck-day)\b", text)]
+        faults += [f"{name}: '{m.group(0)}'" for m in
+                   re.finditer(r"\$[\d,]+(?:\.\d)?(?![\d.])\s+a\s+(?:call|truck-day)\b(?!\s+a\s+day\b)", text)]
         faults += [f"{name}: '{claim}'" for claim in FALSE_EVERY if claim in text]
     return faults
 
@@ -2241,10 +2252,10 @@ def wording():
     require(not renamed, f"a thing is called by a dropped name: {renamed[:4]}")
     require(not wrong, f"the copy has a plural slip, a rate short of the cent or a false 'every' sentence: {wrong[:4]}")
     slip = {"planted": f"1 calls tomorrow, {next(iter(OLD_NAMES))} of 85%. {FALSE_EVERY[0]} one of them. It took 21 calls, "
-                       "at $122 a call and $104.3 a truck-day against $121.87 a call."}
+                       "at $122 a call and $104.3 a truck-day against $121.87 a call. A wait costs $10 a call a day."}
     require(len(old_names(slip)) == 1 and len(copy_faults(slip)) == 4, "control: a planted dropped name, plural slip, short rate or 'every' sentence passed")
     print("  control: a dropped name, '1 calls', '$122 a call', '$104.3 a truck-day' and a false 'every' sentence are refused, "
-          "and '21 calls' and '$121.87 a call' are not")
+          "and '21 calls', '$121.87 a call' and the price of a wait, '$10 a call a day', are not")
 
     # The day's comparison adds up on the page, and each column under a chart reads at one precision.
     rows = sum(t.count("<tr>") - 1 for t in comparisons(page))
@@ -3712,7 +3723,8 @@ def buyer_scorer():
     for name, s in scores.items():
         print(f"  {name}: ${s['cost']:,.0f} spent, ${s['lost']:,.0f} over the cheapest, ${s['lost'] / s['decisions']:.2f} a decision; "
               f"{s['invalid'] or 'none'} could not be carried out")
-        require(name == buyer.ARITHMETIC or s["lost"] > 0, f"{name} loses nothing, so the scorer cannot tell it from the cheapest")
+        require(name == buyer.ARITHMETIC or name in found["models"] or s["lost"] > 0,
+                f"{name} loses nothing, so the scorer cannot tell it from the cheapest")
     require(conn.execute("SELECT decider, decisions, invalid, cost, lost FROM buyer_score").fetchall()
             == [(n, s["decisions"], s["invalid"], s["cost"], s["lost"]) for n, s in scores.items()],
             "buyer_score does not hold the scores the engine computed")
@@ -3908,7 +3920,7 @@ def buyer_loop():
     # A run over the wire: saved by model and prompt, picked up where it stopped, and plain about each failure.
     few, usage = cases[:6], STAND_IN_USAGE
     into, out = agent.PRICES[model]
-    a_request = (usage["input_tokens"] * into + usage["cache_read_input_tokens"] * into * agent.CACHE_READ
+    a_request = (usage["input_tokens"] * into + usage["cache_read_input_tokens"] * into * agent.CACHE_READ[model]
                  + usage["output_tokens"] * out) / 1e6
     home = agent.DATA
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
@@ -4096,6 +4108,276 @@ def buyer_loop():
     require(not unnamed, f"the manual does not name the command for a file that calls the Claude API: {unnamed}")
     require(extra == ["staple/extra.py"] and dropped == ["staple/agent.py"],
             "control: a file that calls the API unnamed, or a manual that drops a command, passes")
+
+
+def buyer_words_by_hand(case, answer):
+    """What a saved decision's words get wrong, read apart from the engine: the facts its note leaves out, and
+    whether its reason or note holds a tag."""
+    note = answer["note"]
+    ships = datetime.date.fromisoformat(case["day"]) + datetime.timedelta(days=case["days_left"])
+    own = case["part"].split("/")[1]
+    gaps = [] if (own[:-1] if own.endswith("s") else own).lower() in note.lower() else ["the part"]
+    forms = (ships.isoformat(), f"{ships:%B} {ships.day}", f"{ships:%b} {ships.day}", f"{ships:%b}. {ships.day}")
+    if not any(re.search(rf"(?<![\w-]){re.escape(form)}(?![\w-])", note) for form in forms):
+        gaps.append("the ship day")
+    if answer["action"] == "move one" and case["move"] and not all(
+            re.search(rf"(?<!\w){re.escape(truck)}(?!\w)", note) for truck in (case["move"]["giver"], case["move"]["taker"])):
+        gaps.append("both trucks")
+    return gaps, any(re.search(r"<[/A-Za-z][^<>]*>", answer[field]) for field in ("reason", "note"))
+
+
+def buyer_file_by_hand(cases, answers, model, dollars):
+    """One model's saved decisions scored apart from the engine: each choice priced from the methods page's
+    sentences, the wrong choices one misreading explains, its words read by the check's own rules, and the
+    dollars asking cost from the saved token counts."""
+    from staple import agent
+    fee, fast = dollars[2], dollars[3]
+    out = Counter()
+    for c in cases:
+        priced = buyer_by_hand(c, *dollars)
+        can = {a: v for a, v in priced.items() if v is not None}
+        answer = answers.get(f"{c['day']} {c['part']}") or {}
+        said = answer.get("action")
+        if said is not None:
+            gaps, tagged = buyer_words_by_hand(c, answer)
+            out["notes_short"] += bool(gaps)
+            out["ran_on"] += tagged
+        if said not in can:
+            out["invalid"] += 1
+            paid = priced["send anyway"]
+        else:
+            paid = can[said]
+            if paid == min(can.values()):
+                out["matched"] += 1
+            else:
+                after = c["days_left"] - fast if c["days_left"] > fast else 0
+                late = dict(can, expedite=fee + priced["send anyway"] * after / c["days_left"])
+                out["misread"] += said == min(late, key=late.get)
+        out["cost"] += paid
+        out["lost"] += paid - min(can.values())
+    used = Counter()
+    for answer in answers.values():
+        used.update(answer["usage"])
+    into, back = agent.PRICES[model]
+    out["asking"] = (used["input_tokens"] * into + used["cache_creation_input_tokens"] * into * agent.CACHE_WRITE
+                     + used["cache_read_input_tokens"] * into * agent.CACHE_READ[model] + used["output_tokens"] * back) / 1e6
+    return out
+
+
+BUYER_FIGURES = ("invalid", "matched", "misread", "notes_short", "ran_on")    # the counts a model's row holds
+
+
+def buyer_card_faults(page, results):
+    """Each decider whose figures the buyer's card does not carry as the query gives them."""
+    from staple import agent, buyer, report, triage
+    card, words = card_text(page, "buyer_scorecard"), card_words(page, "buyer_scorecard")
+    claude = {triage.named(m) for m in agent.MODELS}
+    faults = []
+    for r in report.rows(results, "buyer_scorecard"):
+        want = [r["decider"], f"${r['lost_a_decision']:,.2f} a decision"]
+        if r["decider"] in claude:
+            want += [f"{r['chose_cheapest']:,} of {r['decisions']:,}", f"${r['asking_dollars']:,.2f}",
+                     f"{r['asking_cents_a_decision']:.2f} cents a decision", f"{r['notes_short'] or 'none'} of its notes",
+                     f"{r['replies_run_on'] or 'none'} of its replies"]
+            wrong = r["decisions"] - r["chose_cheapest"] - r["could_not_be_done"]
+            want += [f"It got {wrong} wrong. On {r['one_misreading_explains']} of them"] if wrong else []
+        if r["decider"] != buyer.ARITHMETIC and (r["dollars_lost"] or r["decider"] not in claude):
+            want.append(f"${r['dollars_lost']:,.0f}")
+        faults += [f"{r['decider']}: {text}" for text in want if text not in card and text not in words]
+    return faults
+
+
+def buyer_list_faults(week, cases, who, answers, dollars):
+    """What breaks the buyer's list: an item that does not carry the leading model's saved action, reason and note,
+    a note short of a fact that the list does not flag, a reply that ran on shown as if it had not, and an item
+    that does not say where the engine's arithmetic prices another action cheaper."""
+    from staple import plan
+    by_key, faults = {(c["day"], c["part"]): c for c in cases}, Counter()
+    for d in week["days"]:
+        for i in (i for i in d["todo"] if i["owner"] == "Buyer"):
+            case, said = by_key[(d["day"], i["row"]["part"])], i["said"]
+            answer = answers[f"{d['day']} {i['row']['part']}"]
+            priced = {a: v for a, v in buyer_by_hand(case, *dollars).items() if v is not None}
+            gaps, tagged = buyer_words_by_hand(case, answer)
+            reason, note = (re.split(r"<[/A-Za-z][^<>]*>", answer[f])[0].rstrip() for f in ("reason", "note"))
+            usable = answer["action"] in priced
+            faults["a buyer's item that does not carry the saved decision"] += (
+                said["who"] != who or said["chosen"] != answer["action"]
+                or (usable and (not i["text"].startswith(plan.BUYER_DOES[answer["action"]]) or reason not in i["detail"]
+                                or f'"{note}"' not in i["detail"] or not i.get("ai")))
+                or (not usable and (i.get("ai") or "the engine's cheapest action" not in i["detail"])))
+            if usable:
+                faults["a note short of a fact that the list does not flag"] += (
+                    bool(gaps) != ("The note leaves out" in i["detail"]) or any(g not in i["detail"] for g in gaps))
+                faults["a reply that ran on shown as if it had not"] += (
+                    tagged != ("ran on into stray markup" in i["detail"]) or "</" in i["detail"])
+                cheaper = priced[answer["action"]] > min(priced.values())
+                faults["an item that does not say the engine prices another action cheaper"] += (
+                    cheaper != ("under this action" in i["detail"])
+                    or (not cheaper and "prices this action cheapest" not in i["detail"]))
+    return +faults
+
+
+@check("buyer")
+def buyer_card():
+    import copy
+    import json
+    from staple import agent, buyer, load, metrics, plan, report
+    conn = shared_world()
+    results_written(conn)
+    found = buyer.run(conn)
+    cases, scores, models = found["cases"], found["scores"], found["models"]
+    dollars = (load.REPEAT_VISIT, load.MOVE, buyer.EXPEDITE, buyer.EXPEDITE_DAYS, buyer.WAIT_DAY)
+    require(not found["unscored"], f"a saved file of decisions cannot be scored: {'; '.join(found['unscored'])}")
+    require(models, "no Claude model's decisions are saved for this prompt, so the buyer's card has no model to show: "
+                    "`python -m staple.agent MODEL --cap DOLLARS` asks for them")
+
+    # Each model's row worked again from its saved file, apart from the engine.
+    for name, model in models.items():
+        hand, s = buyer_file_by_hand(cases, agent.saved(model), model, dollars), scores[name]
+        print(f"  {name}: {len(cases):,} saved decisions scored again by hand: ${hand['lost']:,.2f} lost, {hand['matched']:,} as "
+              f"cheap as any, {hand['invalid'] or 'none'} that could not be carried out, {hand['misread']} wrong ones one "
+              f"misreading explains, {hand['notes_short']} notes short of a fact, {hand['ran_on']} replies that run on, "
+              f"${hand['asking']:.4f} to ask; the engine agrees")
+        require(all(hand[k] == s[k] for k in BUYER_FIGURES) and abs(hand["cost"] - s["cost"]) < 1e-6
+                and abs(hand["lost"] - s["lost"]) < 1e-6 and abs(hand["asking"] - s["asking"]) < 1e-9,
+                f"{name}'s row is not what its saved file gives by hand: {dict(hand)} against {s}")
+    keys = ("decisions", "invalid", "matched", "misread", "cost", "lost", "asking", "notes_short", "ran_on")
+    require({d: tuple(rest) for d, *rest in conn.execute(f"SELECT decider, {', '.join(k if k != 'ran_on' else 'ran_on' for k in keys)} "
+                                                         "FROM buyer_score")}
+            == {n: tuple(s[k] for k in keys) for n, s in scores.items()}, "buyer_score does not hold the scores the engine computed")
+
+    # Controls on the first model's decisions: each planted change must move its own figure and no other.
+    name, model = next(iter(models.items()))
+    answers, base = agent.saved(model), scores[name]
+    key_of = {agent.name_of(c): c for c in cases}
+    right = next(k for k, c in key_of.items() if answers[k]["action"] == buyer.cheapest(buyer.prices(c))
+                 and len({v for v in buyer.prices(c).values() if v is not None}) > 1)
+    priced = buyer.prices(key_of[right])
+    worst = max((a for a in buyer.ACTIONS if priced[a] is not None), key=lambda a: priced[a])
+    gap = priced[worst] - priced[buyer.cheapest(priced)]
+    turned = buyer.score(cases, agent.chooser({**answers, right: {**answers[right], "action": worst}}))
+    gone = buyer.score(cases, agent.chooser({k: v for k, v in answers.items() if k != right}))
+    require(gap > 0 and abs(turned["lost"] - base["lost"] - gap) < 1e-9 and turned["matched"] == base["matched"] - 1,
+            "control: one choice turned to the costliest action does not lose exactly its gap")
+    require(gone["invalid"] == base["invalid"] + 1, "control: a decision taken out is not counted as one that could not be carried out")
+    whole = next(k for k, c in key_of.items() if not agent.left_out(c, answers[k])
+                 and not any(agent.as_written(answers[k][f])[1] for f in ("reason", "note")))
+    ships = agent.ships_on(key_of[whole])
+    said = lambda **change: agent.words(cases, {**answers, whole: {**answers[whole], **change}})
+    require(ships.isoformat() in answers[whole]["note"], "the note chosen for the control does not write its ship day as the lookup gave it")
+    cut = said(note=answers[whole]["note"].replace(ships.isoformat(), "soon"))
+    in_words = said(note=answers[whole]["note"].replace(ships.isoformat(), f"{agent.MONTH_NAMES[ships.month - 1]} {ships.day}"))
+    next_day = said(note=answers[whole]["note"].replace(ships.isoformat(), (ships + datetime.timedelta(days=1)).isoformat()))
+    tagged = said(reason=answers[whole]["reason"] + '</reason>\n<parameter name="note">again')
+    require(cut["notes_short"] == next_day["notes_short"] == base["notes_short"] + 1 and in_words["notes_short"] == base["notes_short"],
+            "control: a note with its ship day cut or moved a day is not counted, or one with the day written in words is")
+    require(tagged["ran_on"] == base["ran_on"] + 1 and tagged["notes_short"] == base["notes_short"],
+            "control: a reason that runs on into a tag is not counted, or is counted as a note short of a fact")
+    late = lambda c: buyer.cheapest({**buyer.prices(c), buyer.RUSH: buyer.EXPEDITE + buyer.prices(c)[buyer.SEND]
+                                     * max(c["days_left"] - buyer.EXPEDITE_DAYS, 0) / c["days_left"]})
+    slips = buyer.score(cases, late)
+    require(0 < slips["misread"] == slips["decisions"] - slips["matched"] and not scores[buyer.ARITHMETIC]["misread"],
+            "control: a decider that makes the one misreading on every case is not wholly explained by it")
+    print(f"  control: on {name}, {right} turned to {worst} loses ${gap:,.2f} more, its own gap; a decision taken out is "
+          f"counted as one that could not be carried out; a note with its ship day cut or moved a day is counted short, "
+          f"and one with the day written in words is not; a reason that runs on into a tag is counted; a decider that "
+          f"charges the calls after the early ship day on every case gets {slips['misread']} wrong, each explained")
+
+    # A saved file short of a decision, or made with another prompt, is left unscored and named.
+    home = agent.DATA
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
+        agent.DATA = Path(folder)
+        try:
+            file = {"model": model, "effort": agent.EFFORT, "prompt_id": agent.PROMPT_ID, "spent": 0.0, "answers": answers}
+            states = {}
+            for label, change in (("whole", {}), ("short", {"answers": {k: v for k, v in answers.items() if k != right}}),
+                                  ("stale", {"prompt_id": "another prompt"})):
+                agent.path(model).write_text(json.dumps({**file, **change}), encoding="utf-8")
+                states[label] = agent.scored(cases)
+        finally:
+            agent.DATA = home
+    require([m for _, m, _ in states["whole"][0]] == [model] and not states["whole"][1], "control: a whole saved file is not scored")
+    require(not states["short"][0] and f"{len(cases) - 1:,} of {len(cases):,}" in states["short"][1][0]
+            and not states["stale"][0] and "different prompt" in states["stale"][1][0],
+            f"a saved file short of a decision, or made with another prompt, is scored or not named: {states}")
+    print(f"  a saved file short of one decision, and one made with another prompt, are each left unscored and named; "
+          f"control: the whole file is scored")
+
+    # The card carries every decider's figures as the query gives them.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        results = metrics.run(conn, Path(tmp))
+    week, _ = shared_week()
+    stamp_text, day, _, _ = report.stamp()
+    page = report.build_report(results, week, stamp_text, day)
+    missing = buyer_card_faults(page, results)
+    print(f"  the buyer's card carries the figures of {len(results['buyer_scorecard'][1])} deciders as the query gives them; "
+          f"missing: {missing or 'nothing'}")
+    require(not missing, f"the buyer's card does not carry a figure the query gives: {missing}")
+    bent = report.build_report(changed(results, "buyer_scorecard", name, "dollars_lost", lambda v: v + 100), week, stamp_text, day)
+    require(buyer_card_faults(bent, results), "control: a card built from a changed figure passed")
+    stopped = []
+    for decider, column, value in ((buyer.RULES[1][0], "dollars_lost", 0.0), (buyer.ARITHMETIC, "dollars_lost", 5.0)):
+        try:
+            report.build_report(changed(results, "buyer_scorecard", decider, column, lambda v: value), week, stamp_text, day)
+        except ValueError:
+            stopped.append(decider)
+    require(len(stopped) == 2, "control: the report was built though the buyer's card's words contradict the query")
+    columns, data = results["buyer_scorecard"]
+    alone = card_words(report.build_report({**results, "buyer_scorecard": (columns, [r for r in data if r[0] not in models])},
+                                           week, stamp_text, day), "buyer_scorecard")
+    require("No Claude model's decisions are saved" in alone and not any(n in alone for n in models),
+            "control: with no model's rows the card still names a model, or does not say none is scored")
+    print("  control: a card built from a changed figure is refused, a build whose query lets a fixed rule lose nothing "
+          "or the arithmetic lose money stops, and with no model's rows the card says none is scored")
+
+    # Each day's buyer items carry the leading model's saved decision, and say what its words lack.
+    who, leading = week["ctx"].buyer
+    faults = buyer_list_faults(week, cases, who, leading, dollars)
+    items = [(d, i) for d in week["days"] for i in d["todo"] if i["owner"] == "Buyer"]
+    words = page_words(page)
+    unshown = [i["text"] for _, i in items if i["said"]["note"] and i["said"]["note"] not in words]
+    print(f"  the week's {len(items)} buyer's items carry {who}'s saved action, reason and note, "
+          f"{sum(bool(i['said']['gaps']) for _, i in items)} flagged for a fact its note leaves out and "
+          f"{sum(i['said']['ran_on'] for _, i in items)} cut where the reply ran on; faults: {dict(faults) or 'none'}")
+    require(not faults and not unshown, f"the buyer's list breaks its rules: {dict(faults)}; notes not on the page: {unshown[:2]}")
+    d, item = items[0]
+
+    def with_item(new):
+        out = copy.copy(week)
+        out["days"] = [dict(x, todo=[new if i is item else i for i in x["todo"]]) if x is d else x for x in week["days"]]
+        return out
+    other = next(i for _, i in items if i["said"]["note"] != item["said"]["note"])
+    swapped = with_item(dict(item, detail=item["detail"].replace(item["said"]["note"], other["said"]["note"])))
+    require("a buyer's item that does not carry the saved decision" in buyer_list_faults(swapped, cases, who, leading, dollars),
+            "control: a buyer's item carrying another case's note passed")
+    # The engine's own wording of a decision whose words are at fault, of one left undecided, and of one that cannot be done.
+    ctx, row = copy.copy(week["ctx"]), item["row"]
+    key = f"{d['day']} {row['part']}"
+    priced_here = week["ctx"].priced[(d["day"], row["part"])][0]
+    barred = next((a for a in buyer.ACTIONS if priced_here[a] is None), None)
+
+    def shown(**change):
+        ctx.buyer = (who, {**leading, key: {**leading[key], **change}})
+        return plan.buyer_says(ctx, d["day"], row)
+    blank = shown(note="placeholder")
+    ran = shown(reason=leading[key]["reason"] + '</reason>\n<parameter name="note">again')
+    undecided = shown(action=None)
+    require(blank["gaps"][:2] == ["the part", "the ship day"] and "The note leaves out the part" in blank["words"],
+            "control: a placeholder note is shown without saying what it leaves out")
+    require(ran["ran_on"] and "ran on into stray markup" in ran["words"] and "<" not in ran["words"],
+            "control: a reply that runs on into a tag is shown whole, or without saying so")
+    require(undecided["action"] == undecided["cheapest"] and "undecided" in undecided["words"],
+            "control: a case left undecided does not fall to the engine's cheapest action and say so")
+    if barred:
+        cannot = shown(action=barred)
+        require(cannot["action"] == cannot["cheapest"] and "cannot be carried out" in cannot["words"],
+                "control: an action that cannot be carried out is shown as the list's action")
+    else:
+        skip("the control for an action that cannot be carried out: every action can be on the first buyer's item this week")
+    print("  control: an item carrying another case's note is refused; a placeholder note is shown with what it leaves "
+          "out, a reply that runs on is cut and said to be, and a case left undecided"
+          + (", or given an action that cannot be carried out," if barred else "") + " falls to the engine's cheapest action")
 
 
 API_COMMANDS = {"staple/triage.py": "python run.py --live", "staple/agent.py": "python -m staple.agent"}

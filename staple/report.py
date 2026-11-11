@@ -20,7 +20,7 @@ import zlib
 from collections import Counter
 from pathlib import Path
 
-from staple import buyer, db, dispatch, examples, load, metrics, plan, predict, triage, world
+from staple import agent, buyer, db, dispatch, examples, load, metrics, plan, predict, triage, world
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES = Path(__file__).resolve().parent / "pages"
@@ -44,7 +44,8 @@ SOURCES =["staple/", "sql/", "data/", "run.py"]    # what the pages' numbers are
 # Every file kind by its extension; `check.py languages` refuses a file whose kind neither map names.
 CODE_LANGUAGES = {"py": "Python", "sql": "SQL", "js": "JavaScript", "sh": "Bash", "html": "HTML", "css": "CSS"}
 FORMATS = {"json": "Data files (JSON)", "md": "Written notes (Markdown)", "png": "Pictures", "svg": "Pictures",
-           "sha": "Fingerprints", "gitignore": "Git settings", "gitattributes": "Git settings", "": "Files with no extension"}
+           "sha": "Fingerprints", "gitignore": "Git settings", "gitattributes": "Git settings",
+           "yml": "Settings for GitHub's automatic check (YAML)", "": "Files with no extension"}
 LANGUAGES_JSON = "languages.json"   # the counts and sentence, published beside the pages for the sites that quote them
 PLACES = (   # where code runs, each with the languages that run there; `check.py languages` refuses a language in none
     ("browser", "In your browser", ("HTML", "CSS", "JavaScript"),
@@ -57,13 +58,16 @@ PLACES = (   # where code runs, each with the languages that run there; `check.p
     ("github", "On GitHub's computers", (),
      "GitHub keeps the repository and serves the docs folder as the public pages. After each push, GitHub Pages runs "
      "Jekyll, its site builder, over that folder. Staple's pages carry no Jekyll settings, so it copies them as they "
-     "are, and check.py fresh-clone proves it by comparing the live report with the committed copy. None of Staple's "
-     "own code runs there."),
+     "are, and check.py fresh-clone proves it by comparing the live report with the committed copy. After each push "
+     "GitHub also runs python run.py and python check.py on its own Linux and Windows machines, on the oldest and "
+     "newest Python the README names and one between, and marks the commit with the result. Those runs change "
+     "nothing in the repository."),
     ("anthropic", "On Anthropic's computers", (),
-     f"{triage.MODEL_NAME} read every customer description once and wrote each follow-up question. Staple sends it the "
-     "prompts the methods page prints word for word, and none of Staple's code runs there. The answers are saved in "
-     "the data folder, so the pages rebuild without a key; python run.py --live asks the Claude API again with your "
-     "own key."))
+     f"{triage.MODEL_NAME} read every customer description once and wrote each follow-up question, and each model the "
+     "buyer's card names decided every back-order case once. Staple sends them the prompts the methods page prints "
+     "word for word, and none of Staple's code runs there. The answers are saved in the data folder, so the pages "
+     "rebuild without a key; python run.py --live and python -m staple.agent ask the Claude API again with your own "
+     "key."))
 LANGUAGE_ABOUT = {   # what each language is, then what it does in this build
     "HTML": ("The language a web page is written in: headings, paragraphs, tables and links, which the browser lays "
              "out.", "The report's HTML is written by report.py. The manuals' text and this page's sit in HTML "
@@ -136,6 +140,8 @@ GLOSSARY = {
                         f"when it needed a part and every part was aboard, at ${load.REPEAT_VISIT:.0f} a repeat visit (made up).",
     "call": "One repair visit to make. It starts as a booking, the customer's request in their own words, and once "
             "made it is a job in the history.",
+    "decider": "Whatever names the buyer's action on a back-ordered part: the engine's arithmetic, a Claude model, a "
+               "fixed rule or the control. Each is charged the action it names.",
 }
 COLUMNS = {
     "appliance": "The appliance type.", "jobs": "Jobs counted.", "repeat_visits": "Jobs not fixed on the first visit.",
@@ -207,6 +213,20 @@ COLUMNS = {
     "waits_on_backorder_pct": "Of the repairs that wait, those lacking a part no center could ship on the day of the visit.",
     "days_when_waiting": "Days from the visit to the repeat visit, for a repair that waits.",
     "days_a_repair": "The same days spread over every repair, waiting or not.",
+    "decider": "Who names the action: the engine's arithmetic, a Claude model's saved decisions, a fixed rule or the control.",
+    "decisions": "Cases decided: every back-ordered part of every held-back day.",
+    "could_not_be_done": "Choices that could not be carried out, and cases left undecided. Each is charged as sending anyway.",
+    "chose_cheapest": "Choices that cost what the cheapest action costs.",
+    "one_misreading_explains": "Wrong choices that are the cheapest once expediting is charged the calls that come after "
+                               "the early ship day, where the rule charges those before it.",
+    "cost_of_choices": "Expected dollars of the actions named, over every case.",
+    "dollars_lost": "Those dollars less what the cheapest action costs on each case.",
+    "lost_a_decision": "Dollars lost, spread over every decision.",
+    "asking_dollars": "What the Claude API charged for a model's decisions, from the token counts saved with each, at "
+                      "the listed prices. A rule asks nothing.",
+    "asking_cents_a_decision": "The same, in cents a decision.",
+    "notes_short": "A model's notes that leave out the part, its ship day or a truck of a move.",
+    "replies_run_on": "A model's decisions whose reason or note runs on into stray markup.",
 }
 MARK_HELP = {
     "needs a certified technician": ("The part is locked and this technician is not certified.", "Send a certified technician."),
@@ -253,6 +273,7 @@ CHECK_ABOUT = {
     "scorecard": "The five-measure scorecard is what the replay gives. The raw figures behind it are counted again from the recorded visits and loads of its three plans, the current rules, Staple and Staple on shuffled history, and must equal the replay's own; a recount with one part taken off every truck must move. Every measure must be the better under Staple, the difference must be the difference of the two figures shown beside it, and the control must keep most of each gain and less than all of it, because the words under the table say so. Three planted changes must move the query's rows as they should. The report must carry the scorecard once, with every figure of every row as the query gives it; a page with one figure changed must be refused, and a build whose query makes a measure worse under Staple, or lets the control pass Staple, must stop.",
     "buyer-scorer": "The buyer's four actions on every back-ordered part of every held-back day. The four prices are worked again apart from the engine, the waiting calls are recounted from the bookings, and every single move is tried again from the tables. A decider that takes the cheapest action every time must lose nothing, one wrong choice must lose exactly its gap, and a choice that cannot be carried out must be charged as sending anyway and counted. Each fixed rule and the control must lose money.",
     "buyer-loop": "Claude as the buyer, driven offline by a scripted stand-in. The stand-in sees only what a request holds. It asks for the lookups, prices the four actions from their answers, and must name the engine's cheapest action on every case; a stand-in that never asks about the trucks must not. Each lookup's answer must be exactly the case's own counts, days and odds, and a lookup that also gives a dollar figure must be refused. A call about another part, an action that is not one of the four and several other malformed calls must each be answered with an error. A conversation that never commits must stop at the round limit and be scored as sending anyway. Over a local stand-in for the API, decisions must be saved by model and prompt, a second run must ask for nothing, a failure part way must keep what was answered, and each failure must stop the run in one plain sentence. The spending cap must refuse a request that could pass it, hold room for a request still out, and keep the cost of a case cut short. The manual must name every command that can reach the Claude API.",
+    "buyer": "Claude's saved decisions as the buyer, as the report shows them. Each scored model's row is worked again from its saved file apart from the engine: what its choices cost and lost, the choices that could not be carried out, the wrong choices one misreading explains, what asking cost from the saved token counts, the notes that leave out the part, its ship day or a truck of a move, and the replies that run on into stray markup. One choice turned to the costliest action must lose exactly its gap. A note with its ship day cut or moved a day and a reason that runs on into a tag must each be counted, and a ship day written in words must not be. A saved file short of a decision, or made with another prompt, must be left unscored and named. The card must carry every decider's figures as the query gives them: a card built from a changed figure must be refused, a build whose query lets a fixed rule lose nothing must stop, and with no model's rows the card must say none is scored. Each day's buyer items must carry the leading model's saved action, reason and note, say what a note leaves out, cut a reply where it runs on and say so, and name the action the engine prices cheaper where there is one.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 
@@ -291,7 +312,7 @@ def pct(v):
 
 
 SICK_AT = plan.clock(dispatch.SICK_BY)    # the hour sick calls are known, as the pages write it
-PYTHON = (3, 12)                          # the oldest Python the checks have run on
+PYTHON = (3, 10)                          # the oldest Python the checks have run on
 
 
 def dollars(v):
@@ -942,7 +963,7 @@ def sheet_html(d, tech, ctx, shown):
             f'{table}<p class="keep"><strong>Keep aboard:</strong> {aboard}.</p></details>')
 
 
-TODO_PROOF = {"Parts room": "inventory_roi", "Call center": "ai_step", "Dispatch": "dispatch_scorecard", "Buyer": "backorder_exposure"}
+TODO_PROOF = {"Parts room": "inventory_roi", "Call center": "ai_step", "Dispatch": "dispatch_scorecard", "Buyer": "buyer_scorecard"}
 
 
 def ai_panel(d, ctx, shown):
@@ -991,12 +1012,15 @@ def todo_panel(d, shown, titles):
         items = [i for i in d["todo"] if i["owner"] == owner]
         if not items:
             continue
-        tag = '<b class="ai-tag">AI</b>' if owner == "Call center" else ""
+        tag = '<b class="ai-tag">AI</b>'
         lis = "".join(f'<li class="todo-item"{" data-tech=" + chr(34) + i["tech"] + chr(34) if i["tech"] else ""}'
                       f'{" data-call=" + chr(34) + str(i["job"]) + chr(34) if i["job"] else ""}'
-                      f'{tipattr(i["text"] + chr(10) + i["detail"], focus=True)}>{tag}{e(i["text"])}</li>' for i in items)
+                      f'{tipattr(i["text"] + chr(10) + i["detail"], focus=True)}>'
+                      f'{tag if owner == "Call center" or i.get("ai") else ""}{e(i["text"])}</li>' for i in items)
         why = f"Why these items\nOpens the evidence card behind this kind of action: {titles[proof]}."
+        who = next((i["said"]["who"] for i in items if i.get("said") and i["said"]["who"]), None)
         groups.append(f'<div class="todo-group"><h3>{e(owner)} · {e(items[0]["when"])} · {len(items)} '
+                      f'{"· decided by " + e(who) + " " if who else ""}'
                       f'<a class="why" href="#proof-{proof}" data-proof="{proof}"{tipattr(why)}>evidence</a></h3><ul>{lis}</ul></div>')
     tip = ("To do before 08:00\nWhat people act on, by owner. Click an item to light up its truck and open the call or the "
            "load sheet it names in the plan below. Each owner's evidence link opens the card behind that kind of action.")
@@ -1285,12 +1309,74 @@ def build_report(results, week, stamp_text, day):
     this_week = {d["day"] for d in week["days"]}
     stuck_week = [r for r in results["backorder_exposure"][1] if r[0] in this_week]
 
+    # The buyer's card. Its words rest on the fixed rows, so a build whose query no longer supports them stops.
+    bought = {r["decider"]: r for r in rows(results, "buyer_scorecard")}
+    engine, borrowed = bought[buyer.ARITHMETIC], bought[buyer.CONTROL]
+    sends, rushes = (bought[name] for name, _ in buyer.RULES[1:])
+    claudes = [(m, bought[triage.named(m)]) for m in agent.MODELS if triage.named(m) in bought]
+    if (engine["dollars_lost"] or engine["chose_cheapest"] != engine["decisions"]
+            or not all(r["dollars_lost"] > 0 for r in (sends, rushes, borrowed))):
+        raise ValueError("the buyer's card says the engine's arithmetic loses nothing and that each fixed rule and the "
+                         "control lose money, and the query no longer says so: rewrite the card before publishing")
+    cases_n = engine["decisions"]
+
+    def lost_tip(r, more=""):
+        return (f"{r['decider']}: ${r['dollars_lost']:,.0f} lost over {r['decisions']:,} decisions\n"
+                f"{cents(r['lost_a_decision'])} a decision. {r['chose_cheapest']:,} of its choices cost what the cheapest "
+                f"action costs, and {some(r['could_not_be_done'])} could not be carried out.\nIts choices cost "
+                f"${r['cost_of_choices']:,.0f} in all, against ${engine['cost_of_choices']:,.0f} for the cheapest." + more)
+
+    def claude_words(model, r):
+        """One model's row of the buyer's scorecard, in sentences that hold for a tie and for a loss."""
+        wrong = r["decisions"] - r["chose_cheapest"] - r["could_not_be_done"]
+        explained = r["one_misreading_explains"]
+        return join(
+            f" {r['decider']} ({model}) picked an action as cheap as any on ",
+            hv(f"{r['chose_cheapest']:,} of {r['decisions']:,}", lost_tip(r)),
+            (" and lost nothing" if not wrong and not r["could_not_be_done"] else
+             Raw(" and lost " + hv(f"${r['dollars_lost']:,.0f}", lost_tip(r)) + f", {cents(r['lost_a_decision'])} a decision")),
+            ". ",
+            (f"It got {wrong} wrong. On {explained} of them its choice is the cheapest once expediting is charged the "
+             "calls that come after the early ship day, where the instructions say before"
+             + (", so one misreading explains them all. " if explained == wrong else ". ") if wrong else ""),
+            ("Every action it named could be carried out. " if not r["could_not_be_done"] else
+             f"{r['could_not_be_done']:,} of its choices could not be carried out or were left undecided, and each was "
+             "charged as sending anyway. "),
+            "Asking cost ",
+            hv(cents(r["asking_dollars"]), f"{cents(r['asking_dollars'])} for {r['decisions']:,} decisions\nFrom the token "
+               f"counts saved with each decision, at the prices listed on {pretty_day(agent.PRICED_ON)}. A rule asks nothing."),
+            f", which is {r['asking_cents_a_decision']:.2f} cents a decision. The part, the ship day or a truck of a move "
+            "is missing from ",
+            hv(f"{r['notes_short'] or 'none'} of its notes", f"{r['notes_short']} of {r['decisions']:,} notes leave a fact out\nThe "
+               "instructions ask each note to name the part and its ship day, and for a move both trucks. The buyer's "
+               "list shows each note as saved and says what it lacks."),
+            ", and stray markup follows the reason in ",
+            hv(f"{r['replies_run_on'] or 'none'} of its replies", f"{r['replies_run_on']} of {r['decisions']:,} replies run on\nThe "
+               "reason or the note runs on into markup left over from the reply's own form. The buyer's list cuts it "
+               "off there and says so."), ".")
+
+    leader = week["ctx"].buyer and week["ctx"].buyer[0]
+    trade = ""    # where the model that loses less costs more to ask, what the better answers cost
+    if len(claudes) == 2:
+        low, high = sorted((r for _, r in claudes), key=lambda r: r["dollars_lost"])
+        if low["dollars_lost"] < high["dollars_lost"] and low["asking_dollars"] > high["asking_dollars"]:
+            trade = (f" {low['decider']} lost ${gap(high['dollars_lost'], low['dollars_lost'], 0):,.0f} less than "
+                     f"{high['decider']} and cost {cents(gap(low['asking_dollars'], high['asking_dollars'], 2))} more to ask.")
+    buyer_bars = bars([(r["decider"], r["lost_a_decision"],
+                        f"{cents(r['lost_a_decision'])} a decision"
+                        + (f" · {r['could_not_be_done']} not possible" if r["could_not_be_done"] else ""),
+                        lost_tip(r, f"\nAsking cost {cents(r['asking_dollars'])}." if r["asking_dollars"] else ""),
+                        "lead" if r["decider"] in [c["decider"] for _, c in claudes] else
+                        "control" if r is borrowed else "") for r in bought.values()])
+
     titles = {}    # each evidence card's heading by its query, for the links that open it
 
-    def card(name, heading, text, fig, do):
+    def card(name, heading, text, fig, do, anchor=None):
+        """One evidence card. anchor gives its heading a short id, for a link from outside the page."""
         titles[name] = heading
         tip = f"{heading}\nSource: sql/metrics/{name}.sql. {about(name)}"
-        return (f'<section class="card" id="proof-{name}"><h3{tipattr(tip)}>{e(heading)}</h3><p>{text}</p>{fig}'
+        named = f' id="{anchor}"' if anchor else ""
+        return (f'<section class="card" id="proof-{name}"><h3{named}{tipattr(tip)}>{e(heading)}</h3><p>{text}</p>{fig}'
                 f'<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
 
     proof = [
@@ -1417,6 +1503,32 @@ def build_report(results, week, stamp_text, day):
             + figure("backorder_flag", "The back-order flag on single bookings, scored on the held-back days", "",
                      results["backorder_flag"]),
             "expedite from the top of this list, and move spares toward the zones where no truck holds one."),
+        card("buyer_scorecard", "Claude as the buyer", join(
+            f"Each back-ordered part on each held-back day is one case, {cases_n:,} in all. The buyer sends the calls "
+            "anyway, expedites the part, moves one from another truck or rebooks the waiting calls, and the engine prices "
+            "all four in expected dollars from training history. A decider", q("decider"), " is charged the action it "
+            "names, and loses what that costs over the cheapest action. Sending anyway every time loses ",
+            hv(f"${sends['dollars_lost']:,.0f}", lost_tip(sends)), ", expediting every time ",
+            hv(f"${rushes['dollars_lost']:,.0f}", lost_tip(rushes)), ", and the control", q("control"), " ",
+            hv(f"${borrowed['dollars_lost']:,.0f}", lost_tip(borrowed, "\nIt takes the cheapest action for another case's "
+               "facts, so its choice no longer rests on the case it is made for.")),
+            ": it takes the cheapest action for another case's facts, so a small loss has to come from reading each "
+            "case's own.",
+            Raw(e(" A Claude model decides the same cases from lookups that return counts, days and odds and never a price, "
+                  "so it has to work the dollars out itself, and its words are held to the instructions too.")
+                + "".join(claude_words(m, r) for m, r in claudes)) if claudes else
+            " No Claude model's decisions are saved for this prompt, so none is scored here; python -m staple.agent asks "
+            "for them with the reader's own key.",
+            trade,
+            (f" Each day's buyer list shows {leader}'s decisions, because it lost the fewest dollars." if len(claudes) > 1 else ""),
+            " Here the cheapest action is plain arithmetic, so no decider can beat the engine and a model can only tie "
+            "it. The card tests something narrower: whether a model handed only the facts reaches that action, at what "
+            "price, and with a note a person could send. Nothing here sends a note."
+            + (" The decisions are saved with the code, so these pages rebuild without a key." if claudes else "")),
+            figure("buyer_scorecard", "Dollars lost a decision over the cheapest action, by who decides", buyer_bars,
+                   results["buyer_scorecard"]),
+            "let a model work each back-order from the same lookups and draft the note, score its choices against the "
+            "arithmetic every night, and keep the buyer's sign-off on every note before it goes out.", anchor="buyer"),
         card("carry_list_curve", "Which parts to carry", join(
             "The predictor ranks parts by how often they fixed the same model family and problem, and leans", q("lean"),
             " on the wider appliance group when a family's history is thin. Three parts on the carry list", q("carry list"),
@@ -1641,7 +1753,9 @@ def facts():
          "answer_seed": triage.SHUFFLE_SEED, "id_length": triage.ID_LENGTH, "day_start": plan.clock(0),
          "day_end": plan.clock(dispatch.DAY), "sick_by": SICK_AT, "breaks_from": plan.clock(dispatch.BREAKS_BETWEEN[0]),
          "breaks_to": plan.clock(dispatch.BREAKS_BETWEEN[1]), "max_k": max(load.KS),
-         "shuffled_history": dispatch.SHUFFLED_HISTORY, "queries": len(list(metrics.SQL.glob("*.sql"))), "python": ".".join(map(str, PYTHON))}
+         "shuffled_history": dispatch.SHUFFLED_HISTORY, "queries": len(list(metrics.SQL.glob("*.sql"))), "python": ".".join(map(str, PYTHON)),
+         "BUYER_SYSTEM": agent.SYSTEM, "BUYER_OPENING": agent.OPENING, "buyer_rounds": agent.MAX_ROUNDS,
+         "buyer_effort": agent.EFFORT, "buyer_priced_on": pretty_day(agent.PRICED_ON)}
     return {k: Raw(e(str(x))) for k, x in v.items()}
 
 

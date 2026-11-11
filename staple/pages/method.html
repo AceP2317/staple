@@ -340,7 +340,32 @@ score is the dollars that costs over the cheapest action. An action that cannot 
 sending anyway, and counted. Two fixed rules are scored beside the engine's own arithmetic: sending anyway every
 time, and expediting every time. The control takes the cheapest action for another case's facts, so its choice no
 longer rests on the case it is made for. The check <code>buyer-scorer</code> works the four prices again apart from
-the engine, recounts the waiting calls from the bookings, and tries every move again from the tables.</p></section>
+the engine, recounts the waiting calls from the bookings, and tries every move again from the tables.</p>
+<h3>Claude as the buyer</h3>
+<p>Source: <code>agent.decide</code>, <code>agent.scored</code> and <code>sql/metrics/buyer_scorecard.sql</code>. A
+Claude model is one more decider. It holds one conversation for each case. It is told what the actions do and what
+the made-up dollars are, and it gets the case's facts by calling lookups: the forecast, the trucks with the move on
+offer, and the booked calls waiting. A lookup returns counts, days and odds and never a price, so the model works
+the dollars out itself. It ends by committing an action, a reason in a sentence and a note a person could send.
+Nothing is sent. A case may take {{buyer_rounds}} requests before it is left undecided, and an undecided case is
+charged as sending anyway. The model runs at {{buyer_effort}} effort. These are the instructions it is sent, word
+for word, and the line that opens each case:</p>
+<pre>{{BUYER_SYSTEM}}</pre>
+<pre>{{BUYER_OPENING}}</pre>
+<p>The decisions are saved in <code>data/</code>, in a file for each model that is named by the prompt that made
+it, so the pages rebuild without a key. A file is scored only when it holds a decision for every case and was made
+with this prompt; the run names any file it leaves out. <code>python -m staple.agent</code> asks the Claude API for
+the decisions a file lacks, with the reader's own key, and stops before the dollars spent could pass the cap it
+is given.</p>
+<p>Beside the dollars, three things are counted for a model. A wrong choice counts as explained by a misreading
+when it is the cheapest once expediting is charged the calls that come after the early ship day, where the rule
+charges those before it. A note is short when it leaves out the part, its ship day or, for a move, either truck; a
+part named in the singular counts, and so does a ship day written in words. A reply runs on when its reason or its
+note carries markup left over from the reply's own form, and the buyer's list cuts it off there and says so. What
+asking cost is worked from the token counts the API returned with each reply, at the prices listed on
+{{buyer_priced_on}}. Where more than one model is scored, each day's buyer list shows the decisions of the model
+that lost the fewest dollars. The check <code>buyer</code> works each of these figures again from the saved file,
+apart from the engine.</p></section>
 
 <section id="cycle"><h2>Parts cycle time</h2>
 <p>Source: <code>world.expected_wait</code>, called by the dispatch replay, and
@@ -419,7 +444,9 @@ truck nearby holding one, every call the night plan rolled, and one item naming 
 calls.</li>
 <li><strong>Buyer</strong>: the top {{buyer_items}} parts on that day's back-order list, costliest first. Each item
 quotes the row <code>backorder_exposure.sql</code> returns for that day, so the plan and the evidence table show one
-figure.</li>
+figure. Its action is the leading model's saved decision for that part and day, with the reason and the note it
+gave. Where no model is scored, a case was left undecided, or the action cannot be carried out, the item takes the
+engine's cheapest action and says so.</li>
 </ul>
 <h3>The day the page opens on</h3>
 <p>The most recent of the {{week}} days on which a sick call and a breakdown both moved at least one call to another

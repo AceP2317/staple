@@ -88,19 +88,28 @@ def cases(conn):
 
 
 def score(cases, choose, **dollars):
-    """A decider's choices over the cases: what they cost, the dollars that is over the cheapest action, and how
-    many could not be carried out. choose takes a case and names an action."""
+    """A decider's choices over the cases: what they cost, the dollars that is over the cheapest action, how many
+    could not be carried out, how many cost what the cheapest action costs, and how many of the rest one
+    misreading explains. choose takes a case and names an action."""
+    fee, fast = dollars.get("fee", EXPEDITE), dollars.get("fast", EXPEDITE_DAYS)
     cost = lost = 0.0
-    invalid = 0
+    invalid = matched = misread = 0
     for case in cases:
         priced = prices(case, **dollars)
         action = choose(case)
         if priced.get(action) is None:      # not one of the four, or one that cannot be carried out here
             invalid += 1
             action = SEND
+        elif priced[action] == priced[cheapest(priced)]:
+            matched += 1
+        else:
+            # The rule charges the calls stuck before the early ship day. Charging those after it is the slip
+            # easiest to make, so a wrong choice that is the cheapest under that slip is counted as explained.
+            late = fee + priced[SEND] * max(case["days_left"] - fast, 0) / case["days_left"]
+            misread += action == cheapest({**priced, RUSH: late})
         cost += priced[action]
         lost += priced[action] - priced[cheapest(priced)]
-    return {"decisions": len(cases), "invalid": invalid, "cost": cost, "lost": lost}
+    return {"decisions": len(cases), "invalid": invalid, "matched": matched, "misread": misread, "cost": cost, "lost": lost}
 
 
 def other_case(count, seed=SHUFFLE_SEED):
@@ -120,17 +129,29 @@ def shuffled(cases, seed=SHUFFLE_SEED):
 
 
 def run(conn):
-    """Every case priced and every built-in decider scored, written to buyer_prices and buyer_score. It takes no
-    case list, so no caller can leave the tables holding a subset."""
+    """Every case priced and every decider scored, written to buyer_prices and buyer_score: the engine's own
+    arithmetic, each Claude model whose saved decisions cover every case, the fixed rules and the control. It
+    takes no case list, so no caller can leave the tables holding a subset."""
+    from staple import agent    # agent reads this module's actions and dollars, so it is loaded here and not above
     found = cases(conn)
-    scores = {name: score(found, choose) for name, choose in RULES + ((CONTROL, shuffled(found)),)}
+    models, unscored = agent.scored(found)
+    deciders = (RULES[:1] + tuple((name, agent.chooser(answers)) for name, _, answers in models) + RULES[1:]
+                + ((CONTROL, shuffled(found)),))
+    scores = {name: score(found, choose) for name, choose in deciders}
+    # What asking a model cost and how its words read. A rule asks nothing and writes no note.
+    asked = {name: {"asking": agent.cost(model, answers), **agent.words(found, answers)} for name, model, answers in models}
     conn.execute("DELETE FROM buyer_prices")
     conn.execute("DELETE FROM buyer_score")
     for c in found:
         priced = prices(c)
-        conn.execute("INSERT INTO buyer_prices VALUES (?,?,?,?,?,?,?,?)",
-                     (c["day"], c["part"], len(c["waiting"]), *(priced[a] for a in ACTIONS), cheapest(priced)))
-    conn.executemany("INSERT INTO buyer_score VALUES (?,?,?,?,?)",
-                     [(name, s["decisions"], s["invalid"], s["cost"], s["lost"]) for name, s in scores.items()])
+        move = c["move"] or {"giver": None, "taker": None}
+        conn.execute("INSERT INTO buyer_prices VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (c["day"], c["part"], len(c["waiting"]), *(priced[a] for a in ACTIONS), cheapest(priced),
+                      move["giver"], move["taker"]))
+    for name, s in scores.items():
+        s.update(asked.get(name, {"asking": 0.0, "notes_short": 0, "ran_on": 0}))
+        conn.execute("INSERT INTO buyer_score VALUES (?,?,?,?,?,?,?,?,?,?)",
+                     (name, s["decisions"], s["invalid"], s["matched"], s["misread"], s["cost"], s["lost"], s["asking"],
+                      s["notes_short"], s["ran_on"]))
     conn.commit()
-    return {"cases": found, "scores": scores}
+    return {"cases": found, "scores": scores, "models": {name: model for name, model, _ in models}, "unscored": unscored}

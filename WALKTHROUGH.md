@@ -106,7 +106,8 @@ dispatch replay's own record of the most recent week, so every route and load on
 - `staple/buyer.py` prices the buyer's four actions on each of those stuck parts, in expected dollars: send the
   calls anyway, expedite the part, move one from a truck unlikely to need it, or rebook the calls waiting on
   it. Anything that names an action for a case can be scored by it, as the dollars its choices cost over the
-  cheapest. Two fixed rules and a control that reads another case's facts are scored beside the arithmetic.
+  cheapest. Two fixed rules and a control that reads another case's facts are scored beside the arithmetic,
+  and so is each Claude model whose saved decisions cover every case.
 - `staple/dispatch.py` replays every held-back day under each way of handing out calls, with the same
   invented sick calls, breakdowns and priority changes. Staple's rule sends each call to the technician
   with the lowest expected cost. It learns each technician's success rate from the training history, and the
@@ -131,8 +132,13 @@ dispatch replay's own record of the most recent week, so every route and load on
   Claude asks for the forecast, the trucks and the waiting calls through lookups that return counts, days and
   odds and never a price, then commits one action, a reason and a note a person could send. The scorer in
   `staple/buyer.py` prices what it chose. A run asks the Claude API with the reader's own key, saves each
-  decision as it comes, and stops before the dollars spent could pass the cap it was given. No answers are
-  saved in the repository yet.
+  decision as it comes, and stops before the dollars spent could pass the cap it was given. It also reads
+  each saved decision's words: whether the note names the part, its ship day and, for a move, both trucks,
+  and whether the reply runs on into stray markup.
+- `data/buyer-claude-haiku-5-5.json` and `data/buyer-claude-opus-5-5.json` hold each model's decision on every
+  back-ordered part of every held-back day: the action, the reason, the note, the lookups it made and the
+  token counts the API returned. Each file is named by the prompt that made it, and is scored only while it
+  matches that prompt and covers every case.
 
 ## The week's plan
 
@@ -173,6 +179,9 @@ dispatch replay's own record of the most recent week, so every route and load on
 - `sql/metrics/backorder_exposure.sql`: the buyer's list for every held-back day. Each row is a part no center
   can ship that day, with its forecast calls and stuck calls before it ships and what the held-back days then
   brought. The plan's buyer items quote these rows.
+- `sql/metrics/buyer_scorecard.sql`: whoever names the buyer's action, scored in dollars lost over the cheapest
+  action: the engine's arithmetic, each Claude model, the fixed rules and the control. For a model it adds what
+  asking cost, the wrong choices a misreading explains, and how many of its notes and replies are at fault.
 - `sql/metrics/backorder_flag.sql`: the back-order flag on single bookings, scored on the held-back days:
   how many it marked, how many of those were stuck, and the forecast of the count.
 - `sql/metrics/ai_step.sql`: each reading of the customer's words, its agreement with the booked code and the
@@ -228,6 +237,10 @@ dispatch replay's own record of the most recent week, so every route and load on
 - `LICENSE` is the MIT license: anyone may reuse the code, keeping the copyright line.
 - `.gitignore` keeps the built output, Python's caches and a private folder out of the repository.
 - `.gitattributes` keeps shell scripts' line endings Unix-style, because bash fails on a Windows line ending.
+- `.github/workflows/check.yml` has GitHub run `python run.py` and `python check.py` after every push, on
+  Linux and on Windows, on the oldest and the newest Python the README names and one between. The mark
+  beside each commit on GitHub is that run's result, so a stranger sees whether the two commands pass on a
+  machine that is not the author's.
 - `scripts/guard.sh` runs the repository's own guards before each commit: one test per mistake already made.
   `check.py plain-words` tries it on a scratch folder of planted guards and holds it to its arguments, its
   exit codes and the lines it prints.

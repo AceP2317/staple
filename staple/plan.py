@@ -8,7 +8,7 @@ breakdowns are the ones the 92-day run met on the same days.
 """
 from collections import defaultdict
 
-from staple import dispatch, load, metrics, triage
+from staple import agent, buyer, dispatch, load, metrics, triage
 from staple.backtest import test_jobs
 from staple.predict import Predictor
 from staple.world import ZONES, part_name, travel_minutes
@@ -18,6 +18,9 @@ LIKELY = load.BACKORDER_FLAG     # a part a call has at least this chance of nee
 BUYER_ITEMS = 3                  # the buyer's list shows this many back-orders a day, costliest first
 BEHIND = 0.05                    # a call this likely to need a part is named as a reason the part rides
 WHERE = ("needs a certified technician", "aboard", "on a truck nearby", "at a center, not loaded", "back-ordered")
+# How the buyer's list words each of the four actions.
+BUYER_DOES = {buyer.SEND: "Send the calls anyway", buyer.RUSH: "Expedite", buyer.SHIFT: "Move one",
+              buyer.REBOOK: "Rebook the waiting calls"}
 
 
 def clock(minutes):
@@ -76,6 +79,13 @@ class Context:
             self.backorders[row["day"]].append(row)
         if not self.backorders:
             raise RuntimeError("the back-order list is empty: backorders.run(conn) writes it before the week's plan is built")
+        # The buyer's prices and the leading model's decisions, so the list shows what the scorer scored.
+        self.priced = {(day, part): (dict(zip(buyer.ACTIONS, priced)), cheapest, giver, taker)
+                       for day, part, *priced, cheapest, giver, taker in conn.execute(
+                           "SELECT day, part, send_anyway, expedite, move_one, rebook, cheapest, giver, taker FROM buyer_prices")}
+        if not self.priced:
+            raise RuntimeError("the buyer's prices are missing: buyer.run(conn) writes them before the week's plan is built")
+        self.buyer = agent.leading(conn)
 
     def where(self, loads, tech, zone, part, stuck):
         """Where one carry-list part stands once tonight's trucks are loaded: the first of WHERE that holds. stuck
@@ -203,17 +213,55 @@ def todo(ctx, day, rec, trucks, jobs):
                 likely[part] += 1
     # The day's rows of the back-order query, costliest first: the figures here are the evidence table's own.
     for r in sorted(ctx.backorders[day], key=lambda r: (-r["dollars_at_risk"], r["part"]))[:BUYER_ITEMS]:
-        need = likely[r["part"]]
-        items.append({"owner": "Buyer", "when": "this week", "tech": None, "job": None, "row": r,
-                      "text": f"Expedite {ctx.names[r['part']]}: {r['expected_calls']:.1f} calls expected before it ships",
+        need, said = likely[r["part"]], buyer_says(ctx, day, r)
+        items.append({"owner": "Buyer", "when": "this week", "tech": None, "job": None, "row": r, "said": said,
+                      "ai": said["action"] == said["chosen"],
+                      "text": f"{BUYER_DOES[said['action']]}: {ctx.names[r['part']]}, {r['expected_calls']:.1f} calls "
+                              "expected before it ships",
                       "detail": f"Ships in {days(r['ships_in_days'])}; {counted(r['trucks_holding'], 'truck')} "
                                 f"{'stocks' if r['trucks_holding'] == 1 else 'stock'} one; "
                                 + (f"{counted(r['open_zones'], 'zone')} {'has' if r['open_zones'] == 1 else 'have'} no "
                                    f"holder within {load.NEARBY_MINUTES} minutes. " if r["open_zones"] else
                                    f"Every zone has a holder within {load.NEARBY_MINUTES} minutes. ")
                                 + f"${r['dollars_at_risk']:,.0f} of repeat visits at risk. {need if need else 'None'} of "
-                                  f"tomorrow's booked calls {'are' if need > 1 else 'is'} likely to need it."})
+                                  f"tomorrow's booked calls {'are' if need > 1 else 'is'} likely to need it. {said['words']}"})
     return items
+
+
+def series(words):
+    """Words as a sentence lists them: one, one and two, or one, two and three."""
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
+
+
+def buyer_says(ctx, day, row):
+    """What the buyer's list shows for one back-ordered part: the leading model's saved action, reason and note,
+    held against the engine's prices. Where no model is scored, or its action cannot be carried out here, the
+    list shows the engine's cheapest action and says so."""
+    priced, cheapest, giver, taker = ctx.priced[(day, row["part"])]
+    case = {"day": day, "part": row["part"], "days_left": row["ships_in_days"],
+            "move": giver and {"giver": giver, "taker": taker}}
+    who, answers = ctx.buyer or (None, {})
+    a = answers.get(agent.name_of(case), {})
+    chosen, at = a.get("action"), f"${priced[cheapest]:,.2f}"
+    out = {"who": who, "chosen": chosen, "cheapest": cheapest, "action": cheapest, "reason": "", "note": "",
+           "gaps": [], "ran_on": False}
+    if who is None:
+        return dict(out, words=f"No Claude model's decisions are saved for this prompt, so this is the engine's cheapest "
+                               f"action, at {at}.")
+    if chosen is None:
+        return dict(out, words=f"{who} left this case undecided, so this is the engine's cheapest action, at {at}.")
+    if priced[chosen] is None:
+        return dict(out, words=f"{who} chose to {chosen}, which cannot be carried out here, so this is the engine's "
+                               f"cheapest action, at {at}.")
+    (reason, cut), (note, cut_note), gaps = agent.as_written(a["reason"]), agent.as_written(a["note"]), agent.left_out(case, a)
+    words = (f"{who} chose this from the case's facts. Its reason: {reason}"
+             + (" Its reply ran on into stray markup, which is cut here." if cut or cut_note else "")
+             + f" Its note, for a person to send: \"{note}\""
+             + (f" The note leaves out {series(gaps)}, so a person writes that in first." if gaps else "")
+             + (f" The engine's arithmetic prices this action cheapest, at {at}." if chosen == cheapest else
+                f" The engine's arithmetic prices {BUYER_DOES[cheapest].lower()} cheapest, at {at}, which is "
+                f"${priced[chosen] - priced[cheapest]:,.2f} under this action."))
+    return dict(out, action=chosen, reason=reason, note=note, gaps=gaps, ran_on=cut or cut_note, words=words)
 
 
 def counted(n, noun):

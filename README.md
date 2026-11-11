@@ -5,6 +5,8 @@ do before 08:00.
 
 **[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods page](https://acep2317.github.io/staple/method.html)
 
+[![The automatic check on the latest push](https://github.com/AceP2317/staple/actions/workflows/check.yml/badge.svg)](https://github.com/AceP2317/staple/actions/workflows/check.yml)
+
 ![The board for one invented day as it ran: a row for each technician, a block for each call, and a ring on every call that a sick call or a breakdown moved.](staple/pages/board.png)
 
 Every figure in this repository comes from repair history I invented: the calls, the customers' words, the
@@ -38,12 +40,17 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 - **Reads the customer's words.** Claude Haiku 5.5 (`claude-haiku-5-5`) turns what the customer said into a
   problem code with a confidence, and asks one short follow-up question when it is unsure. The week's plan
   runs on its codes. Its answers ship cached in the repository, so a run needs no key.
+- **Decides each back-order.** A Claude model works every back-ordered part from lookups that give counts,
+  days and odds and never a price. It commits to sending the calls anyway, expediting, moving a spare or
+  rebooking, and drafts the note a person would send. The engine's arithmetic scores every choice in dollars,
+  beside fixed rules and a control, and counts the notes that leave a fact out. Its decisions ship saved in
+  the repository too.
 - **Sends the call.** It replays every held-back day with sick calls, breakdowns and priority changes. Each
   call goes to the technician with the lowest expected cost: drive and repair time, plus a repeat visit
   times the chance that technician's skill or truck fails the job. It learns each technician's success rate
   from the earlier jobs.
 - **Measures it in SQL.** First-time fix, parts-caused reschedules, parts cycle time, truck fill rate, slow truck stock,
-  inventory ROI, the carry-list curve, back-order exposure and the flag's record, the dispatch scorecard, the whole plan's scorecard, the AI step's scores and
+  inventory ROI, the carry-list curve, back-order exposure and the flag's record, the dispatch scorecard, the whole plan's scorecard, the buyer's scorecard, the AI step's scores and
   its confidence, and every control's result are plain queries in [`sql/metrics/`](sql/metrics/). Every
   figure on the report's evidence cards comes from one of them, and the plan is the dispatch replay's own record.
 
@@ -64,9 +71,10 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 15 SQL files hold the tables and the 14 metric queries; 2 JavaScript files run the hints and switches. Beside them, 7 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 16 SQL files hold the tables and the 15 metric queries; 2 JavaScript files run the hints and switches. Beside them, 7 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
 
-Python 3.12 or newer is the only requirement, and nothing is installed. It is tested on Python 3.12 and 3.14.
+Python 3.10 or newer is the only requirement, and nothing is installed. It is tested on Python 3.10, 3.12 and 3.14.
+After every push, GitHub runs the same commands on Linux and on Windows, on each of those versions.
 
 ```
 python run.py            # the made-up world, every result, the metric tables and the four pages, into out/

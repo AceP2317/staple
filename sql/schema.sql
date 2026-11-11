@@ -173,11 +173,18 @@ CREATE TABLE buyer_prices (
   move_one REAL,                                  -- empty when no truck holds one, or none may take it
   rebook REAL,                                    -- empty when no booked call is waiting on the part
   cheapest TEXT NOT NULL,                         -- the cheapest action that can be carried out
+  giver TEXT, taker TEXT,                         -- the one move priced: the truck that gives a part and the one that takes it
   PRIMARY KEY (day, part)
 );
 -- Each decider's choices over those cases: what they cost, and the dollars that is over the cheapest actions.
+-- A decider named for a Claude model is that model's saved decisions. A rule asks nothing and writes no note.
 CREATE TABLE buyer_score (
   decider TEXT PRIMARY KEY, decisions INTEGER NOT NULL,
   invalid INTEGER NOT NULL,                       -- choices that could not be carried out, charged as sending anyway
-  cost REAL NOT NULL, lost REAL NOT NULL
+  matched INTEGER NOT NULL,                       -- choices that cost what the cheapest action costs
+  misread INTEGER NOT NULL,                       -- wrong choices that are the cheapest once expediting is charged the calls after the early ship day
+  cost REAL NOT NULL, lost REAL NOT NULL,
+  asking REAL NOT NULL,                           -- dollars the Claude API charged for a model's decisions, at the listed prices
+  notes_short INTEGER NOT NULL,                   -- a model's notes that leave out the part, its ship day or a truck of a move
+  ran_on INTEGER NOT NULL                         -- a model's decisions whose reason or note runs on into stray markup
 );

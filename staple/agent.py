@@ -16,6 +16,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -28,9 +29,13 @@ from staple.buyer import ACTIONS, EXPEDITE, EXPEDITE_DAYS, REBOOK, RUSH, SEND, S
 from staple.load import MOVE, REPEAT_VISIT
 
 MODELS = ("claude-haiku-5-5", "claude-opus-5-5")
-# Dollars for a million tokens in and out, as each model was listed on 2026-11-10. Check them before a run.
+PRICED_ON = "2026-11-11"    # the day the prices below were read from the model list. Check them before a run.
+# Dollars for a million tokens in and out, as each model was listed that day.
+# These are Haiku's prices for a prompt of up to 100,000 tokens, and a case here sends a few thousand.
 PRICES = {"claude-haiku-5-5": (0.10, 0.50), "claude-sonnet-5-5": (2.00, 10.00), "claude-opus-5-5": (4.00, 20.00)}
-CACHE_WRITE, CACHE_READ = 1.25, 0.10   # a cached token's price to write and to read, as a share of the input price
+CACHE_WRITE = 1.25     # a cached token's price to write, kept five minutes, as a share of the input price
+# A cached token's price to read, as a share of the input price. It differs by model.
+CACHE_READ = {"claude-haiku-5-5": 0.10, "claude-sonnet-5-5": 0.05, "claude-opus-5-5": 0.05}
 EFFORT = "medium"
 MAX_TOKENS = 8000      # the ceiling on one reply, its thinking included
 MAX_ROUNDS = 6         # the requests one case may take before it is left undecided
@@ -41,6 +46,10 @@ BUSY = (429, 529)      # the API's answers for a rate limit reached and for an o
 WAITS = (2, 5, 15, 45)  # seconds to wait before asking again after one of those
 ROUND_LIMIT, CUT_OFF, DECLINED = "round limit", "reply cut off", "declined"
 DATA = Path(__file__).resolve().parent.parent / "data"
+MARKUP = re.compile(r"</?[A-Za-z][^<>]*>")    # a tag, such as a tool call's own syntax leaves behind in a reply's words
+MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December")
+PART_FACT, DAY_FACT, TRUCKS_FACT = "the part", "the ship day", "both trucks"
 
 FORECAST, TRUCKS, WAITING, COMMIT = "back_order_forecast", "trucks_holding_part", "calls_waiting_on_part", "commit_decision"
 FIELDS = {FORECAST: ("part",), TRUCKS: ("part",), WAITING: ("part",), COMMIT: ("action", "reason", "note")}
@@ -96,11 +105,15 @@ def name_of(case):
     return f"{case['day']} {case['part']}"
 
 
+def ships_on(case):
+    """The day a center can ship the case's part."""
+    return dt.date.fromisoformat(case["day"]) + dt.timedelta(days=case["days_left"])
+
+
 def facts(case, lookup):
     """What one lookup returns for a case: counts, days and odds, and never a price."""
     if lookup == FORECAST:
-        ships = dt.date.fromisoformat(case["day"]) + dt.timedelta(days=case["days_left"])
-        return {"part": case["part"], "today": case["day"], "ships_on": str(ships), "days_until_it_ships": case["days_left"],
+        return {"part": case["part"], "today": case["day"], "ships_on": str(ships_on(case)), "days_until_it_ships": case["days_left"],
                 "calls_expected_to_need_it": round(case["expected"], PLACES),
                 "calls_expected_to_be_stuck": round(case["stuck"], PLACES)}
     if lookup == TRUCKS:
@@ -169,7 +182,7 @@ def dollars(model, usage):
     """What the API's own token counts cost at the listed prices."""
     into, out = PRICES[model]
     return (usage.get("input_tokens", 0) * into + usage.get("cache_creation_input_tokens", 0) * into * CACHE_WRITE
-            + usage.get("cache_read_input_tokens", 0) * into * CACHE_READ + usage.get("output_tokens", 0) * out) / 1e6
+            + usage.get("cache_read_input_tokens", 0) * into * CACHE_READ[model] + usage.get("output_tokens", 0) * out) / 1e6
 
 
 def ceiling(model, body):
@@ -256,6 +269,69 @@ def chooser(answers):
 def cost(model, answers):
     """The dollars a model's saved decisions cost, from the token counts saved with each."""
     return dollars(model, sum((Counter(a["usage"]) for a in answers.values()), Counter()))
+
+
+def as_written(text):
+    """A reason or a note up to the first stray markup, and whether any was cut off there."""
+    found = MARKUP.search(text)
+    return (text[:found.start()].rstrip(), True) if found else (text, False)
+
+
+def names_day(text, day):
+    """Whether a text names a day, written as 2026-08-03, August 3 or Aug 3."""
+    month = MONTH_NAMES[day.month - 1]
+    return bool(re.search(rf"\b(?:{day.isoformat()}|{month} {day.day}|{month[:3]}\.? {day.day})\b", text))
+
+
+def left_out(case, answer):
+    """The facts the prompt asks of a note that a decision's note leaves out: the part, its ship day, and for a
+    move both trucks. A part named in the singular counts, so one gasket names the gaskets."""
+    note, own = answer["note"], case["part"].split("/")[1].lower()
+    out = [] if (own[:-1] if own.endswith("s") else own) in note.lower() else [PART_FACT]
+    if not names_day(note, ships_on(case)):
+        out.append(DAY_FACT)
+    move = answer["action"] == SHIFT and case["move"]
+    if move and not all(re.search(rf"\b{re.escape(t)}\b", note) for t in (move["giver"], move["taker"])):
+        out.append(TRUCKS_FACT)
+    return out
+
+
+def words(cases, answers):
+    """How many of a model's decisions carry words a person could not send as they are: a note that leaves out a
+    fact the prompt asks for, and a reason or note that runs on into stray markup."""
+    made = [(c, answers[name_of(c)]) for c in cases if answers.get(name_of(c), {}).get("action")]
+    return {"notes_short": sum(bool(left_out(c, a)) for c, a in made),
+            "ran_on": sum(any(as_written(a[f])[1] for f in ("reason", "note")) for _, a in made)}
+
+
+def scored(cases):
+    """Each model whose saved decisions cover every case, as (its name, the model, the decisions), and one
+    sentence for each saved file that cannot be scored as it stands."""
+    found, left = [], []
+    for model in MODELS:
+        file = kept(model)
+        if file is None:
+            continue
+        have = sum(name_of(c) in file["answers"] for c in cases)
+        if file["prompt_id"] != PROMPT_ID:
+            left.append(f"{path(model).name} was made with a different prompt, so it is not scored")
+        elif have < len(cases):
+            left.append(f"{path(model).name} holds {have:,} of {len(cases):,} decisions, so it is not scored until "
+                        f"`python -m staple.agent {model} --cap DOLLARS` asks for the rest")
+        else:
+            found.append((triage.named(model), model, file["answers"]))
+    return found, left
+
+
+def leading(conn):
+    """The scored model whose decisions lost the fewest dollars, as (its name, its decisions), or None when no
+    model is scored. A tie goes to the model listed first."""
+    names = [triage.named(m) for m in MODELS]
+    lost = {d: v for d, v in conn.execute("SELECT decider, lost FROM buyer_score") if d in names}
+    if not lost:
+        return None
+    best = min(lost, key=lambda d: (lost[d], names.index(d)))
+    return best, saved(MODELS[names.index(best)])
 
 
 def run(found, model, key, cap, url=triage.API_URL, fresh=False):

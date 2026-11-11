@@ -40,7 +40,9 @@ it, on the left, is the scorecard, which the section on numbers explains. On the
 <ul>
 <li><strong>To do before {{day_start}}</strong>: every action for the chosen day, grouped by who takes it, in a box that
 scrolls inside itself. The next section lists every kind. Clicking an item lights up its truck and opens the call or
-the load sheet it names in the plan below. Each group's evidence link opens the card behind that kind of action.</li>
+the load sheet it names in the plan below. Each group's evidence link opens the card behind that kind of action. An
+AI mark sits on an item Claude decided: a call its question could not settle, or the action it chose for a
+back-ordered part.</li>
 </ul>
 <h3>The plan for one day</h3>
 <p>The day buttons pick one of the most recent {{week}} held-back days. They are not picked by hand. A ✚ marks a
@@ -92,7 +94,7 @@ column, and the scorecard folds each control under its difference.</p></section>
 <tr><td>Dispatch, before {{day_start}}</td><td>Warn the customer on a call</td><td>A part the call has at least a {{likely}} chance of needing is back-ordered, and no truck nearby holds one.</td><td>Offer a later slot, or keep the visit to diagnose.</td></tr>
 <tr><td>Dispatch, before {{day_start}}</td><td>Rebook a call</td><td>No technician's day had room for it in the night plan.</td><td>Offer the customer the next open day.</td></tr>
 <tr><td>Dispatch, before {{day_start}}</td><td>Technicians with no booked calls</td><td>The booked calls fit on fewer routes than there are technicians, because each call goes to the technician with the lowest expected cost.</td><td>Keep them for the calls that come in during the day and the calls a sick call or breakdown moves.</td></tr>
-<tr><td>Buyer, this week</td><td>Expedite a part</td><td>The back-ordered parts with the most repeat-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships.</td><td>Expedite, source elsewhere, or move a spare.</td></tr>
+<tr><td>Buyer, this week</td><td>An action on a back-ordered part: send the calls anyway, expedite, move one, or rebook the waiting calls</td><td>The back-ordered parts with the most repeat-visit dollars at risk before they ship, from that day's list. The days left count down, and a part drops off the day it ships. The action is the one a Claude model chose from the case's facts. The item's hint carries its reason, the note it drafted, and whether the engine's arithmetic prices that action cheapest.</td><td>Read the note, write in whatever the hint says it leaves out, and send it, or overrule the action.</td></tr>
 </tbody></table></div></section>
 
 <section id="numbers"><h2>What the numbers mean</h2>
@@ -157,6 +159,13 @@ right at least as often as the confidence it states, and seldom right where it s
 right as often as the bands above it means the line is set cautiously.</p>
 <p><strong>Back-orders to chase first</strong> lists each part the centers cannot ship, with the calls expected to
 need it before it arrives, how many of those have no truck nearby holding one, and the dollars at risk.</p>
+<p><strong>Claude as the buyer</strong> scores whoever names the buyer's action on each back-ordered part: the
+engine's arithmetic, each Claude model whose decisions are saved, the fixed rules, and a control that takes the
+cheapest action for another case's facts. Each bar is the dollars a decider loses a decision over the cheapest
+action, so lower is better and the arithmetic sits at nothing. A model can tie it and cannot beat it. The table adds
+how many choices were as cheap as any, how many could not be carried out, how many wrong choices a misreading
+of the expedite rule explains, what asking the model cost, how many of its notes leave out a fact, and how many of
+its replies run on into stray markup.</p>
 <p><strong>Each gain against its control</strong> draws, for every control, the share of the gain it keeps. A
 control that keeps under {{falls_back}} has fallen back, so that gain came from the link the control broke. A long
 bar is a gain that came from something plainer, and the card that owns the gain says what.</p></section>
@@ -205,8 +214,8 @@ customer, part number or technician appears anywhere.</p>
 <p>The report, this manual, the methods page and the code languages page are static pages. They load nothing from the network: no fonts, no scripts, no
 tracking. The published copy is the same file, built on the author's machine and checked against a fresh build
 before it is committed.</p>
-<p>The AI step's answers were produced once by {{model}} and ship in the repository, so a run needs no key and
-sends nothing anywhere. Only <code>python run.py --live</code> and <code>python -m staple.agent</code> call the
+<p>The AI step's answers were produced once by {{model}}, and the buyer's decisions once by each model its card
+names. Both ship in the repository, so a run needs no key and sends nothing anywhere. Only <code>python run.py --live</code> and <code>python -m staple.agent</code> call the
 Claude API, each with the reader's own key. The first sends the made-up booking words and problem labels, the
 second the made-up facts of a back-ordered part, and neither sends anything else.</p></section>
 
