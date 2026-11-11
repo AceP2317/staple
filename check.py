@@ -1230,10 +1230,11 @@ def plan_check():
 
 def results_written(conn):
     """Fill every results table the way run.py does, unless an earlier check in this run already has."""
-    from staple import backorders, backtest, dispatch, load, triage
+    from staple import backorders, backtest, buyer, dispatch, load, triage
     for table, fill in (("backtest", lambda: backtest.run(conn)),
                         ("load_policy", lambda: load.run(conn)),
                         ("backorder_list", lambda: backorders.run(conn)),
+                        ("buyer_prices", lambda: buyer.run(conn)),
                         ("triage", lambda: triage.run(conn, *triage.load(conn))),
                         ("dispatch", lambda: dispatch.run(conn))):
         if not one(conn, f"SELECT COUNT(*) FROM {table}"):
@@ -3171,6 +3172,145 @@ def scorecard_check():
           f"stops where a measure is worse under Staple or the control passes Staple: {len(stopped)} of 2")
     require(len(caught) == 1 and caught[0].startswith("fill rate"), f"control: a changed figure on the scorecard gave {caught}")
     require(len(stopped) == 2, "control: the report was built though its scorecard's words contradict the query")
+
+
+def buyer_by_hand(case, repeat, move, fee, fast, wait):
+    """One case's four prices from the sentences of the methods page, worked apart from the engine."""
+    risk, days = case["stuck"] * repeat, case["days_left"]
+    quick = days if days < fast else fast
+    left = case["stuck"] - sum(odds for _, odds in case["waiting"])
+    return {"send anyway": risk, "expedite": fee + risk * quick / days,
+            "move one": None if case["move"] is None else move + move + case["move"]["stuck"] * repeat,
+            "rebook": (None if not case["waiting"] else
+                       wait * days * len(case["waiting"]) + (left if left > 0 else 0.0) * repeat)}
+
+
+def buyer_recount(conn, held, nearby=None):
+    """What the buyer's cases rest on, counted again from the tables: for each back-ordered part, the smallest share
+    of its appliance's calls any single move leaves stuck, and for each day and part, the booked calls waiting."""
+    import math
+    from staple import load, world
+    from staple.predict import Predictor
+    nearby = load.NEARBY_MINUTES if nearby is None else nearby
+    home = dict(conn.execute("SELECT tech, home_zone FROM techs"))
+    certified = {t for (t,) in conn.execute("SELECT tech FROM techs WHERE certified = 1")}
+    locked = {p for (p,) in conn.execute("SELECT part FROM parts WHERE locked = 1")}
+    kind = dict(conn.execute("SELECT part, type FROM parts"))
+    stock = defaultdict(set)
+    for tech, part in conn.execute("SELECT t.tech, s.part FROM truck_stock s JOIN trucks t USING (truck)"):
+        stock[tech].add(part)
+    spans = conn.execute("SELECT part, starts, ships FROM backorders").fetchall()
+    calls = defaultdict(Counter)      # appliance, then (zone, technician): calls in the training history
+    for appliance, zone, tech, n in conn.execute(
+            "SELECT type, zone, tech, COUNT(*) FROM jobs WHERE split = 'train' GROUP BY type, zone, tech"):
+        calls[appliance][(zone, tech)] = n
+
+    def near(a, b):
+        (xa, ya), (xb, yb) = world.ZONES[a], world.ZONES[b]
+        return world.BETWEEN_ZONES + world.MINUTES_A_MILE * world.ZONE_MILES * math.hypot(xa - xb, ya - yb) <= nearby
+
+    def share(appliance, holders):
+        """The share of an appliance's calls no holder covers: not a holder's own, and in a zone no holder is near."""
+        stuck = sum(n for (zone, tech), n in calls[appliance].items()
+                    if tech not in holders and not any(near(home[h], zone) for h in holders))
+        return stuck / sum(calls[appliance].values())
+
+    moves = {}
+    for part in {p for p, _, _ in spans}:
+        holders = {t for t in home if part in stock[t]}
+        takers = [t for t in home if t not in holders and (part not in locked or t in certified)]
+        tried = [share(kind[part], holders - {giver} | {taker}) for giver in holders for taker in takers]
+        moves[part] = min(tried) if tried else None
+    predictor, waiting = Predictor(conn), Counter()
+    for j in held:
+        stuck = {p for p, starts, ships in spans if starts <= j["day"] < ships}
+        if j["unplanned"] or not stuck:
+            continue
+        odds = predictor.odds(j["type"], j["family"], j["problem"])
+        for part in stuck:
+            if (odds.get(part, 0.0) >= load.BACKORDER_FLAG and part not in stock[j["tech"]]
+                    and not (part in locked and j["tech"] not in certified)
+                    and not any(part in stock[o] and near(home[o], j["zone"]) for o in home if o != j["tech"])):
+                waiting[(j["day"], part)] += 1
+    return moves, waiting
+
+
+@check("buyer-scorer")
+def buyer_scorer():
+    from staple import buyer, examples, load
+    from staple.backtest import test_jobs
+    conn = shared_world()
+    found = buyer.run(conn)
+    cases, scores = found["cases"], found["scores"]
+    fleet = load.Fleet(conn)
+    days = sorted({c["day"] for c in cases})
+    require(sorted((c["day"], c["part"]) for c in cases) == sorted((d, p) for d in days for p in fleet.stuck(d)),
+            "the buyer's cases are not every back-ordered part of every held-back day, once each")
+    priced = [buyer.prices(c) for c in cases]
+    best = Counter(buyer.cheapest(p) for p in priced)
+    print(f"  {len(cases):,} back-ordered part-days priced four ways; the cheapest is "
+          + ", ".join(f"{a} on {best[a]}" for a in buyer.ACTIONS))
+    require(all(best[a] for a in buyer.ACTIONS), "one of the four actions is never the cheapest, so it is no real choice")
+
+    dollars = (load.REPEAT_VISIT, load.MOVE, buyer.EXPEDITE, buyer.EXPEDITE_DAYS, buyer.WAIT_DAY)
+
+    def differ(mine, theirs):
+        return any((mine[a] is None) != (theirs[a] is None) or (mine[a] is not None and abs(mine[a] - theirs[a]) > 1e-9)
+                   for a in buyer.ACTIONS)
+    off = sum(differ(p, buyer_by_hand(c, *dollars)) for c, p in zip(cases, priced))
+    moved = sum(differ(p, buyer_by_hand(c, dollars[0], dollars[1], 2 * dollars[2], *dollars[3:])) for c, p in zip(cases, priced))
+    print(f"  the four prices worked again apart from the engine: {len(cases) - off} of {len(cases)} agree; "
+          f"control: with the fee doubled, {moved} of {len(cases)} disagree")
+    require(not off, "a price does not match the arithmetic the methods page states")
+    require(moved == len(cases), "the price recount cannot tell a fee twice as high")
+    table = conn.execute("SELECT day, part, waiting_calls, send_anyway, expedite, move_one, rebook, cheapest FROM buyer_prices "
+                         "ORDER BY day, part").fetchall()
+    require(table == sorted((c["day"], c["part"], len(c["waiting"]), *(p[a] for a in buyer.ACTIONS), buyer.cheapest(p))
+                            for c, p in zip(cases, priced)), "buyer_prices does not hold the prices the engine computed")
+
+    held = test_jobs(conn)
+    load.mark_unplanned(held)
+    moves, waiting = buyer_recount(conn, held)
+    move_off = [c for c in cases if (c["move"] is None) != (moves[c["part"]] is None)
+                or (c["move"] and abs(c["move"]["stuck"] - c["expected"] * moves[c["part"]]) > 1e-9)]
+    wait_off = [c for c in cases if len(c["waiting"]) != waiting[(c["day"], c["part"])]]
+    movable, booked = sum(c["move"] is not None for c in cases), sum(len(c["waiting"]) for c in cases)
+    print(f"  counted again from the tables: the best single move on {movable} cases, {movable - len(move_off)} agree; "
+          f"{booked} waiting calls on {sum(bool(c['waiting']) for c in cases)} cases, {len(cases) - len(wait_off)} of {len(cases)} cases agree")
+    require(not move_off and not wait_off, "a case's best move or waiting calls do not match the recount from the tables")
+    tighter, _ = buyer_recount(conn, held, nearby=0)
+    _, none = buyer_recount(conn, [dict(j, unplanned=True) for j in held])
+    blind = [c for c in cases if c["move"] and abs(c["move"]["stuck"] - c["expected"] * tighter[c["part"]]) > 1e-9]
+    print(f"  control: with no truck counted as nearby the recount disagrees on {len(blind)} moves, and with every call "
+          f"marked unplanned it finds {sum(none.values())} waiting calls against {booked}")
+    require(blind and booked and not sum(none.values()), "the recount cannot see a change in what counts as nearby or booked")
+
+    widest = max(range(len(cases)), key=lambda i: priced[i][buyer.SEND] - priced[i][buyer.cheapest(priced[i])])
+    gap = priced[widest][buyer.SEND] - priced[widest][buyer.cheapest(priced[widest])]
+    slip = buyer.score(cases, lambda c: buyer.SEND if c is cases[widest] else buyer.cheapest(buyer.prices(c)))
+    no_holder = next(c for c in cases if c["move"] is None)
+    barred = [buyer.score([no_holder], lambda c: said) for said in (buyer.SHIFT, "wait and see")]
+    print(f"  the scorer: the cheapest action every time loses ${scores[buyer.ARITHMETIC]['lost']:.2f}; one wrong choice, on "
+          f"{cases[widest]['part']} on {cases[widest]['day']}, loses ${slip['lost']:,.2f}, its own gap; a move where no truck holds "
+          f"the part and an action that is not one of the four are each counted and charged as sending anyway")
+    require(scores[buyer.ARITHMETIC]["lost"] == 0 and scores[buyer.ARITHMETIC]["invalid"] == 0,
+            "taking the cheapest action every time does not score zero")
+    require(gap > 0 and abs(slip["lost"] - gap) < 1e-9, "one wrong choice does not lose exactly its own gap")
+    require(all(b["invalid"] == 1 and b["cost"] == buyer.prices(no_holder)[buyer.SEND] for b in barred),
+            "a choice that cannot be carried out is not counted and charged as sending anyway")
+    other = buyer.other_case(len(cases))
+    require(sorted(other) == sorted(other.values()) == list(range(len(cases))) and all(a != b for a, b in other.items()),
+            "the control lets a case read its own facts, or leaves one out")
+    for name, s in scores.items():
+        print(f"  {name}: ${s['cost']:,.0f} spent, ${s['lost']:,.0f} over the cheapest, ${s['lost'] / s['decisions']:.2f} a decision; "
+              f"{s['invalid'] or 'none'} could not be carried out")
+        require(name == buyer.ARITHMETIC or s["lost"] > 0, f"{name} loses nothing, so the scorer cannot tell it from the cheapest")
+    require(conn.execute("SELECT decider, decisions, invalid, cost, lost FROM buyer_score").fetchall()
+            == [(n, s["decisions"], s["invalid"], s["cost"], s["lost"]) for n, s in scores.items()],
+            "buyer_score does not hold the scores the engine computed")
+    example = next(x for x in examples.EXAMPLES if x.section == "buyer")
+    require(not example_faults([example]), "the worked example of the buyer's prices no longer matches the engine")
+    print(f"  the worked example, by hand: {example.show(example.by_hand)}; the engine agrees")
 
 
 @check("data")

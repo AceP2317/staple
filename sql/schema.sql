@@ -163,3 +163,21 @@ CREATE TABLE backorder_list (
   whole_wait INTEGER NOT NULL,                    -- 1 when it ships inside the held-back days, so the actual columns are complete
   PRIMARY KEY (day, part)
 );
+
+-- Results, written by the buyer's scorer. Each back-ordered part of each held-back day, with the buyer's four
+-- actions in expected dollars from training only. An action that cannot be carried out there is left empty.
+CREATE TABLE buyer_prices (
+  day TEXT NOT NULL, part TEXT NOT NULL REFERENCES parts(part),
+  waiting_calls INTEGER NOT NULL,                 -- that day's booked calls flagged for the part, with no truck nearby holding one
+  send_anyway REAL NOT NULL, expedite REAL NOT NULL,
+  move_one REAL,                                  -- empty when no truck holds one, or none may take it
+  rebook REAL,                                    -- empty when no booked call is waiting on the part
+  cheapest TEXT NOT NULL,                         -- the cheapest action that can be carried out
+  PRIMARY KEY (day, part)
+);
+-- Each decider's choices over those cases: what they cost, and the dollars that is over the cheapest actions.
+CREATE TABLE buyer_score (
+  decider TEXT PRIMARY KEY, decisions INTEGER NOT NULL,
+  invalid INTEGER NOT NULL,                       -- choices that could not be carried out, charged as sending anyway
+  cost REAL NOT NULL, lost REAL NOT NULL
+);

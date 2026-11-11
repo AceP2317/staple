@@ -7,7 +7,7 @@ written to the assumptions table from the code's own constants, never typed into
 import csv
 from pathlib import Path
 
-from staple import db, dispatch, load, triage, world
+from staple import buyer, db, dispatch, load, triage, world
 
 SQL = Path(__file__).resolve().parent.parent / "sql" / "metrics"
 FALLS_BACK = 0.25   # a control falls back when it keeps less than this share of the gain it tests (design choice)
@@ -31,7 +31,10 @@ def assumptions():
             ("day_minutes", dispatch.DAY, "minutes in a working day, 08:00 to 17:00"),
             ("truck_capacity", world.CAPACITY, "space units on one truck"),
             ("stock_fill", world.STOCK_FILL, "how full today's trucks are kept"),
-            ("backorder_flag", load.BACKORDER_FLAG, "odds of needing a stuck part at which a booking is flagged")]
+            ("backorder_flag", load.BACKORDER_FLAG, "odds of needing a stuck part at which a booking is flagged"),
+            ("expedite", buyer.EXPEDITE, "dollars to have a back-ordered part shipped early"),
+            ("expedite_days", buyer.EXPEDITE_DAYS, "days an expedited part takes to ship"),
+            ("wait_day", buyer.WAIT_DAY, "dollars for each day a rebooked call waits for its part")]
     return rows + [(f"repair_minutes.{t}", m, f"minutes an average technician takes on a {t}")
                    for t, m in dispatch.REPAIR.items()]
 

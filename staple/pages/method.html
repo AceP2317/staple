@@ -6,6 +6,7 @@
 <li><a href="#loads">The truck-load replay</a></li>
 <li><a href="#availability">Availability and the back-order flag</a></li>
 <li><a href="#backorders">The fleet back-order list</a></li>
+<li><a href="#buyer">The buyer's four actions</a></li>
 <li><a href="#ai">The AI step</a></li>
 <li><a href="#dispatch">The dispatch replay</a></li>
 <li><a href="#cycle">Parts cycle time</a></li>
@@ -322,6 +323,24 @@ cost a call    = Σ (drive + repair) · {{minute}} / served + (1 − Σ fix / se
 <p>The checks also require zero rule breaks: no call served or rolled other than once, no sick technician working, no
 broken truck working after its breakdown, no route past {{day_end}}. A control may roll at most one percent more calls
 than Staple, so no control can win by overbooking.</p></section>
+
+<section id="buyer"><h2>The buyer's four actions</h2>
+<p>Source: <code>buyer.prices</code> and <code>buyer.score</code>. Each back-ordered part on each held-back day is
+one case for the buyer, who takes one of four actions on it. The engine prices all four in expected dollars from the
+back-order list's own forecast, so a price uses training only.</p>
+<ul>
+<li><strong>Send anyway</strong>: the calls go out as booked. The price is the calls expected to be stuck before the part ships, at {{repeat_visit}} each.</li>
+<li><strong>Expedite</strong>: a fee of {{expedite}}, and the part ships in {{expedite_days}} days. Only the calls stuck in those days still risk a repeat visit.</li>
+<li><strong>Move one</strong>: a truck that holds the part gives it to a truck that holds none, at {{move}} for each of the two moves. The engine tries every such pair and keeps the one that leaves the fewest calls stuck, counting the calls the giving truck can no longer cover. It cannot be done when no truck holds the part.</li>
+<li><strong>Rebook</strong>: that day's booked calls flagged for the part are moved past the ship day, at {{wait_day}} for each call and day of waiting. Those calls no longer risk a repeat visit for the part. It cannot be done when no booked call is waiting on it.</li>
+</ul>
+{{EX_buyer}}
+<p>A decider is anything that names an action for a case. It is charged the price of the action it named, and its
+score is the dollars that costs over the cheapest action. An action that cannot be carried out is charged as
+sending anyway, and counted. Two fixed rules are scored beside the engine's own arithmetic: sending anyway every
+time, and expediting every time. The control takes the cheapest action for another case's facts, so its choice no
+longer rests on the case it is made for. The check <code>buyer-scorer</code> works the four prices again apart from
+the engine, recounts the waiting calls from the bookings, and tries every move again from the tables.</p></section>
 
 <section id="cycle"><h2>Parts cycle time</h2>
 <p>Source: <code>world.expected_wait</code>, called by the dispatch replay, and

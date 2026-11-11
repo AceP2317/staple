@@ -64,6 +64,10 @@ replay's own record of the most recent week, so every route and load on it is on
   advance, but how many will can, so the action is fleet-wide. A back-order starts on one day and ships on
   another, so the list is made again for every held-back day and a part drops off the day it ships. Each
   forecast is held to what the held-back days then brought.
+- `staple/buyer.py` prices the buyer's four actions on each of those stuck parts, in expected dollars: send the
+  calls anyway, expedite the part, move one from a truck unlikely to need it, or rebook the calls waiting on
+  it. Anything that names an action for a case can be scored by it, as the dollars its choices cost over the
+  cheapest. Two fixed rules and a control that reads another case's facts are scored beside the arithmetic.
 - `staple/dispatch.py` replays every held-back day under each way of handing out calls, with the same
   invented sick calls, breakdowns and priority changes. Staple's rule sends each call to the technician
   with the lowest expected cost. It learns each technician's success rate from the training history, and the

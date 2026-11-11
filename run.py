@@ -10,7 +10,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from staple import backorders, backtest, db, dispatch, load, metrics, plan, report, triage, world
+from staple import backorders, backtest, buyer, db, dispatch, load, metrics, plan, report, triage, world
 
 CHROMES = ["chrome", "google-chrome", "chromium", r"C:\Program Files\Google\Chrome\Application\chrome.exe",
            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
@@ -75,6 +75,11 @@ def main():
     for r in stuck[:3]:
         print(f"  {r['day']}, {r['part']}: ships in {plan.days(r['days_left'])}, {r['expected']:.1f} calls expected, "
               f"{r['stuck']:.1f} with no truck nearby holding one (${r['at_risk']:,.0f})")
+    bought = buyer.run(conn)
+    print(f"the buyer's four actions priced on those {len(bought['cases']):,} part-days (dollars made up); each decider's "
+          "choices against the cheapest:")
+    for name, s in bought["scores"].items():
+        print(f"  {name}: ${s['lost'] / s['decisions']:.2f} lost a decision; {s['invalid'] or 'none'} could not be carried out")
     # Loaded once, so a live run's answers reach the scores and the week's plan alike.
     answers, followups = triage.load(conn, live="--live" in sys.argv[1:])
     tr = triage.run(conn, answers, followups)

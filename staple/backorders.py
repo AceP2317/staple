@@ -48,6 +48,20 @@ class Demand:
         return self.month_calls.get((month, appliance), 0) / self.month_days[month]
 
 
+def stuck_share(demand, fleet, appliance, holders):
+    """The zones with no holder based nearby, and the share of an appliance's calls stuck in them: the calls
+    there that no holder takes itself."""
+    open_zones = [z for z in range(len(ZONES))
+                  if not any(travel_minutes(fleet.home[h], z) <= NEARBY_MINUTES for h in holders)]
+    # A call is stuck when its zone has no holder nearby and its own technician holds none. Technicians
+    # mostly work near home, so the chance a holder takes the call is measured zone by zone.
+    # ponytail: dispatch could still send a holder from farther away, and this count leaves that out. The
+    # upgrade is to price that trip with the dispatch replay.
+    by_zone, by_zone_tech = demand.by_zone[appliance], demand.by_zone_tech[appliance]
+    total = sum(by_zone.values())
+    return open_zones, sum((by_zone[z] - sum(by_zone_tech[(z, h)] for h in holders)) / total for z in open_zones)
+
+
 def forecast(demand, fleet, day):
     """One day's list, from training only: per stuck part, the calls expected before it ships and how many no
     truck could cover, costliest first."""
@@ -55,17 +69,9 @@ def forecast(demand, fleet, day):
     for part, days_left in fleet.stuck(day).items():
         appliance = demand.part_type[part]
         holders = sorted(t for t, s in fleet.stock.items() if part in s)
-        open_zones = [z for z in range(len(ZONES))
-                      if not any(travel_minutes(fleet.home[h], z) <= NEARBY_MINUTES for h in holders)]
-        # A call is stuck when its zone has no holder nearby and its own technician holds none. Technicians
-        # mostly work near home, so the chance a holder takes the call is measured zone by zone.
-        # ponytail: dispatch could still send a holder from farther away, and this count leaves that out. The
-        # upgrade is to price that trip with the dispatch replay.
-        by_zone, by_zone_tech = demand.by_zone[appliance], demand.by_zone_tech[appliance]
-        total = sum(by_zone.values())
-        stuck_share = sum((by_zone[z] - sum(by_zone_tech[(z, h)] for h in holders)) / total for z in open_zones)
+        open_zones, share = stuck_share(demand, fleet, appliance, holders)
         expected, stuck, at_risk = exposure(demand.part_calls.get(part, 0), demand.type_calls[appliance],
-                                            demand.per_day(appliance, day), days_left, stuck_share)
+                                            demand.per_day(appliance, day), days_left, share)
         rows.append({"day": day, "part": part, "days_left": days_left, "holders": holders,
                      "open_zones": len(open_zones), "expected": expected, "stuck": stuck, "at_risk": at_risk})
     return sorted(rows, key=lambda r: (-r["at_risk"], r["part"]))

@@ -20,7 +20,7 @@ import zlib
 from collections import Counter
 from pathlib import Path
 
-from staple import db, dispatch, examples, load, metrics, plan, predict, triage, world
+from staple import buyer, db, dispatch, examples, load, metrics, plan, predict, triage, world
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES = Path(__file__).resolve().parent / "pages"
@@ -243,6 +243,7 @@ CHECK_ABOUT = {
     "history-dates": "The history records the order day and the repeat-visit day of each repair that failed for a missing part, and adding them moved nothing else. The world is built with and without the two days, and every other column of every table must hold the same values; a build with one value changed must be refused. Every repair that lacked a part has both days and no other repair has them. The order falls on the visit day or the next, the repeat visit comes after it by one of the made-up lead times, and a part on back-order arrives only after a center can ship it. The shares of each lead time and of next-morning orders must match the made-up table within a point. A repeat visit moved onto its order day, a repair with its parts given a wait, a wait taken away, an order placed two days late, a wait of a length the table does not hold and a part that arrives the day its back-order ends must each be refused, on the rules it breaks and no other.",
     "cycle-time": "Parts cycle time, the days a repair waits for its parts. The replay gives each repair that lacks a part the mean wait under the rule the history was written by. Over every recorded wait that mean must sit within four standard errors of the recorded days, and an engine that orders every part on the day of the visit must be refused. The same mean is worked a second way, day by day, and must agree on every repair; a repair that lacks two parts must wait at least as long as for either part and less than for both in turn. Two replays are counted again from their recorded visits and loads and must give the replay's own figures, and emptying the back-order calendar must shorten the wait. The report says a waiting repair waits longer under Staple because of back-orders, so back-orders must make up most of that gap. Three planted changes must move the query's rows, a changed figure must reach the card, two builds whose query contradicts the card's words must stop, and the worked example must match its hand answer.",
     "scorecard": "The five-measure scorecard is what the replay gives. The raw figures behind it are counted again from the recorded visits and loads of its three plans, the current rules, Staple and Staple on shuffled history, and must equal the replay's own; a recount with one part taken off every truck must move. Every measure must be the better under Staple, the difference must be the difference of the two figures shown beside it, and the control must keep most of each gain and less than all of it, because the words under the table say so. Three planted changes must move the query's rows as they should. The report must carry the scorecard once, with every figure of every row as the query gives it; a page with one figure changed must be refused, and a build whose query makes a measure worse under Staple, or lets the control pass Staple, must stop.",
+    "buyer-scorer": "The buyer's four actions on every back-ordered part of every held-back day. The four prices are worked again apart from the engine, the waiting calls are recounted from the bookings, and every single move is tried again from the tables. A decider that takes the cheapest action every time must lose nothing, one wrong choice must lose exactly its gap, and a choice that cannot be carried out must be charged as sending anyway and counted. Each fixed rule and the control must lose money.",
     "data": "Two builds from one seed must match. Planted noise sits at its rates; no part belongs to another appliance, no locked part rides uncertified, no truck runs part-empty, the newest families are thin, and furnace calls follow the seasons.",
 }
 
@@ -1506,6 +1507,7 @@ def facts():
          "order_next_day": f"{world.ORDER_NEXT_DAY:.0%}",
          "lead_times": listed([f"{plan.days(d)} ({share:.0%} of orders)" for d, share in world.LEAD_TIMES.items()], "or"),
          "same_day_until": plan.clock(dispatch.SAME_DAY_UNTIL), "buyer_items": plan.BUYER_ITEMS,
+         "expedite": f"${buyer.EXPEDITE:.0f}", "expedite_days": buyer.EXPEDITE_DAYS, "wait_day": f"${buyer.WAIT_DAY:.0f}",
          "falls_back": f"{metrics.FALLS_BACK:.0%}", "move_steps": ", ".join(f"${m:.0f}" for m in load.MOVE_STEPS),
          "furnace_winter": f"{world.FURNACE_WINTER:g}", "furnace_summer": f"{world.FURNACE_SUMMER:g}",
          "winter_months": months(world.WINTER), "summer_months": months(world.SUMMER), "weak_part": world.WEAK_PART,
@@ -1546,6 +1548,9 @@ def thresholds():
              ("Back-order starts", f"{world.BACKORDER_STARTS:.0%} a day", "Chance a part the centers stock goes on back-order.", made, "world", None),
              ("Back-order length", f"{world.BACKORDER_DAYS[0]} to {world.BACKORDER_DAYS[1]} days", "How long a back-order lasts before the part ships.", made, "world", None),
              ("Buyer's list", f"{plan.BUYER_ITEMS} parts", "Back-orders shown to the buyer each day, costliest first.", design, "plan", None),
+             ("Expedite fee", f"${buyer.EXPEDITE:.0f}", "The fee to have a back-ordered part shipped early.", made, "buyer", "ex-buyer"),
+             ("Expedited shipping", f"{buyer.EXPEDITE_DAYS} days", "How soon an expedited part ships.", made, "buyer", None),
+             ("A day's wait", f"${buyer.WAIT_DAY:.0f}", "Each day a rebooked call waits for its part.", made, "buyer", None),
              ("AI confidence", f"{triage.BLEND_BELOW}", "Below it, a reading leans on the appliance's overall odds and a follow-up question is asked.", design, "ai", "ex-ai"),
              ("Pull toward the appliance's average", f"{dispatch.SKILL_PULL} jobs", "How far a technician with few visits leans on the appliance's average success rate.", design, "dispatch", None),
              ("Working day", f"{dispatch.DAY} minutes", "08:00 to 17:00.", design, "dispatch", None),

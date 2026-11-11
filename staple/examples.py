@@ -7,7 +7,7 @@ the seeded world, so only a change to the engine's arithmetic can move an answer
 """
 from dataclasses import dataclass
 
-from staple import backorders, backtest, db, dispatch, load, metrics, plan, triage, world
+from staple import backorders, backtest, buyer, db, dispatch, load, metrics, plan, triage, world
 from staple.predict import PULL, Predictor
 
 
@@ -36,6 +36,9 @@ FIVE = ((1, "2026-03-04", "WA-1", "NO_DRAIN", "drain pump", 1),   # job, day, fa
         (4, "2026-04-02", "WA-1", "NO_SPIN", "drive belt", 1),
         (5, "2026-04-20", "WA-2", "NO_SPIN", "drain pump", 1))
 LABEL = {"NO_DRAIN": "Will not drain", "NO_SPIN": "Will not spin"}
+BUYER_CASE = {"day": "2026-03-04", "part": "door lock", "days_left": 5, "stuck": 1.2, "move": {"stuck": 0.5},
+              "waiting": [(7, 0.40)]}
+BUYER_DOLLARS = {"repeat": 165.0, "move": 2.0, "fee": 95.0, "fast": 2, "wait": 10.0}
 FIVE_TABLE = (("Job", "Day", "Model family", "Booked as", "Part needed", "Fixed on the first visit"),
               tuple((j, day, fam, LABEL[q], part, "yes" if fix else "no") for j, day, fam, q, part, fix in FIVE))
 
@@ -211,6 +214,33 @@ EXAMPLES = (
         "day a center can ship part p when it is ordered on day d:",
         "wait = Σ_(g ∈ {0, 1}) P(g) · Σ_(one ℓ_p for each p ∈ M) Π_p s(ℓ_p) · max_(p ∈ M) (c_p(v + g) − v + ℓ_p)\n"
         "P(1) = the share of orders placed the next morning,   P(0) = 1 − P(1)"),
+    Example(
+        "buyer", "one back-ordered part, priced four ways",
+        "What each of the buyer's four actions costs on one stuck part, and what a buyer who expedites it loses.",
+        (("Input", "Value"),
+         (("Days until the centers can ship the part", BUYER_CASE["days_left"]),
+          ("Calls expected to be stuck before then", f"{BUYER_CASE['stuck']:.1f}"),
+          ("Calls still stuck after the best single move", f"{BUYER_CASE['move']['stuck']:.1f}"),
+          ("Booked calls waiting on the part", "one, with odds of 0.40 of needing it"),
+          ("Made-up dollars", f"${BUYER_DOLLARS['repeat']:.0f} a repeat visit, ${BUYER_DOLLARS['move']:.0f} a move, "
+                              f"${BUYER_DOLLARS['fee']:.0f} to expedite in {BUYER_DOLLARS['fast']} days, "
+                              f"${BUYER_DOLLARS['wait']:.0f} a day of waiting"))),
+        ("Send anyway: 1.2 stuck calls at $165 is $198.00.",
+         "Expedite: the part ships in 2 of the 5 days, so two fifths of the $198.00 is still at risk. $95 + $79.20 = "
+         "$174.20.",
+         "Move one: two moves at $2, and 0.5 calls still stuck. $4 + $82.50 = $86.50.",
+         "Rebook: one call waits 5 days at $10, and its 0.40 leaves the stuck calls. $50 + 0.8 × $165 = $182.00.",
+         "Moving one is the cheapest. A buyer who expedites pays $174.20, which is $87.70 more."),
+        (198.0, 174.2, 86.5, 182.0, 87.7),
+        lambda: (*buyer.prices(BUYER_CASE, **BUYER_DOLLARS).values(),
+                 buyer.score([BUYER_CASE], lambda case: buyer.RUSH, **BUYER_DOLLARS)["lost"]),
+        lambda v: (f"send anyway ${v[0]:.2f}, expedite ${v[1]:.2f}, move one ${v[2]:.2f}, rebook ${v[3]:.2f}; "
+                   f"expediting loses ${v[4]:.2f}"),
+        "buyer.prices and buyer.score",
+        "For a part that ships in d days, with S calls expected stuck, S′ still stuck after the best move, and the "
+        "waiting calls' odds o₁ … o_w:",
+        "send anyway = S · R\nexpedite    = fee + S · R · min(d, fast) / d\nmove one    = 2 · move + S′ · R\n"
+        "rebook      = w · d · wait + max(0, S − Σ o) · R\nlost        = price of the action taken − the lowest of the four"),
     Example(
         "plan", "one call's first-time fix chance",
         "The plan's chance that one washer call is fixed on the first visit by the truck loaded for it tonight.",
