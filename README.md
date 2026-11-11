@@ -16,11 +16,12 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## What it does
 
-- **Plans tomorrow, and says what to do.** The live report opens on one invented day's plan beside its proof.
-  The plan holds a to-do list for the parts room, the call center, dispatch and the buyer; every technician's
-  route on a map and a board, as planned at night and as the day ran after a sick call and a breakdown; and
-  each truck's load sheet. The proof holds that day against the current rules, and the evidence from every
-  held-back day. A day picker covers the most recent week.
+- **Plans tomorrow, and says what to do.** The live report opens on the scorecard, the whole plan against
+  the current rules over every held-back day, beside one invented day's to-do list for the parts room, the
+  call center, dispatch and the buyer. Under them is that day's plan: every technician's route on a board
+  and a map, as planned at night and as the day ran after a sick call and a breakdown, each truck's load
+  sheet, and the day against the current rules. The evidence from every held-back day follows. A day picker
+  covers the most recent week.
 - **Predicts the parts.** For a booked repair, it ranks the parts most likely to fix it by counting what
   fixed past jobs on the same model family and problem. Where a family's history is thin, it leans on the
   wider appliance group.

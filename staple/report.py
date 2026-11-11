@@ -469,7 +469,8 @@ def bars(items):
 
 
 def figure(name, title, chart, result, row_tip=None, shown=None):
-    """A chart and the table under it. shown, when given, is the part of the query's rows the table prints."""
+    """A chart and the table under it, which opens on a click. shown, when given, is the part of the query's rows
+    the table prints."""
     columns, every = result
     data = every if shown is None else shown
     scope = (f"{plan.counted(len(data), 'row')} from sql/metrics/{name}.sql." if shown is None else
@@ -489,7 +490,7 @@ def figure(name, title, chart, result, row_tip=None, shown=None):
               "technician. The method is real; this figure is not.")
     return (f'<figure><figcaption><span class="fig-title"{tipattr(title + chr(10) + about(name) + chr(10) + scope)}>'
             f'{e(title)}</span> <span class="madeup"{tipattr(madeup)}>made-up data</span></figcaption>{chart}'
-            f'<details{"" if chart else " open"}><summary{tipattr(numbers)}>'
+            f'<details><summary{tipattr(numbers)}>'
             f'Show the numbers</summary><div class="scroll"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody>'
             f'</table></div></details></figure>')
 
