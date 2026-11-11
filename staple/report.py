@@ -1318,7 +1318,6 @@ def build_report(results, week, stamp_text, day):
             or not all(r["dollars_lost"] > 0 for r in (sends, rushes, borrowed))):
         raise ValueError("the buyer's card says the engine's arithmetic loses nothing and that each fixed rule and the "
                          "control lose money, and the query no longer says so: rewrite the card before publishing")
-    cases_n = engine["decisions"]
 
     def lost_tip(r, more=""):
         return (f"{r['decider']}: ${r['dollars_lost']:,.0f} lost over {r['decisions']:,} decisions\n"
@@ -1326,42 +1325,45 @@ def build_report(results, week, stamp_text, day):
                 f"action costs, and {some(r['could_not_be_done'])} could not be carried out.\nIts choices cost "
                 f"${r['cost_of_choices']:,.0f} in all, against ${engine['cost_of_choices']:,.0f} for the cheapest." + more)
 
-    def claude_words(model, r):
-        """One model's row of the buyer's scorecard, in sentences that hold for a tie and for a loss."""
+    def model_point(model, r):
+        """One model's row of the buyer's scorecard as a short line, in words that hold for a tie and for a loss."""
         wrong = r["decisions"] - r["chose_cheapest"] - r["could_not_be_done"]
         explained = r["one_misreading_explains"]
+        slip = hv("one misreading", "One misreading of the expedite rule\nThe instructions charge expediting the calls that "
+                  "come before the early ship day. Each of these choices is the cheapest once it is charged the calls that "
+                  "come after it.")
         return join(
-            f" {r['decider']} ({model}) picked an action as cheap as any on ",
-            hv(f"{r['chose_cheapest']:,} of {r['decisions']:,}", lost_tip(r)),
-            (" and lost nothing" if not wrong and not r["could_not_be_done"] else
-             Raw(" and lost " + hv(f"${r['dollars_lost']:,.0f}", lost_tip(r)) + f", {cents(r['lost_a_decision'])} a decision")),
+            Raw(f"<strong>{e(r['decider'])}</strong> "),
+            "lost nothing" if not r["dollars_lost"] else Raw("lost " + hv(f"${r['dollars_lost']:,.0f}", lost_tip(r))),
+            (Raw(f" on {wrong} miss{'es' if wrong != 1 else ''}"
+                 + (f", all from {slip} of when expediting is charged" if explained == wrong else
+                    f", {explained} of them from {slip} of when expediting is charged" if explained else "")) if wrong else ""),
             ". ",
-            (f"It got {wrong} wrong. On {explained} of them its choice is the cheapest once expediting is charged the "
-             "calls that come after the early ship day, where the instructions say before"
-             + (", so one misreading explains them all. " if explained == wrong else ". ") if wrong else ""),
-            ("Every action it named could be carried out. " if not r["could_not_be_done"] else
-             f"{r['could_not_be_done']:,} of its choices could not be carried out or were left undecided, and each was "
-             "charged as sending anyway. "),
-            "Asking cost ",
-            hv(cents(r["asking_dollars"]), f"{cents(r['asking_dollars'])} for {r['decisions']:,} decisions\nFrom the token "
-               f"counts saved with each decision, at the prices listed on {pretty_day(agent.PRICED_ON)}. A rule asks nothing."),
-            f", which is {r['asking_cents_a_decision']:.2f} cents a decision. The part, the ship day or a truck of a move "
-            "is missing from ",
-            hv(f"{r['notes_short'] or 'none'} of its notes", f"{r['notes_short']} of {r['decisions']:,} notes leave a fact out\nThe "
-               "instructions ask each note to name the part and its ship day, and for a move both trucks. The buyer's "
-               "list shows each note as saved and says what it lacks."),
-            ", and stray markup follows the reason in ",
-            hv(f"{r['replies_run_on'] or 'none'} of its replies", f"{r['replies_run_on']} of {r['decisions']:,} replies run on\nThe "
-               "reason or the note runs on into markup left over from the reply's own form. The buyer's list cuts it "
-               "off there and says so."), ".")
+            (f"{r['could_not_be_done']:,} of its choices could not be carried out or were left undecided, and each was "
+             "charged as sending anyway. " if r["could_not_be_done"] else ""),
+            ("Every note it drafted names the part, its ship day and both trucks of a move" if not r["notes_short"] else
+             Raw(hv(f"{r['notes_short']} of its notes", f"{r['notes_short']} of {r['decisions']:,} notes leave a fact out\nThe "
+                    "instructions ask each note to name the part and its ship day, and for a move both trucks. The buyer's "
+                    "list shows each note as saved and says what it lacks.") + " leave a fact out")),
+            (Raw(", and " + hv(f"{r['replies_run_on']} of its replies", f"{r['replies_run_on']} of {r['decisions']:,} replies "
+                               "run on\nThe reason or the note runs on into markup left over from the reply's own form. The "
+                               "buyer's list cuts it off there and says so.") + " run on into stray markup")
+             if r["replies_run_on"] else ""),
+            f". Asking for all {r['decisions']:,} cost ",
+            hv(cents(r["asking_dollars"]), f"{cents(r['asking_dollars'])} for {r['decisions']:,} decisions\n"
+               f"{r['asking_cents_a_decision']:.2f} cents a decision, from the token counts saved with each one, at the "
+               f"prices listed on {pretty_day(agent.PRICED_ON)}. The model is {model}. A rule asks nothing."),
+            ".", " Its decisions fill each day's buyer list." if r["decider"] == leader else "")
+
+    def chose(r):
+        return hv(f"{r['chose_cheapest']:,} of {r['decisions']:,}", lost_tip(r))
 
     leader = week["ctx"].buyer and week["ctx"].buyer[0]
-    trade = ""    # where the model that loses less costs more to ask, what the better answers cost
-    if len(claudes) == 2:
-        low, high = sorted((r for _, r in claudes), key=lambda r: r["dollars_lost"])
-        if low["dollars_lost"] < high["dollars_lost"] and low["asking_dollars"] > high["asking_dollars"]:
-            trade = (f" {low['decider']} lost ${gap(high['dollars_lost'], low['dollars_lost'], 0):,.0f} less than "
-                     f"{high['decider']} and cost {cents(gap(low['asking_dollars'], high['asking_dollars'], 2))} more to ask.")
+    ranked = sorted(claudes, key=lambda found: found[1]["dollars_lost"])    # the model that lost least leads; a tie keeps the listed order
+    buyer_take = join(
+        f"{ranked[0][1]['decider']} chose the cheapest action on ", chose(ranked[0][1]),
+        " back-order cases, working from the facts alone and never a price.",
+        *[piece for _, r in ranked[1:] for piece in (f" {r['decider']} chose it on ", chose(r), ".")]) if ranked else None
     buyer_bars = bars([(r["decider"], r["lost_a_decision"],
                         f"{cents(r['lost_a_decision'])} a decision"
                         + (f" · {r['could_not_be_done']} not possible" if r["could_not_be_done"] else ""),
@@ -1371,13 +1373,17 @@ def build_report(results, week, stamp_text, day):
 
     titles = {}    # each evidence card's heading by its query, for the links that open it
 
-    def card(name, heading, text, fig, do, anchor=None):
-        """One evidence card. anchor gives its heading a short id, for a link from outside the page."""
+    def card(name, heading, text, fig, do, anchor=None, take=None, points=(), note=None):
+        """One evidence card. anchor gives its heading a short id, for a link from outside the page. take is the card's
+        finding in a line, set above its text; points are short lines under the text, and note closes them."""
         titles[name] = heading
         tip = f"{heading}\nSource: sql/metrics/{name}.sql. {about(name)}"
         named = f' id="{anchor}"' if anchor else ""
-        return (f'<section class="card" id="proof-{name}"><h3{named}{tipattr(tip)}>{e(heading)}</h3><p>{text}</p>{fig}'
-                f'<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
+        finding = f'<p class="take">{take}</p>' if take else ""
+        listed = '<ul class="points">' + "".join(f"<li>{point}</li>" for point in points) + "</ul>" if points else ""
+        closing = f"<p>{note}</p>" if note else ""
+        return (f'<section class="card" id="proof-{name}"><h3{named}{tipattr(tip)}>{e(heading)}</h3>{finding}<p>{text}</p>'
+                f'{listed}{closing}{fig}<p class="do"><strong>What a fleet does with this:</strong> {do}</p></section>')
 
     proof = [
         card("dispatch_scorecard", "Who takes the call", join(
@@ -1504,31 +1510,25 @@ def build_report(results, week, stamp_text, day):
                      results["backorder_flag"]),
             "expedite from the top of this list, and move spares toward the zones where no truck holds one."),
         card("buyer_scorecard", "Claude as the buyer", join(
-            f"Each back-ordered part on each held-back day is one case, {cases_n:,} in all. The buyer sends the calls "
-            "anyway, expedites the part, moves one from another truck or rebooks the waiting calls, and the engine prices "
-            "all four in expected dollars from training history. A decider", q("decider"), " is charged the action it "
-            "names, and loses what that costs over the cheapest action. Sending anyway every time loses ",
-            hv(f"${sends['dollars_lost']:,.0f}", lost_tip(sends)), ", expediting every time ",
-            hv(f"${rushes['dollars_lost']:,.0f}", lost_tip(rushes)), ", and the control", q("control"), " ",
-            hv(f"${borrowed['dollars_lost']:,.0f}", lost_tip(borrowed, "\nIt takes the cheapest action for another case's "
-               "facts, so its choice no longer rests on the case it is made for.")),
-            ": it takes the cheapest action for another case's facts, so a small loss has to come from reading each "
-            "case's own.",
-            Raw(e(" A Claude model decides the same cases from lookups that return counts, days and odds and never a price, "
-                  "so it has to work the dollars out itself, and its words are held to the instructions too.")
-                + "".join(claude_words(m, r) for m, r in claudes)) if claudes else
+            "Each case is one back-ordered part on one held-back day. The engine prices the buyer's four actions in "
+            "expected dollars: send the calls anyway, expedite, move a part from another truck, or rebook. A decider",
+            q("decider"), " loses what its choice costs over the cheapest.",
+            " A model looks up counts, days and odds, and has to work out the dollars itself." if claudes else
             " No Claude model's decisions are saved for this prompt, so none is scored here; python -m staple.agent asks "
-            "for them with the reader's own key.",
-            trade,
-            (f" Each day's buyer list shows {leader}'s decisions, because it lost the fewest dollars." if len(claudes) > 1 else ""),
-            " Here the cheapest action is plain arithmetic, so no decider can beat the engine and a model can only tie "
-            "it. The card tests something narrower: whether a model handed only the facts reaches that action, at what "
-            "price, and with a note a person could send. Nothing here sends a note."
-            + (" The decisions are saved with the code, so these pages rebuild without a key." if claudes else "")),
+            "for them with the reader's own key."),
             figure("buyer_scorecard", "Dollars lost a decision over the cheapest action, by who decides", buyer_bars,
                    results["buyer_scorecard"]),
             "let a model work each back-order from the same lookups and draft the note, score its choices against the "
-            "arithmetic every night, and keep the buyer's sign-off on every note before it goes out.", anchor="buyer"),
+            "arithmetic every night, and keep the buyer's sign-off on every note before it goes out.", anchor="buyer",
+            take=buyer_take,
+            points=[model_point(m, r) for m, r in ranked] + [join(
+                "For scale, sending anyway every time loses ", hv(f"${sends['dollars_lost']:,.0f}", lost_tip(sends)),
+                " and expediting every time ", hv(f"${rushes['dollars_lost']:,.0f}", lost_tip(rushes)),
+                ". A control", q("control"), " that takes the cheapest action for another case's facts loses ",
+                hv(f"${borrowed['dollars_lost']:,.0f}", lost_tip(borrowed, "\nIts choice no longer rests on the case it is "
+                   "made for, so a small loss has to come from reading each case's own facts.")), ".")],
+            note=join("The cheapest action is plain arithmetic, so a model can tie the engine and never beat it. Nothing "
+                      "here sends a note.")),
         card("carry_list_curve", "Which parts to carry", join(
             "The predictor ranks parts by how often they fixed the same model family and problem, and leans", q("lean"),
             " on the wider appliance group when a family's history is thin. Three parts on the carry list", q("carry list"),

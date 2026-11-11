@@ -1656,6 +1656,12 @@ def card_text(page, name):
     return html.unescape(page[start:page.index("</section>", start)])
 
 
+def carries(where, text):
+    """Whether a text stands in a page's words as written, and not as the tail or the head of a longer number: 7 of
+    its notes is not carried by 107 of its notes."""
+    return re.search(rf"(?<![\d,.]){re.escape(text)}(?!,?\d)", where) is not None
+
+
 def changed(results, query, key, column, value):
     """The query results with one column of one row changed, for a page built from a wrong figure."""
     columns, rows = results[query]
@@ -1687,7 +1693,7 @@ def figures_missing(page, results):
     want.update({f"the control '{name}'": ("controls", [name, row["verdict"], f"{row['without_it']} without it",
                                                         f"{row['with_it']} with it", f"{row['with_control']} with the control"])
                  for name, row in controls.items()})
-    return sorted(what for what, (card, texts) in want.items() if any(t not in card_text(page, card) for t in texts))
+    return sorted(what for what, (card, texts) in want.items() if any(not carries(card_text(page, card), t) for t in texts))
 
 
 @check("controls-shown")
@@ -4168,22 +4174,41 @@ BUYER_FIGURES = ("invalid", "matched", "misread", "notes_short", "ran_on")    # 
 
 
 def buyer_card_faults(page, results):
-    """Each decider whose figures the buyer's card does not carry as the query gives them."""
+    """Each decider whose figures the buyer's card does not carry as the query gives them. A model's own figures
+    must stand in the line that opens with its name, so one model's figure cannot pass for another's."""
+    import html
     from staple import agent, buyer, report, triage
     card, words = card_text(page, "buyer_scorecard"), card_words(page, "buyer_scorecard")
+    start = page.index('id="proof-buyer_scorecard"')
+    # Each point of the card twice: its words alone, and its markup with the hover hints.
+    lines = [(html.unescape(re.sub(r"<[^>]+>", "", item)), html.unescape(item))
+             for item in re.findall(r"<li>(.*?)</li>", page[start:page.index("</section>", start)], re.S)]
     claude = {triage.named(m) for m in agent.MODELS}
     faults = []
     for r in report.rows(results, "buyer_scorecard"):
         want = [r["decider"], f"${r['lost_a_decision']:,.2f} a decision"]
-        if r["decider"] in claude:
-            want += [f"{r['chose_cheapest']:,} of {r['decisions']:,}", f"${r['asking_dollars']:,.2f}",
-                     f"{r['asking_cents_a_decision']:.2f} cents a decision", f"{r['notes_short'] or 'none'} of its notes",
-                     f"{r['replies_run_on'] or 'none'} of its replies"]
-            wrong = r["decisions"] - r["chose_cheapest"] - r["could_not_be_done"]
-            want += [f"It got {wrong} wrong. On {r['one_misreading_explains']} of them"] if wrong else []
         if r["decider"] != buyer.ARITHMETIC and (r["dollars_lost"] or r["decider"] not in claude):
             want.append(f"${r['dollars_lost']:,.0f}")
-        faults += [f"{r['decider']}: {text}" for text in want if text not in card and text not in words]
+        faults += [f"{r['decider']}: {text}" for text in want if not carries(card, text) and not carries(words, text)]
+        if r["decider"] not in claude:
+            continue
+        chosen = f"{r['chose_cheapest']:,} of {r['decisions']:,}"
+        if not any(carries(words, f"{r['decider']} chose {how} on {chosen}") for how in ("the cheapest action", "it")):
+            faults.append(f"{r['decider']}: {chosen} beside its name in the card's finding")
+        own = next((line for line in lines if line[0].startswith(r["decider"] + " ")), None)
+        if own is None:
+            faults.append(f"{r['decider']}: a line of its own")
+            continue
+        wrong, explained = r["decisions"] - r["chose_cheapest"] - r["could_not_be_done"], r["one_misreading_explains"]
+        asked = ["lost nothing" if not r["dollars_lost"] else f"lost ${r['dollars_lost']:,.0f}",
+                 f"cost ${r['asking_dollars']:,.2f}", f"{r['asking_cents_a_decision']:.2f} cents a decision",
+                 f"{r['notes_short']} of its notes" if r["notes_short"] else "Every note it drafted names"]
+        asked += [f"{r['replies_run_on']} of its replies"] if r["replies_run_on"] else []
+        asked += [f"on {wrong} miss"] if wrong else []
+        asked += ["all from one misreading" if explained == wrong else f"{explained} of them from one misreading"] if wrong and explained else []
+        asked += [f"{r['could_not_be_done']:,} of its choices could not be carried out"] if r["could_not_be_done"] else []
+        faults += [f"{r['decider']}: {text}, in its own line" for text in asked
+                   if not carries(own[0], text) and not carries(own[1], text)]
     return faults
 
 
@@ -4314,8 +4339,9 @@ def buyer_card():
     print(f"  the buyer's card carries the figures of {len(results['buyer_scorecard'][1])} deciders as the query gives them; "
           f"missing: {missing or 'nothing'}")
     require(not missing, f"the buyer's card does not carry a figure the query gives: {missing}")
-    bent = report.build_report(changed(results, "buyer_scorecard", name, "dollars_lost", lambda v: v + 100), week, stamp_text, day)
-    require(buyer_card_faults(bent, results), "control: a card built from a changed figure passed")
+    for bent_name, column in [(n, "dollars_lost") for n in models] + [(name, "asking_dollars"), (name, "notes_short")]:
+        bent = report.build_report(changed(results, "buyer_scorecard", bent_name, column, lambda v: v + 100), week, stamp_text, day)
+        require(buyer_card_faults(bent, results), f"control: a card built from a changed {column} of {bent_name} passed")
     stopped = []
     for decider, column, value in ((buyer.RULES[1][0], "dollars_lost", 0.0), (buyer.ARITHMETIC, "dollars_lost", 5.0)):
         try:
@@ -4328,7 +4354,8 @@ def buyer_card():
                                            week, stamp_text, day), "buyer_scorecard")
     require("No Claude model's decisions are saved" in alone and not any(n in alone for n in models),
             "control: with no model's rows the card still names a model, or does not say none is scored")
-    print("  control: a card built from a changed figure is refused, a build whose query lets a fixed rule lose nothing "
+    print("  control: a card built from a changed figure is refused, for each model's dollars and for a cost and a count; "
+          "a build whose query lets a fixed rule lose nothing "
           "or the arithmetic lose money stops, and with no model's rows the card says none is scored")
 
     # Each day's buyer items carry the leading model's saved decision, and say what its words lack.
