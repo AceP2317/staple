@@ -32,8 +32,12 @@ if [ ! -f "$CHECK" ]; then
   printf 'FAIL the tap check is not at %s, so nothing was checked\n' "$CHECK"
   exit 1
 fi
-for PAGE in index manual method languages; do
-  [ -f "$REPO_ROOT/docs/$PAGE.html" ] || { printf 'FAIL docs/%s.html is missing, so it was not tapped\n' "$PAGE"; exit 1; }
-  node "$CHECK" "$REPO_ROOT/docs/$PAGE.html" --attr data-tip --tip '#tip' || exit 1
+# The pages are the code's own list, never one typed here. Until 2026-11-12 this line named four pages, so the
+# overview added that day was published and never tapped.
+PAGES="$(python -c "import sys; sys.path.insert(0, sys.argv[1]); from staple import report; print(' '.join(report.FILES.values()))" "$REPO_ROOT" | tr -d '\r')"
+[ -n "$PAGES" ] || { printf 'FAIL the list of published pages could not be read from the code, so nothing was checked\n'; exit 1; }
+for PAGE in $PAGES; do
+  [ -f "$REPO_ROOT/docs/$PAGE" ] || { printf 'FAIL docs/%s is missing, so it was not tapped\n' "$PAGE"; exit 1; }
+  node "$CHECK" "$REPO_ROOT/docs/$PAGE" --attr data-tip --tip '#tip' || exit 1
 done
 node "$CHECK" "$REPO_ROOT/docs/index.html" --attr data-tip --tip '#tip' --device 'iPad Pro 11 landscape' --chart 'svg[data-curve]' || exit 1

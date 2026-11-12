@@ -1,1 +1,1 @@
-105000  the wording guard replays the back-test before it reads a card and took 92.8 s on its own, 78.8 s of it the back-test, and the hover-tip guard took 63.2 s, so a fast guard here is allowed 105 s
+105000  the wording guard replays the back-test before it reads a card and took 93.2 s at its first commit, 78.8 s of it the back-test, and the hover-tip guard took 74.5 s on five pages, so a fast guard here is allowed 105 s
