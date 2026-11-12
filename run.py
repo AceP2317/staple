@@ -1,6 +1,6 @@
 """The one command: `python run.py` builds the made-up world and every result from it, into out/.
 `python run.py --live` asks the Claude API afresh for the AI step, with your own ANTHROPIC_API_KEY.
-`python run.py --pages` also writes the four pages and languages.json to docs/, the copy the repository publishes.
+`python run.py --pages` also writes the five pages and languages.json to docs/, the copy the repository publishes.
 `python run.py --card` only photographs the share card with Chrome; run it when the card's words or colors change.
 `python run.py --picture` only photographs the README's picture of the board, from the report last built into out/.
 The report is the week's plan (staple/plan.py) beside the 92-day evidence behind it."""

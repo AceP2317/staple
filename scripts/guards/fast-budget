@@ -1,1 +1,1 @@
-70200  the hover-tip guard taps all four published pages in a headless browser and took 63.2 s on its own, so a fast guard here is allowed 70 s
+105000  the wording guard replays the back-test before it reads a card and took 92.8 s on its own, 78.8 s of it the back-test, and the hover-tip guard took 63.2 s, so a fast guard here is allowed 105 s

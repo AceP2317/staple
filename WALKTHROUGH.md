@@ -10,6 +10,9 @@ produces comes from invented history, so this page names no result. The results 
 Open the [live report](https://acep2317.github.io/staple/) and stay on that one page. The steps run down it in
 order. Each names what to click and the one thing to say.
 
+With ninety seconds and not twenty minutes, press Overview at the top of the report. That one page holds the
+purpose, the key points and the functions, and it is short enough to say aloud in that time.
+
 - **The first screen, three minutes.** Read the sentence under the name aloud, then point at the invented-data
   label: the method is real and the numbers are not. The scorecard is the whole plan against the current rules
   over every held-back day. Read one row across: the current rules, Staple, the difference, then the control.
@@ -54,7 +57,7 @@ dispatch replay's own record of the most recent week, so every route and load on
 ## The one command and its checks
 
 - `run.py` is the one command. It builds the world, runs every step in order, prints a summary of each, runs
-  the metric queries, records the week's plan and writes the four pages into `out/`. With `--pages` it also writes the copy GitHub
+  the metric queries, records the week's plan and writes the five pages into `out/`. With `--pages` it also writes the copy GitHub
   Pages serves, and with `--live` it asks Claude afresh instead of reading the cached answers. With `--card` or
   `--picture` it only takes a photograph, as the two picture files below say.
 - `check.py` holds every check, each runnable alone by name (`python check.py report`). Each one plants a
@@ -193,7 +196,7 @@ dispatch replay's own record of the most recent week, so every route and load on
 
 ## The pages
 
-- `staple/report.py` builds the four pages from the query results, the week's plan and the code's own
+- `staple/report.py` builds the five pages from the query results, the week's plan and the code's own
   constants. The report is one page that scrolls: the scorecard beside the day's to-do list, then the day's
   board with the opened call beside it, then the evidence, then how to run it. It writes a hover hint for nearly every number, heading, bar, block and column, and stamps each page with the build that made
   it. The manual and the methods page quote every number, prompt, query and check straight from the code, so
@@ -205,6 +208,9 @@ dispatch replay's own record of the most recent week, so every route and load on
 - `staple/pages/plan.js` switches the plan screen: the day, the chosen technician, the call opened beside the
   board, and the night plan or the day as it ran. It moves the arrow keys around the board, and opens every list
   for printing. Every day is already in the page; it only shows and hides.
+- `staple/pages/explain.html` is the overview's text: the purpose, the key points and the functions, in few
+  enough words to say aloud in ninety seconds. `check.py explain` holds it to that length, and refuses a
+  function the report page does not name in a heading, a button or a header link.
 - `staple/pages/manual.html` is the instruction manual's text, with a named gap wherever a value from the
   code goes.
 - `staple/pages/method.html` is the methods page's text: every formula, rule, prompt and check, filled the
@@ -221,7 +227,8 @@ dispatch replay's own record of the most recent week, so every route and load on
   open, under a strip that says the day is invented. `python run.py --picture` photographs it from the report
   last built. `staple/pages/board.sha` fingerprints the plan and the styles it was taken from, so
   `check.py report` refuses a picture older than the plan it shows.
-- `docs/index.html`, `docs/manual.html`, `docs/method.html` and `docs/languages.html` are the published copy
+- `docs/index.html`, `docs/explain.html`, `docs/manual.html`, `docs/method.html` and `docs/languages.html` are
+  the published copy
   GitHub Pages serves.
   `python run.py --pages` writes them, and `check.py report` refuses a copy that differs from a fresh build.
   Beside them it writes `docs/card.png` and the tab icons, `docs/icon.svg`, `docs/icon-32.png` and
@@ -246,6 +253,9 @@ dispatch replay's own record of the most recent week, so every route and load on
   exit codes and the lines it prints.
 - `scripts/guards/fast-budget` is the time a guard that runs before each commit is allowed, with the reason
   for it. The runner notes a guard that runs slower.
+- `scripts/guards/fast/a-card-or-the-90-second-page-leaves-its-shape.sh` runs `check.py wording` and
+  `check.py explain` on any commit that changes the report code, a page template or the checks. A card or a
+  panel that does not open with its finding, and an overview too long to say aloud, are refused there.
 - `scripts/guards/fast/the-guard-runner-keeps-its-arguments-and-exit-codes.sh` runs that check on any commit
   that changes the runner.
 - `scripts/guards/fast/public-files-carry-no-private-names.sh` runs the package and private-names check on

@@ -391,6 +391,21 @@ def shared_week():
     return _WORLD["week"], _WORLD["followups"]
 
 
+def shared_pages():
+    """The pages built once on the shared world, as (the query results, the pages by kind), for the checks that
+    only read them. Building them takes most of a minute, so two checks in one run share one build."""
+    if "pages" not in _WORLD:
+        from staple import metrics, report
+        conn = shared_world()
+        results_written(conn)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            results = metrics.run(conn, Path(tmp))
+        week, _ = shared_week()
+        stamp_text, day, _, _ = report.stamp()
+        _WORLD["results"], _WORLD["pages"] = results, report.build(results, week, stamp_text, day)
+    return _WORLD["results"], _WORLD["pages"]
+
+
 def recorded_replay(name):
     """One row of the dispatch table replayed again with its visits and loads recorded, as (the held-back jobs, the
     run). Each takes several seconds, so a check run makes each once and its checks share it."""
@@ -2212,14 +2227,9 @@ def copy_faults(texts):
 def wording():
     """The words match the code: no numeral typed into a template, American forms, one name for each thing,
     differences that match the figures beside them, one precision in a column, and part names with their appliance."""
-    from staple import metrics, report, world
-    conn = shared_world()
-    results_written(conn)
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        results = metrics.run(conn, Path(tmp))
+    from staple import report, world
+    results, pages = shared_pages()
     week, _ = shared_week()
-    stamp_text, day, _, _ = report.stamp()
-    pages = report.build(results, week, stamp_text, day)
     page = pages["report"]
 
     # No numeral is typed into a template: every figure on the manual and the methods page comes from the code.
@@ -2306,13 +2316,16 @@ def wording():
     print(f"  the back-order card quotes {quoted}, the sums over the {len(scored)} rows scored")
     require(carries(card_words(page, "backorder_exposure"), quoted), "the back-order card does not quote the forecast its rows add up to")
 
-    # Every evidence card keeps one shape: its finding first, short pieces under it, and a link to how it is worked out.
+    # Every card and every panel keeps one shape: its finding first and short pieces under it. A card also links to
+    # how it is worked out. The three steps above the evidence are each short enough to be their own finding.
     cards = re.findall(r'<section class="card" id="proof-\w+">.*?</section>', page, flags=re.S)
+    panels = [m.group(0) for m in re.finditer(PANEL, page, flags=re.S)]
     shape = card_shape_faults(page, pages["method"])
-    print(f"  {len(cards)} evidence cards: {len(shape)} leave the shape a card keeps, which is a finding of at most "
-          f"{report.CARD_FINDING} words first, no piece over {report.CARD_PIECE}, at most {report.CARD_WORDS} words before "
-          "the chart, and a link to a section the methods page holds")
-    require(cards and not shape, f"an evidence card leaves the shape every card keeps: {shape[:4]}")
+    print(f"  {len(cards)} evidence cards and {len(panels)} panels: {len(shape)} leave the shape each keeps, which is a "
+          f"finding of at most {report.CARD_FINDING} words first, no piece over {report.CARD_PIECE}, and at most "
+          f"{report.CARD_WORDS} words before the chart or table; a card also links to a section the methods page holds, "
+          f"and a panel of {report.CARD_FINDING} words or fewer is its own finding")
+    require(cards and panels and not shape, f"a card or a panel leaves the shape each keeps: {shape[:4]}")
     whole = cards[0]
     bent = {"its finding made an ordinary line": whole.replace('<p class="take">', "<p>", 1),
             "a piece padded past the limit": whole.replace("</p>", " word" * report.CARD_PIECE + "</p>", 1),
@@ -2322,15 +2335,63 @@ def wording():
     require(not passed, f"control: a card passed with {passed}")
     print("  control: a card with its finding made an ordinary line, one with a piece padded past the limit, and one "
           "linked to a section the methods page does not hold, are refused")
+    long_panel = next((p for p in panels if '<p class="take">' in p and "<li>" in panel_prose(p)[1]), None)
+    require(long_panel, "control: no panel holds a finding over a list, so the panel control has nothing to bend")
+    bent = {"a panel's finding made an ordinary line": long_panel.replace('<p class="take">', "<p>", 1),
+            "a panel's line padded past the limit": long_panel.replace("</li>", " word" * report.CARD_PIECE + "</li>", 1)}
+    passed = [what for what, panel in bent.items()
+              if panel == long_panel or not card_shape_faults(page.replace(long_panel, panel, 1), pages["method"])]
+    require(not passed, f"control: a panel passed with {passed}")
+    step = re.search(r'<ol class="how">.*?</li>', page, flags=re.S)
+    require(step and card_shape_faults(page.replace(step.group(0), step.group(0)[:-5] + " word" * report.CARD_FINDING + "</li>", 1),
+                                       pages["method"]), "control: a step padded past a finding's length passed")
+    print("  control: a panel with its finding made an ordinary line, one with a line padded past the limit, and a step "
+          "padded past a finding's length, are refused")
+
+
+# A panel on the report page, and the evidence heading: every section that reports or explains outside the cards.
+PANEL = r'<section class="(?:panel|evidence-head)[^"]*"[^>]*>.*?</section>'
+
+
+def panel_prose(panel):
+    """A panel's heading, and its words before its first table, chart, board or list of rows: the paragraphs and
+    the plain lists that follow the heading. A list of rows is the panel's data, as a table is."""
+    import html
+    head = re.search(r"<h([23])\b[^>]*>(.*?)</h\1>", panel, flags=re.S)
+    at, prose = (head.end() if head else panel.index(">") + 1), []
+    block = re.compile(r'\s*(<p\b[^>]*>.*?</p>|<ul class="points">.*?</ul>|<ol class="steps">.*?</ol>)', re.S)
+    while found := block.match(panel, at):
+        prose.append(found.group(1))
+        at = found.end()
+    title = html.unescape(re.sub(r"<[^>]+>", "", head.group(2))).strip() if head else "a panel with no heading"
+    return title, "".join(prose)
 
 
 def card_shape_faults(page, method):
-    """Where an evidence card leaves the shape every card keeps: its finding in its first line, short pieces under
-    it, no more words before its chart than a card may hold, and a link to a section the methods page holds."""
+    """Where a card or a panel leaves the shape each keeps. A card: its finding in its first line, short pieces under
+    it, no more words before its chart than a card may hold, and a link to a section the methods page holds. A panel:
+    the same finding and limits over the words before its table, with no link asked; one short enough to be a
+    finding needs no mark. A step above the evidence: no longer than a finding."""
     import html
     from staple import report
     count = lambda markup: len(html.unescape(re.sub(r"<[^>]+>", "", markup)).split())
     faults = []
+    for panel in re.findall(PANEL, page, flags=re.S):
+        title, prose = panel_prose(panel)
+        pieces = re.findall(r"<(p|li)\b([^>]*)>(.*?)</\1>", prose, flags=re.S)
+        total = sum(count(inner) for _, _, inner in pieces)
+        if total > report.CARD_FINDING and not prose.startswith('<p class="take">'):
+            faults.append(f"the panel '{title}': {total} words before its table and no finding in its first line")
+        for _, attrs, inner in pieces:
+            most = report.CARD_FINDING if 'class="take"' in attrs else report.CARD_PIECE
+            if count(inner) > most:
+                faults.append(f"the panel '{title}': a piece of {count(inner)} words, where {most} is the most")
+        if total > report.CARD_WORDS:
+            faults.append(f"the panel '{title}': {total} words before its table, where {report.CARD_WORDS} is the most")
+    steps = re.search(r'<ol class="how">(.*?)</ol>', page, flags=re.S)
+    for inner in re.findall(r"<li\b[^>]*>(.*?)</li>", steps.group(1) if steps else "", flags=re.S):
+        if count(inner) > report.CARD_FINDING:
+            faults.append(f"a step above the evidence: {count(inner)} words, where {report.CARD_FINDING} is the most")
     for name, body in re.findall(r'<section class="card" id="proof-(\w+)">(.*?)</section>', page, flags=re.S):
         pieces = re.findall(r"<(p|li)\b([^>]*)>(.*?)</\1>", body.split("<figure", 1)[0], flags=re.S)
         if not re.match(r'<h3\b[^>]*>.*?</h3><p class="take">', body, flags=re.S):
@@ -2346,6 +2407,137 @@ def card_shape_faults(page, method):
         if not link or f'id="{link.group(1)}"' not in method:
             faults.append(f"{name}: no link to a section the methods page holds")
     return faults
+
+
+def explain_parts(page):
+    """The overview's three parts as a reader sees them: its purpose, its key points, and its functions as (name,
+    what it does). A tag becomes a space, so two words a tag separates stay two. Whatever else the page's body says
+    is returned as the words outside them."""
+    import html
+    words = lambda markup: " ".join(html.unescape(re.sub(r"<[^>]+>", " ", markup)).split())
+    body = re.search(r"<main>(.*?)<footer>", page, flags=re.S)
+    rest = body.group(1) if body else ""
+    purpose = re.search(r'<section class="panel purpose"[^>]*>\s*<h2\b[^>]*>.*?</h2>\s*<p class="take">(.*?)</p>\s*</section>', rest, flags=re.S)
+    points = re.search(r'<ul class="points">(.*?)</ul>', rest, flags=re.S)
+    fns = re.search(r'<dl class="fns">(.*?)</dl>', rest, flags=re.S)
+    line, pair = r"<li\b[^>]*>(.*?)</li>", r"<dt\b[^>]*>(.*?)</dt>\s*<dd\b[^>]*>(.*?)</dd>"
+    stray = [re.sub(line, " ", points.group(1), flags=re.S) if points else "", re.sub(pair, " ", fns.group(1), flags=re.S) if fns else ""]
+    for part in (purpose, points, fns):
+        rest = rest.replace(part.group(0), " ", 1) if part else rest
+    stray.append(re.sub(r"<h2\b[^>]*>.*?</h2>", " ", rest, flags=re.S))
+    return {"purpose": words(purpose.group(1)) if purpose else "",
+            "points": [words(li) for li in re.findall(line, points.group(1) if points else "", flags=re.S)],
+            "functions": [(words(dt), words(dd)) for dt, dd in re.findall(pair, fns.group(1) if fns else "", flags=re.S)],
+            "outside": words(" ".join(stray))}
+
+
+def report_names(home):
+    """What the report page calls its pieces: the words of every heading, button, header link and fold-out title."""
+    import html
+    found = re.findall(r"<(h2|h3|button|summary)\b[^>]*>(.*?)</\1>", home, flags=re.S)
+    found += [("a", inner) for inner in re.findall(r'<a class="btn[^"]*"[^>]*>(.*?)</a>', home, flags=re.S)]
+    return {" ".join(html.unescape(re.sub(r"<[^>]+>", " ", inner)).split()).lower() for _, inner in found}
+
+
+def explain_faults(page, home):
+    """Where the overview leaves its shape: a part missing, a purpose longer than a finding, a line longer than a
+    piece, more words than a person says in the time the page is named for, words outside its three parts, or a
+    function the report page does not name in a heading, a button or a header link."""
+    from staple import report
+    parts, n = explain_parts(page), lambda text: len(text.split())
+    faults = [f"the page has no {what}" for what in ("purpose", "points", "functions") if not parts[what]]
+    if n(parts["purpose"]) > report.CARD_FINDING:
+        faults.append(f"the purpose runs to {n(parts['purpose'])} words, where {report.CARD_FINDING} is the most")
+    lines = [(f"key point {i}", point) for i, point in enumerate(parts["points"], 1)]
+    lines += [(f"the function '{name}'", f"{name} {does}") for name, does in parts["functions"]]
+    for what, text in lines:
+        if n(text) > report.CARD_PIECE:
+            faults.append(f"{what} runs to {n(text)} words, where {report.CARD_PIECE} is the most")
+    total = n(parts["purpose"]) + sum(n(text) for _, text in lines)
+    if total > report.EXPLAIN_WORDS:
+        faults.append(f"the page runs to {total} words, where {report.EXPLAIN_WORDS} is the most a person says in "
+                      f"{report.EXPLAIN_WORDS * 60 // report.SPOKEN_A_MINUTE} seconds")
+    if parts["outside"]:
+        faults.append(f"words outside the purpose, the key points and the functions: {parts['outside'][:60]}")
+    named = report_names(home)
+    for name, does in parts["functions"]:
+        if not name or not does:
+            faults.append(f"a function lacks its name or what it does: '{name or does}'")
+        elif not any(have == name.lower() or have.startswith(name.lower() + " ") for have in named):
+            faults.append(f"the function '{name}' is not a heading, a button or a header link on the report page")
+    return faults
+
+
+def overview_button_faults(pages):
+    """Pages whose header does not open the overview first among its document buttons. The way back to the report
+    is not a document, so it may come before."""
+    from staple import report
+    label, target = report.NAV["explain"][0], report.FILES["explain"]
+    faults = []
+    for kind, page in pages.items():
+        nav = re.search(r'<nav class="actions"[^>]*>(.*?)</nav>', page, flags=re.S)
+        links = re.findall(r'<a class="btn[^"]*" href="([^"]+)"[^>]*>(.*?)</a>', nav.group(1) if nav else "", flags=re.S)
+        documents = [(href, text) for href, text in links if href != report.FILES["report"]]
+        if kind == "explain":
+            faults += ["the overview's header links to the overview"] if any(href == target for href, _ in links) else []
+        elif not documents or documents[0] != (target, label):
+            faults.append(f"{report.FILES[kind]}: the header's first document button is not {label}")
+    return faults
+
+
+@check("explain")
+def explain():
+    """The overview page can be said in the time it is named for: a purpose, key points and functions inside their
+    word limits, no numeral typed in, every function a piece the report page names, and every other page's header
+    opening it first."""
+    from staple import report
+    _, pages = shared_pages()
+    page, home = pages["explain"], pages["report"]
+    parts, n = explain_parts(page), lambda text: len(text.split())
+    total = n(parts["purpose"]) + sum(map(n, parts["points"])) + sum(n(f"{name} {does}") for name, does in parts["functions"])
+    seconds = report.EXPLAIN_WORDS * 60 // report.SPOKEN_A_MINUTE
+    faults = explain_faults(page, home)
+    print(f"  {report.FILES['explain']}: {total} of {report.EXPLAIN_WORDS} words, the most a person says in {seconds} seconds, "
+          f"in a purpose of {n(parts['purpose'])} words, {len(parts['points'])} key points and {len(parts['functions'])} "
+          f"functions; {len(faults)} leave the limits, which are {report.CARD_FINDING} words for the purpose and "
+          f"{report.CARD_PIECE} for any one line, or name a piece the report page lacks")
+    require(not faults, f"the overview leaves its shape: {faults[:4]}")
+
+    template = (report.PAGES / report.FILES["explain"]).read_text(encoding="utf-8")
+    typed, filled = typed_numerals(template), len(re.findall(r"\{\{\w+\}\}", template))
+    print(f"  its template: {filled} values read from the code, {len(typed)} numerals typed in")
+    require(not typed, f"a numeral is typed into the overview's template: {typed[:4]}")
+    require(typed_numerals("<li>It plans the last 92 days unseen.</li>") == ["92"], "control: a numeral typed into a key point passed")
+
+    def more(words):
+        """The page with that many words added as new key points, none longer than a piece may be."""
+        added = "".join(f"<li>{' '.join(['word'] * min(report.CARD_PIECE, words - at))}</li>" for at in range(0, words, report.CARD_PIECE))
+        return page.replace("</ul>", added + "</ul>", 1)
+    room = report.EXPLAIN_WORDS - total
+    require(not explain_faults(more(room), home) if room else True, "control: a page at the limit was refused")
+    planted = {"a page one word past the limit": (more(room + 1), f"the page runs to {report.EXPLAIN_WORDS + 1} words"),
+               "a purpose padded past a finding": (re.sub(r'(<section class="panel purpose".*?)</p>', lambda m: m.group(1) + " word" * report.CARD_FINDING + "</p>",
+                                                          page, count=1, flags=re.S), "the purpose runs to"),
+               "a key point padded past a piece": (page.replace("</li>", " word" * report.CARD_PIECE + "</li>", 1), "key point 1 runs to"),
+               "a function the report page does not name": (re.sub(r"<dt>.*?</dt>", "<dt>Fly to the moon</dt>", page, count=1, flags=re.S),
+                                                            "'Fly to the moon' is not a heading"),
+               "a paragraph outside the three parts": (page.replace('<div class="grid pair explain">', '<p>One more thing to say.</p><div class="grid pair explain">', 1),
+                                                       "words outside the purpose"),
+               "the functions taken out": (re.sub(r'<dl class="fns">.*?</dl>', "", page, count=1, flags=re.S), "the page has no functions")}
+    passed = [what for what, (bent, says) in planted.items() if bent == page or not any(says in f for f in explain_faults(bent, home))]
+    require(not passed, f"control: the overview check passed {passed}")
+    print(f"  control: a page at the limit passes, and {len(planted)} planted faults are each refused for their own reason: "
+          + ", ".join(planted))
+
+    buttons = overview_button_faults(pages)
+    print(f"  {len(pages) - 1} other pages: {len(buttons)} do not open the overview first among their document buttons")
+    require(not buttons, f"a header does not open the overview: {buttons}")
+    link = re.search(rf'<a class="btn[^"]*" href="{re.escape(report.FILES["explain"])}"[^>]*>.*?</a>', pages["manual"], flags=re.S)
+    without = dict(pages, manual=pages["manual"].replace(link.group(0), "", 1)) if link else pages
+    moved = dict(pages, report=re.sub(r'(<nav class="actions"[^>]*>)(<a class="btn[^>]*>.*?</a>)(<a class="btn[^>]*>.*?</a>)', r"\1\3\2", home, count=1, flags=re.S))
+    require(overview_button_faults(without) and overview_button_faults(moved),
+            "control: a header with the overview button taken out, or moved to second, passed")
+    print("  control: a header with the overview button taken out, and one with it moved to second, are refused")
 
 
 def unnamed(found):

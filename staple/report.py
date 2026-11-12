@@ -24,7 +24,8 @@ from staple import agent, buyer, db, dispatch, examples, load, metrics, plan, pr
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGES = Path(__file__).resolve().parent / "pages"
-FILES = {"report": "index.html", "manual": "manual.html", "method": "method.html", "languages": "languages.html"}
+FILES = {"report": "index.html", "explain": "explain.html", "manual": "manual.html", "method": "method.html",
+         "languages": "languages.html"}
 PUBLISHED = ROOT / "docs"      # the copy the repository serves as its web page; `python run.py --pages` writes it
 NO_HISTORY = "a copy with no saved history"   # what the stamp says where git cannot answer, such as a downloaded zip
 STAMP_RE = (r"(?:Build [1-9]\d* · )?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [1-9]\d?, \d{4} "
@@ -251,7 +252,7 @@ CHECK_ABOUT = {
     "triage-honest": "The AI step says what it is. No customer sentence may repeat a word or open with a second subject, and every phrase filed as vague must be one Claude itself is unsure of. The report must give the count of distinct phrasings behind its scores, call the score after the follow-up question an upper bound, and show how often Claude is right at each confidence it states. In every band Claude must be right at least as often as the confidence it stated, and in the lowest band seldom right, and shuffled answers must break that. No public file may describe the keyword matcher as the way bookings are coded now. A live run against a local stand-in must carry its answers into the week's plan, which can no longer load answers of its own. A rejected key, a reply that is not JSON, a malformed answer, a reply cut short and an API that cannot be reached must each stop with one plain sentence. The old phrasings, a vague phrase read with confidence, a changed count of phrasings and a run that loads its answers twice must all be refused.",
     "plain-words": "The public copy holds no word from the author's private setup, and the guard runner keeps its contract. The private list of names and words is scanned over every file git would publish. Each entry is then planted in a copy of the README in turn and must be caught, so the list holds no entry the scan cannot see; a copy with no list tries the scan on stand-in words and says so. The runner is tried on a scratch folder of planted guards: one that passes, one that fails, an argument it does not know, an empty folder, a parked guard that now passes, one that still finds its mistake and one that is broken, a guard that hangs, a guard slower than its allowance, and guards chosen by the files a commit stages. A copy of the runner that lets a failing guard through must be refused.",
     "corners": "The corners cut on purpose are read from the comments that mark them. Only a real comment counts, so the marker written inside a string is not a corner: every corner found must be a line that opens with the marker, a planted file with the marker in a string and in a comment must give one corner, and a comment that runs on must be read whole. Every corner must name its upgrade. The methods page must list each corner once and write the marker once, where it defines it, and the report must state the count the method cuts. A page with one corner dropped, and a report with the wrong count, must be refused.",
-    "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Every evidence card must open with its finding, keep each piece under it short and link to the section of the methods page that works it out. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
+    "wording": "The words match the code. No numeral may be typed into a page template: every figure on the manual and the methods page is read from the code. No public file may hold a British spelling, a metric distance or a day-first date. No page or note may call a thing by a dropped name, say 1 with a plural, show a cost a call or a truck-day short of the cent, or claim that every figure comes from a query. Each row of the day's comparison must add up from the figures as shown and say a tie in words, each column under a chart must read at one precision, a part name that more than one appliance has must carry its appliance, and the back-order card must quote the sums of its own rows. Every evidence card, and every panel that reports or explains, must open with its finding and keep each piece under it short; a card must also link to the section of the methods page that works it out. Each rule has a planted fault that must be refused. Numbers written as words are not scanned.",
     "dispatch": "Every dispatch policy replayed. Staple must beat the nearest technician on fixes and on cost, and be cheapest on its own cost. Zero rule breaks, and a planted bad visit must show all four kinds.",
     "dispatch-blind": "Each technician's success rate is learned from the training history, never read from the table the made-up world was written from. That table is scrambled after the history exists, and every visit must stay with the same technician at the same time. A technician left with five visits must match the pull toward the appliance's average worked by hand, and a history rewritten against one technician must move the plan.",
     "dispatch-control": "Shuffled skills must lose at least half the skill gain. Shuffled parts odds must stay within a point, and the reason the report gives for that is measured: odds that know only the appliance must score within half a point of the shuffled ones, and the parts odds handed over for same-day calls alone must keep more than half the gain. No control may win by overbooking the day.",
@@ -264,6 +265,7 @@ CHECK_ABOUT = {
     "readable": "The pages can be read and used. No text set for the screen is under 14 px, and no label on the board under 12 px; a drawing's text is measured at the least width the drawing can take. In light and in dark, text reaches 4.5:1 against what it sits on and every mark a reader must tell apart reaches 3:1. On every day and view the report's Tab order holds fewer than 150 stops, because the board is one stop and the arrow keys move inside it. Every switch says whether it is pressed. Printing hides the controls and opens the lists. Every page names the author with a link to his site and to the repository, and links to no other site. On a phone the scorecard folds its control under the difference, a click opens a call beside the board, and each day's calls are given as those booked the night before plus those added on the day. Nineteen planted faults must be refused, among them a text size too small, a color too pale in one scheme only, every hint put in the Tab order and a link to another site.",
     "docs": "The README carries the values the code holds (job count, held-back days, seed, model, live address). In it and the walkthrough, every number must sit inside a phrase the code itself writes, so no result is typed by hand; a share or a multiple spelled as words is refused too. The walkthrough names every published file, and every relative link resolves. Six planted faults must be refused, each by its own rule: a percent, a dollar figure, a bare number, a spelled multiple, an unnamed file and a dead link.",
     "examples": "Every worked example on the methods page is recomputed by the engine's own function and must match the answer worked by hand, and the page must draw each one in its section as words, inputs, steps, Staple's answer, then the formula. A hand answer nudged by 0.001 and a formula drawn first must both be refused.",
+    "explain": "The overview page can be said in the time it is named for. It holds a purpose, key points and functions. The purpose is no longer than a card's finding, no line is longer than one piece of a card, and the whole page holds no more words than a person says in that time. No numeral is typed into it, every function it names is a heading, a button or a header link on the report page, and every other page's header opens it first among its document buttons. A page at the limit must pass, and a planted fault of each kind must be refused for its own reason.",
     "links": "Every link from the manual into the methods page, and every link within a page, lands on an id the page holds. A manual link turned to an anchor that does not exist must be refused.",
     "languages": "Every file git would publish is a code language or a format Staple's map names. Every language held has a section on the code languages page, every program the Python code starts has a purpose line, and the published languages.json matches a fresh count and the published page. A planted .rb file, a language with no section, a planted start of another program and a JSON with one count off must all be refused, and a folder with no git must be walked with a warning.",
     "first-run": "A stranger's first run, offline. Every file git would publish is copied to an empty folder; the one command and every check must pass there with an empty home folder, no Claude key and every web request sent to a dead address. The run must say which parts it skipped, and damaging its published copy must make its own report check fail. It runs the whole suite, so it runs only when named.",
@@ -314,6 +316,8 @@ def pct(v):
 SICK_AT = plan.clock(dispatch.SICK_BY)    # the hour sick calls are known, as the pages write it
 # An evidence card's shape: the most words its finding, any one piece under it, and the whole card before its chart may hold.
 CARD_FINDING, CARD_PIECE, CARD_WORDS = 40, 65, 230
+# The overview page: the most words it holds, and the words a person says in a minute, so it takes 90 seconds to say.
+EXPLAIN_WORDS, SPOKEN_A_MINUTE = 225, 150
 PYTHON = (3, 10)                          # the oldest Python the checks have run on
 
 
@@ -477,6 +481,8 @@ def scorecard(results):
     madeup = (f"Invented history\n{world.JOBS:,} jobs from seed {world.SEED}. No real company, customer, part or technician. "
               "The method is real; these figures are not.")
     return (f'<section class="panel score-panel" id="scorecard"><h2{tipattr(tip)}>{e(title)}</h2>'
+            f'<p class="take">Staple beats the current rules on all {len(score)} measures over the {world.TEST_DAYS} '
+            f'held-back days, and its control keeps {spread} of each gain.</p>'
             f'<p class="sub">Every row is the whole plan replayed with the same made-up sick calls and breakdowns. '
             f'<span class="invented"{tipattr(madeup)}>made-up data</span></p>'
             f'<div class="scroll"><table class="score"><thead><tr>{head}</tr></thead><tbody>{"".join(line(r) for r in score)}'
@@ -570,15 +576,17 @@ def stamp_line(stamp_text, day):
             f'{e(day or "unknown")}</span></p>')
 
 
-NAV = {"report": ("Instruction manual", "manual.html", "Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you."),
+NAV = {"explain": ("Overview", "explain.html", f"Opens the overview in a new tab: what Staple is for, what matters about it and what it does, in about {EXPLAIN_WORDS * 60 // SPOKEN_A_MINUTE} seconds."),
+       "report": ("Instruction manual", "manual.html", "Opens the instruction manual in a new tab: what each figure means, every label, every threshold, and what Staple cannot tell you."),
        "method": ("Methods page", "method.html", "Opens the methods page in a new tab: every formula, every rule of the replays, the prompts, the queries and the checks."),
        "languages": ("Code languages", "languages.html", "Opens the code languages page in a new tab: what Staple is written in, where each part runs, and every program it starts."),
        "back": ("Back to the report", "index.html", "Returns to the report.")}
 
 
 def shell(kind, title, lede, body, stamp_text, day, chosen=None):
-    buttons = {"report": ["report", "method", "languages"], "manual": ["back", "method", "languages"],
-               "method": ["back", "report", "languages"], "languages": ["back", "report", "method"]}[kind]
+    buttons = {"report": ["explain", "report", "method", "languages"], "explain": ["back", "report", "method", "languages"],
+               "manual": ["back", "explain", "method", "languages"], "method": ["back", "explain", "report", "languages"],
+               "languages": ["back", "explain", "report", "method"]}[kind]
     new_tab = ' target="_blank" rel="noopener"'
     nav = "".join(f'<a class="btn{"" if i == 0 else " ghost"}" href="{NAV[b][1]}"{"" if b == "back" else new_tab}'
                   f'{tipattr(NAV[b][0] + chr(10) + NAV[b][2])}>{e(NAV[b][0])}</a>' for i, b in enumerate(buttons))
@@ -997,11 +1005,11 @@ def ai_panel(d, ctx, shown):
            "made once by the model and saved with the code, so this page calls no model and holds no key.")
     return (f'<section class="panel ai-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>AI at booking: '
             f'Claude coded all {a["coded"]} bookings{q("follow-up question")}</h3>'
-            f'<p class="sub">{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more were coded at once. '
+            f'<p class="take">{a["sure"]} read {triage.BLEND_BELOW:.0%} sure or more and were coded at once. '
             + (f'{a["asked"]} {"was" if a["asked"] == 1 else "were"} unsure, so Claude asked each customer one question: '
                f'{plan.counted(a["settled"], "answer")} settled the code, and {some(left)} {"goes" if left == 1 else "go"} to '
-               f'the call center. Each unsure call is below, and wears a marked corner on the night plan\'s board. Click one '
-               f'to open it there.</p>' if a["asked"] else
+               f'the call center.</p><p class="sub">Each unsure call is below, and wears a marked corner on the night '
+               f'plan\'s board. Click one to open it there.</p>' if a["asked"] else
                'None were unsure, so Claude asked no customer a question.</p>')
             + f'<div class="asks">{"".join(cards)}</div></section>')
 
@@ -1050,15 +1058,17 @@ def morning_panel(d, ctx, shown):
         items.append(f'<li class="evt" data-tech="{tech}" data-view="ran"{tipattr(broke_tip, focus=True)}>'
                      f'<strong>Truck {ctx.techs[tech]["truck"]} ({tech}) broke down at {plan.clock(when)}</strong>: '
                      f'{plan.counted(m["stranded"][tech], "part")} stranded, {plan.counted(n, "call")} moved<ul>{moves(tech, True)}</ul></li>')
-    if not m["sick"] and not m["broken"]:
-        items.append("<li>No sick calls and no breakdowns on this day.</li>")
+    rolled = sum(not x["to"] for x in m["moved"])
+    take = (f'{plan.counted(len(m["sick"]), "sick call").capitalize()} and {plan.counted(len(m["broken"]), "breakdown")} moved '
+            f'{plan.counted(len(m["moved"]), "call")}' + (f', {rolled} of them to tomorrow' if rolled else "") + "."
+            if m["sick"] or m["broken"] else "No sick calls and no breakdowns on this day, so no call moved.")
     up = sum(p == 1 for _, p in m["changed"].values())
     items.append(f'<li>{plan.counted(len(m["changed"]), "call").capitalize()} changed priority on the day'
                  + (f', {up if up else "none"} of them escalated to urgent (&#9650; on the board)' if m["changed"] else "") + ".</li>")
     tip = (f"{SICK_AT} and after\nWhat changed after the plan was made: sick calls at {SICK_AT}, breakdowns during the day and "
            "priority changes. Switch the board to As the day ran to see each call move.")
     return (f'<section class="panel changed-panel" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>{SICK_AT} and '
-            f'after: what changed</h3><ul class="morning">{"".join(items)}</ul></section>')
+            f'after: what changed</h3><p class="take">{take}</p><ul class="morning">{"".join(items)}</ul></section>')
 
 
 def day_line(d, added, shown):
@@ -1137,11 +1147,12 @@ def day_proof(d, shown):
     tip = (f"{day_name(d['day'])}, against the current rules\nBoth replays of this day run on Claude's codes, with the same sick "
            "calls, breakdowns and calls added on the day.")
     return (f'<section class="panel day-proof" data-day="{d["day"]}"{"" if shown else " hidden"}><h3{tipattr(tip)}>'
-            f'{e(day_name(d["day"]))}, against the current rules</h3><p class="sub">Both on Claude\'s codes, with the same surprises.</p>'
+            f'{e(day_name(d["day"]))}, against the current rules</h3>'
+            f'<p class="take">On this invented day the plan expects {fewer(saved)}.</p>'
+            f'<p class="sub">Both on Claude\'s codes, with the same surprises.</p>'
             f'<div class="scroll"><table class="cmp"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
-            f'<p class="do"><strong>What it means:</strong> on this invented day the plan expects {fewer(saved)}. '
-            f'That is how the method does on invented data, not a result: the same comparison on real history is the first '
-            f'thing to run.</p></section>')
+            f'<p class="do"><strong>What it means:</strong> this is how the method does on invented data, not a result. '
+            f'The same comparison on real history is the first thing to run.</p></section>')
 
 
 def tech_card(tech, ctx, shown):
@@ -1656,7 +1667,9 @@ def build_report(results, week, stamp_text, day):
                      "problem add.")] if held else []),
     ]
     adopt = ('<section class="panel"><h2' + tipattr("How a fleet would adopt it\nThe order I would run it in on real history, "
-             "each step with the result that decides the next.") + '>How a fleet would adopt it</h2><ol class="steps">'
+             "each step with the result that decides the next.") + '>How a fleet would adopt it</h2>'
+             '<p class="take">In three steps, each deciding the next: a back-test on its own history, a pilot in one '
+             'region, then a rollout region by region.</p><ol class="steps">'
              '<li><strong>Back-test on its own history.</strong> The same replay on real calls, parts and technicians, before '
              'any truck changes. If the gains vanish there, it stops here.</li>'
              '<li><strong>Pilot one region.</strong> Load and dispatch one region by this plan for six weeks against a matched '
@@ -1722,12 +1735,15 @@ def build_report(results, week, stamp_text, day):
     evidence_tip = (f"The evidence\n{len(proof)} cards over all {world.TEST_DAYS} held-back days. Each opens with its finding, "
                     "then its chart, the table the chart is drawn from, and its control.")
     evidence = (f'<section class="evidence-head" id="evidence"><h2{tipattr(evidence_tip)}>The evidence</h2>'
-                f'<p class="sub">{len(proof)} cards over all {world.TEST_DAYS} held-back days, on the call-taker\'s booked codes, '
-                f'so they measure the planning apart from the reading. Each opens with its finding, then its chart, the table '
-                f'the chart is drawn from, its control and a link to how it is worked out.</p></section><div class="evidence">{"".join(proof)}</div>')
+                f'<p class="take">{len(proof)} cards over all {world.TEST_DAYS} held-back days, on the call-taker\'s booked codes, '
+                f'so they measure the planning apart from the reading.</p><p class="sub">Each opens with its finding, then '
+                f'its chart, the table the chart is drawn from, its control and a link to how it is worked out.</p></section>'
+                f'<div class="evidence">{"".join(proof)}</div>')
     out = ' target="_blank" rel="noopener"'
     run_tip = "Run it yourself\nThe two commands that rebuild and check everything on this page, and where the code is kept."
     run = (f'<section class="panel" id="run"><h2{tipattr(run_tip)}>Run it yourself</h2>'
+           f'<p class="take">Two commands rebuild and check everything on this page: <code>python run.py</code>, then '
+           f'<code>python check.py</code>.</p>'
            f'<p>Staple needs Python {PYTHON[0]}.{PYTHON[1]} or newer and installs nothing. <code>python run.py</code> invents the '
            f'history and builds every figure and page here. <code>python check.py</code> then checks them, and plants faults to '
            f'prove its checks can fail. The code is at <a href="{REPO}"{out}>{REPO.split("//")[1]}</a>, and the '
@@ -1985,9 +2001,21 @@ def build_languages(stamp_text, day):
                  fill_in("languages.html", v), stamp_text, day)
 
 
+def build_explain(results, home, stamp_text, day):
+    """The overview: what Staple is for, what matters about it and what it does. Its figures come from the code, the
+    scorecard query and the report page it describes, so none is typed in."""
+    v = facts()
+    v["measures"] = Raw(str(len(rows(results, "scorecard"))))     # scorecard() stops the build unless Staple leads on each
+    v["cards"] = Raw(str(len(re.findall(r'<section class="card" id="proof-', home))))
+    seconds = EXPLAIN_WORDS * 60 // SPOKEN_A_MINUTE
+    return shell("explain", "Staple overview", f"What Staple is for, what matters about it and what it does, in about {seconds} seconds.",
+                 fill_in("explain.html", v), stamp_text, day)
+
+
 def build(results, week, stamp_text, day):
     manual, method = build_manuals(stamp_text, day)
-    return {"report": build_report(results, week, stamp_text, day), "manual": manual, "method": method,
+    home = build_report(results, week, stamp_text, day)
+    return {"report": home, "explain": build_explain(results, home, stamp_text, day), "manual": manual, "method": method,
             "languages": build_languages(stamp_text, day)}
 
 

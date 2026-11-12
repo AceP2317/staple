@@ -3,7 +3,7 @@
 Plans a repair fleet's next day: which technician takes each call, what each truck carries, and what people
 do before 08:00.
 
-**[Open the live report](https://acep2317.github.io/staple/)** · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods page](https://acep2317.github.io/staple/method.html)
+**[Open the live report](https://acep2317.github.io/staple/)** · [Overview](https://acep2317.github.io/staple/explain.html) · [Instruction manual](https://acep2317.github.io/staple/manual.html) · [Methods page](https://acep2317.github.io/staple/method.html)
 
 [![The automatic check on the latest push](https://github.com/AceP2317/staple/actions/workflows/check.yml/badge.svg)](https://github.com/AceP2317/staple/actions/workflows/check.yml)
 
@@ -71,13 +71,13 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 16 SQL files hold the tables and the 15 metric queries; 2 JavaScript files run the hints and switches. Beside them, 7 Bash scripts run the checks before each commit, and 3 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 16 SQL files hold the tables and the 15 metric queries; 2 JavaScript files run the hints and switches. Beside them, 8 Bash scripts run the checks before each commit, and 4 HTML files and 1 CSS file lay out the pages.
 
 Python 3.10 or newer is the only requirement, and nothing is installed. It is tested on Python 3.10, 3.12 and 3.14.
 After every push, GitHub runs the same commands on Linux and on Windows, on each of those versions.
 
 ```
-python run.py            # the made-up world, every result, the metric tables and the four pages, into out/
+python run.py            # the made-up world, every result, the metric tables and the five pages, into out/
 python check.py          # every check, each with a control that proves it can fail
 python check.py first-run  # the same two commands in an empty folder, with no home folder, key or web
 python run.py --live     # the AI step asked afresh, with your own ANTHROPIC_API_KEY
