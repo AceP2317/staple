@@ -71,7 +71,7 @@ takes each call. When the stock lives on the trucks, those are one decision, so 
 
 ## Run it
 
-Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 16 SQL files hold the tables and the 15 metric queries; 2 JavaScript files run the hints and switches. Beside them, 8 Bash scripts run the checks before each commit, and 4 HTML files and 1 CSS file lay out the pages.
+Written in Python, SQL and JavaScript: 17 Python files invent the history, predict parts, load trucks, ask Claude, replay dispatch, write the pages and check it all; 16 SQL files hold the tables and the 15 metric queries; 2 JavaScript files run the hints and switches. Beside them, 9 Bash scripts run the checks before each commit, and 4 HTML files and 1 CSS file lay out the pages.
 
 Python 3.10 or newer is the only requirement, and nothing is installed. It is tested on Python 3.10, 3.12 and 3.14.
 After every push, GitHub runs the same commands on Linux and on Windows, on each of those versions.

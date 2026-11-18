@@ -269,6 +269,11 @@ dispatch replay's own record of the most recent week, so every route and load on
   a hint open and the next tap must close it, with or without the browser moving focus. It runs a browser script the author
   keeps outside this repository, so it runs only on the author's machine and fails anywhere else, saying
   that nothing was checked.
+- `scripts/guards/fast/a-stamp-drifts-from-the-shared-stamp.sh` holds the build stamp this repository reads
+  from git to the stamp the author's other builds share. On every commit it builds a scratch history where
+  the two must agree, and compares the build number, the day, the short code and the mark for unsaved work.
+  The shared stamp script lives outside this repository, so the guard runs only on the author's machine and
+  fails anywhere else, saying that nothing was checked.
 - `scripts/guards/fast/first-screen-fits-a-laptop.sh` opens the published report in Chrome before each commit
   that changes it, in a frame the size a small laptop leaves for a page and again at a phone's width. The
   one-sentence summary and the whole scorecard must sit inside the laptop's first screen, nothing may run off
